@@ -1,0 +1,9 @@
+@echo off
+echo Stopping old process on port 9090...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr "LISTENING" ^| findstr :9090') do taskkill /PID %%a /F
+
+echo Starting Spring Boot app...
+mvn spring-boot:run
+
+echo App stopped. Cleaning port 9090 again...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr "LISTENING" ^| findstr :9090') do taskkill /PID %%a /F

@@ -1,0 +1,1 @@
+private Integer roleId;

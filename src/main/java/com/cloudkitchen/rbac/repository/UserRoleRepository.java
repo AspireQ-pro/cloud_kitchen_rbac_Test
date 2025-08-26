@@ -1,0 +1,13 @@
+package com.cloudkitchen.rbac.repository;
+
+import com.cloudkitchen.rbac.domain.entity.UserRole;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import java.util.List;
+
+public interface UserRoleRepository extends JpaRepository<UserRole, Integer> {
+    @Query("SELECT ur.role.roleName FROM UserRole ur " +
+           "WHERE ur.user.userId = :userId AND " +
+           "((:merchantId IS NULL AND ur.merchant IS NULL) OR ur.merchant.merchantId = :merchantId)")
+    List<String> findRoleNames(Integer userId, Integer merchantId);
+}
