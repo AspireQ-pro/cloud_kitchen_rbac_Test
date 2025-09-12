@@ -9,7 +9,7 @@ public class Merchant {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "merchant_id")
-    private Integer merchantId;
+    private Long merchantId;
 
     @Column(name = "merchant_name", length = 255, nullable = false, unique = true)
     private String merchantName;
@@ -72,8 +72,8 @@ public class Merchant {
     private LocalDateTime updatedOn;
 
     // Getters and Setters
-    public Integer getMerchantId() { return merchantId; }
-    public void setMerchantId(Integer merchantId) { this.merchantId = merchantId; }
+    public Long getMerchantId() { return merchantId; }
+    public void setMerchantId(Long merchantId) { this.merchantId = merchantId; }
 
     public String getMerchantName() { return merchantName; }
     public void setMerchantName(String merchantName) { this.merchantName = merchantName; }
@@ -114,7 +114,6 @@ public class Merchant {
     public String getFssaiLicense() { return fssaiLicense; }
     public void setFssaiLicense(String fssaiLicense) { this.fssaiLicense = fssaiLicense; }
 
-    public Boolean getActive() { return active; }
     public void setActive(Boolean active) { this.active = active; }
     
     public Boolean isActive() { return active; }

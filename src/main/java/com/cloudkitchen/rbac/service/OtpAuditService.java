@@ -19,16 +19,16 @@ public class OtpAuditService {
     public void logOtp(Integer merchantId, String phone, String otpCode, LocalDateTime expiresAt) {
         try {
             String sql = """
-                INSERT INTO otp_logs (merchant_id, phone, otp_code, otp_type, status, 
-                                    ip_address, user_agent, attempts_count, expires_at) 
+                INSERT INTO otp_logs (merchant_id, phone, otp_code, otp_type, status,
+                                    ip_address, user_agent, attempts_count, expires_at)
                 VALUES (?, ?, ?, 'login', 'sent', '127.0.0.1'::inet, 'API-Request', 0, ?)
                 """;
-            
+
             jdbcTemplate.update(sql, merchantId, phone, otpCode, expiresAt);
             logger.info("OTP audit log created successfully");
-            
+
         } catch (Exception e) {
-            logger.error("OTP audit logging failed: {}", e.getMessage());
+            logger.error("OTP audit logging failed", e);
         }
     }
     
@@ -45,8 +45,7 @@ public class OtpAuditService {
                 logger.info("OTP marked as verified. Rows updated: {}", updated);
             }
         } catch (Exception e) {
-            logger.error("Failed to update OTP verification: {}", e.getMessage());
-            e.printStackTrace();
+            logger.error("Failed to update OTP verification", e);
         }
     }
     
@@ -63,8 +62,7 @@ public class OtpAuditService {
                 logger.info("OTP attempt count updated to {}. Rows updated: {}", attemptCount, updated);
             }
         } catch (Exception e) {
-            logger.error("Failed to update OTP failure: {}", e.getMessage());
-            e.printStackTrace();
+            logger.error("Failed to update OTP failure", e);
         }
     }
 }

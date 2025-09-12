@@ -100,30 +100,38 @@ CREATE INDEX IF NOT EXISTS idx_otp_logs_phone_purpose ON otp_logs(phone, purpose
 CREATE INDEX IF NOT EXISTS idx_otp_logs_expires ON otp_logs(expires_at);
 
 -- Insert default roles
-INSERT INTO roles (name, description, is_system_role) VALUES
-('super_admin', 'System Super Administrator', true),
-('merchant_admin', 'Merchant Administrator', false),
-('merchant_staff', 'Merchant Staff Member', false),
-('customer', 'Customer User', false)
-ON CONFLICT (name) DO NOTHING;
+INSERT INTO roles (role_name, description, is_system_role, created_by) VALUES
+('super_admin', 'Super Administrator with full system access', true, 1),
+('merchant_admin', 'Merchant Administrator with full merchant access', true, 1),
+('merchant_manager', 'Merchant Manager with limited admin access', true, 1),
+('merchant_staff', 'Merchant Staff with operational access', true, 1),
+('customer', 'Customer with order and profile access', true, 1)
+ON CONFLICT (role_name) DO NOTHING;
 
 -- Insert default permissions
-INSERT INTO permissions (resource, action, description) VALUES
-('user', 'create', 'Create new users'),
-('user', 'read', 'View user information'),
-('user', 'update', 'Update user information'),
-('user', 'delete', 'Delete users'),
-('merchant', 'create', 'Create new merchants'),
-('merchant', 'read', 'View merchant information'),
-('merchant', 'update', 'Update merchant information'),
-('merchant', 'delete', 'Delete merchants'),
-('role', 'create', 'Create new roles'),
-('role', 'read', 'View roles'),
-('role', 'update', 'Update roles'),
-('role', 'delete', 'Delete roles'),
-('permission', 'read', 'View permissions'),
-('order', 'create', 'Create orders'),
-('order', 'read', 'View orders'),
-('order', 'update', 'Update orders'),
-('order', 'delete', 'Cancel orders')
-ON CONFLICT (resource, action) DO NOTHING;
+INSERT INTO permissions (permission_name, resource, action, description, created_by) VALUES
+('users.create', 'users', 'create', 'Create new users', 1),
+('users.read', 'users', 'read', 'View user details', 1),
+('users.update', 'users', 'update', 'Update user information', 1),
+('users.delete', 'users', 'delete', 'Delete users', 1),
+('merchants.create', 'merchants', 'create', 'Create new merchants', 1),
+('merchants.read', 'merchants', 'read', 'View merchant details', 1),
+('merchants.update', 'merchants', 'update', 'Update merchant information', 1),
+('merchants.delete', 'merchants', 'delete', 'Delete merchants', 1),
+('roles.create', 'roles', 'create', 'Create new roles', 1),
+('roles.read', 'roles', 'read', 'View roles', 1),
+('roles.update', 'roles', 'update', 'Update roles', 1),
+('roles.delete', 'roles', 'delete', 'Delete roles', 1),
+('roles.assign', 'roles', 'assign', 'Assign roles to users', 1),
+('orders.create', 'orders', 'create', 'Create new orders', 1),
+('orders.read', 'orders', 'read', 'View orders', 1),
+('orders.update', 'orders', 'update', 'Update order status', 1),
+('orders.delete', 'orders', 'delete', 'Cancel/delete orders', 1),
+('products.create', 'products', 'create', 'Create new products', 1),
+('products.read', 'products', 'read', 'View products', 1),
+('products.update', 'products', 'update', 'Update product information', 1),
+('products.delete', 'products', 'delete', 'Delete products', 1),
+('payments.read', 'payments', 'read', 'View payment information', 1),
+('payments.process', 'payments', 'process', 'Process payments', 1),
+('payments.refund', 'payments', 'refund', 'Process refunds', 1)
+ON CONFLICT (permission_name) DO NOTHING;

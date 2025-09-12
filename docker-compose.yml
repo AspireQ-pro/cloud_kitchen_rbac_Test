@@ -5,9 +5,9 @@ services:
     image: postgres:15-alpine
     container_name: rbac-postgres
     environment:
-      POSTGRES_DB: cloud_kitchen_rbac
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: aspire123
+      POSTGRES_DB: ${POSTGRES_DB:-cloud_kitchen_rbac}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aspire123}
     ports:
       - "5432:5432"
     volumes:
@@ -22,12 +22,10 @@ services:
   rbac-service:
     build: .
     container_name: rbac-service
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/cloud_kitchen_rbac
-      DB_USERNAME: postgres
-      DB_PASSWORD: aspire123
-      JWT_SECRET: q2M7w1SiV5XDAXEmVqg9gZWCXfF50l11FqJR2aSC1a8=
-      PORT: 8081
+      SPRING_PROFILES_ACTIVE: qa
     ports:
       - "8081:8081"
     depends_on:

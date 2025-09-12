@@ -11,9 +11,9 @@ public class HomeController {
 
     @GetMapping("/")
     public Map<String, String> home() {
-        Map<String, String> response = new HashMap<>();
-        response.put("message", "✅ Cloud Kitchen RBAC Service is running!");
-        response.put("swaggerDocs", "http://localhost:8080/swagger-ui/index.html");
-        return response;
+        return Map.of(
+            "message", "✅ Cloud Kitchen RBAC Service is running!",
+            "swaggerDocs", "/swagger-ui/index.html"
+        );
     }
 }

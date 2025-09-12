@@ -166,7 +166,8 @@ public class AuthServiceImpl implements AuthService {
             smsService.sendOtp(u.getPhone(), code);
             
             // Audit logging
-            Integer merchantId = u.getMerchant() != null ? u.getMerchant().getMerchantId() : null;
+            Long merchantIdLong = u.getMerchant() != null ? u.getMerchant().getMerchantId() : null;
+            Integer merchantId = merchantIdLong != null ? Math.toIntExact(merchantIdLong) : null;
             otpAuditService.logOtp(merchantId, u.getPhone(), code, u.getOtpExpiresAt());
             
         } catch (Exception e) {
@@ -235,7 +236,9 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("Invalid credentials");
         }
         
-        return buildTokens(merchantUser, merchant.getMerchantId());
+        Long merchantIdLong = merchant.getMerchantId();
+        Integer merchantIdInt = merchantIdLong != null ? Math.toIntExact(merchantIdLong) : null;
+        return buildTokens(merchantUser, merchantIdInt);
     }
 
     private User loadByPhoneAndMerchant(String phone, Integer merchantId) {
@@ -245,8 +248,11 @@ public class AuthServiceImpl implements AuthService {
 
     private AuthResponse buildTokens(User u, Integer merchantId) {
         // Use user's actual merchant ID if not provided
-        Integer actualMerchantId = merchantId != null ? merchantId : 
-                (u.getMerchant() != null ? u.getMerchant().getMerchantId() : null);
+        Integer actualMerchantId = merchantId;
+        if (actualMerchantId == null && u.getMerchant() != null) {
+            Long merchantIdLong = u.getMerchant().getMerchantId();
+            actualMerchantId = merchantIdLong != null ? Math.toIntExact(merchantIdLong) : null;
+        }
         
         List<String> roleNames = userRoles.findRoleNames(u.getUserId(), actualMerchantId);
         List<String> permissions = List.of(); // Empty permissions for now
