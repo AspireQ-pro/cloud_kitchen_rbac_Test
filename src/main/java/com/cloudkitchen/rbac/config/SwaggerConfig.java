@@ -2,6 +2,8 @@ package com.cloudkitchen.rbac.config;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,6 +16,13 @@ public class SwaggerConfig {
                 .info(new Info()
                         .title("Cloud Kitchen RBAC API")
                         .version("1.0.0")
-                        .description("Role-Based Access Control API for Cloud Kitchen"));
+                        .description("Role-Based Access Control Service for Cloud Kitchen"))
+                .addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"))
+                .components(new io.swagger.v3.oas.models.Components()
+                        .addSecuritySchemes("Bearer Authentication",
+                                new SecurityScheme()
+                                        .type(SecurityScheme.Type.HTTP)
+                                        .scheme("bearer")
+                                        .bearerFormat("JWT")));
     }
 }

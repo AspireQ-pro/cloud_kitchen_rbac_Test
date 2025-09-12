@@ -10,7 +10,7 @@ public class OtpServiceImpl implements OtpService {
 
     @Override
     public String generateOtp() {
-        int n = RND.nextInt(1000000);
-        return String.format("%06d", n);
+        int n = RND.nextInt(10000);
+        return String.format("%04d", n);
     }
 }

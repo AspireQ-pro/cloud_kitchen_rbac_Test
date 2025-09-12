@@ -24,18 +24,29 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        // Skip initialization if data already exists
+        if (roleRepository.count() > 0) {
+            return;
+        }
+        
         initializeRoles();
         initializePermissions();
         assignPermissions();
     }
 
+
+
     private void initializeRoles() {
         if (roleRepository.count() == 0) {
+            // Create roles that match schema exactly
             roleRepository.save(createRole("super_admin", "Super Administrator with full system access", true));
             roleRepository.save(createRole("merchant_admin", "Merchant Administrator with full merchant access", true));
             roleRepository.save(createRole("merchant_manager", "Merchant Manager with limited admin access", true));
             roleRepository.save(createRole("merchant_staff", "Merchant Staff with operational access", true));
             roleRepository.save(createRole("customer", "Customer with order and profile access", true));
+            
+            // Note: Users can only have user_type of 'super_admin', 'merchant', 'customer'
+            // But roles table can have more granular roles for permission mapping
         }
     }
 
@@ -59,14 +70,33 @@ public class DataInitializer implements CommandLineRunner {
             permissionRepository.save(createPermission("roles.update", "roles", "update", "Update roles"));
             permissionRepository.save(createPermission("roles.delete", "roles", "delete", "Delete roles"));
             permissionRepository.save(createPermission("roles.assign", "roles", "assign", "Assign roles to users"));
+            
+            // Order management (for future integration)
+            permissionRepository.save(createPermission("orders.create", "orders", "create", "Create new orders"));
+            permissionRepository.save(createPermission("orders.read", "orders", "read", "View orders"));
+            permissionRepository.save(createPermission("orders.update", "orders", "update", "Update order status"));
+            permissionRepository.save(createPermission("orders.delete", "orders", "delete", "Cancel/delete orders"));
+            
+            // Product management (for future integration)
+            permissionRepository.save(createPermission("products.create", "products", "create", "Create new products"));
+            permissionRepository.save(createPermission("products.read", "products", "read", "View products"));
+            permissionRepository.save(createPermission("products.update", "products", "update", "Update product information"));
+            permissionRepository.save(createPermission("products.delete", "products", "delete", "Delete products"));
+            
+            // Payment management (for future integration)
+            permissionRepository.save(createPermission("payments.read", "payments", "read", "View payment information"));
+            permissionRepository.save(createPermission("payments.process", "payments", "process", "Process payments"));
+            permissionRepository.save(createPermission("payments.refund", "payments", "refund", "Process refunds"));
         }
     }
 
     private void assignPermissions() {
         if (rolePermissionRepository.count() == 0) {
             Role superAdmin = roleRepository.findByRoleName("super_admin").orElse(null);
+            Role merchantAdmin = roleRepository.findByRoleName("merchant_admin").orElse(null);
             Role customer = roleRepository.findByRoleName("customer").orElse(null);
             
+            // Assign all permissions to super_admin
             if (superAdmin != null) {
                 permissionRepository.findAll().forEach(permission -> {
                     RolePermission rp = new RolePermission();
@@ -77,14 +107,32 @@ public class DataInitializer implements CommandLineRunner {
                 });
             }
             
+            // Assign merchant permissions to merchant_admin (exclude merchant creation/deletion)
+            if (merchantAdmin != null) {
+                permissionRepository.findAll().forEach(permission -> {
+                    if (!permission.getPermissionName().equals("merchants.create") && 
+                        !permission.getPermissionName().equals("merchants.delete")) {
+                        RolePermission rp = new RolePermission();
+                        rp.setRole(merchantAdmin);
+                        rp.setPermission(permission);
+                        rp.setCreatedBy(1);
+                        rolePermissionRepository.save(rp);
+                    }
+                });
+            }
+            
+            // Assign limited permissions to customer
             if (customer != null) {
-                Permission usersUpdate = permissionRepository.findByPermissionName("users.update").orElse(null);
-                if (usersUpdate != null) {
-                    RolePermission rp = new RolePermission();
-                    rp.setRole(customer);
-                    rp.setPermission(usersUpdate);
-                    rp.setCreatedBy(1);
-                    rolePermissionRepository.save(rp);
+                String[] customerPermissions = {"orders.create", "orders.read", "products.read", "users.update"};
+                for (String permName : customerPermissions) {
+                    Permission perm = permissionRepository.findByPermissionName(permName).orElse(null);
+                    if (perm != null) {
+                        RolePermission rp = new RolePermission();
+                        rp.setRole(customer);
+                        rp.setPermission(perm);
+                        rp.setCreatedBy(1);
+                        rolePermissionRepository.save(rp);
+                    }
                 }
             }
         }

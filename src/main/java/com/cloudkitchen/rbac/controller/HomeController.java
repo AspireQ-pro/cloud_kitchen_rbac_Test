@@ -13,7 +13,7 @@ public class HomeController {
     public Map<String, String> home() {
         Map<String, String> response = new HashMap<>();
         response.put("message", "✅ Cloud Kitchen RBAC Service is running!");
-        response.put("swaggerDocs", "http://localhost:9090/swagger-ui/index.html");
+        response.put("swaggerDocs", "http://localhost:8080/swagger-ui/index.html");
         return response;
     }
 }

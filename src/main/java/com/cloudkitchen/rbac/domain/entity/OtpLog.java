@@ -2,12 +2,17 @@ package com.cloudkitchen.rbac.domain.entity;
 
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
 
-@Getter
 @Entity
-@Table(name = "otp_logs")
+@Table(name = "otp_logs",
+    indexes = {
+        @Index(name = "idx_otp_logs_merchant_id", columnList = "merchant_id"),
+        @Index(name = "idx_otp_logs_phone", columnList = "phone"),
+        @Index(name = "idx_otp_logs_phone_status", columnList = "phone, status"),
+        @Index(name = "idx_otp_logs_expires_at", columnList = "expires_at"),
+        @Index(name = "idx_otp_logs_merchant_phone", columnList = "merchant_id, phone")
+    }
+)
 public class OtpLog {
 
     public enum OtpType {
@@ -27,10 +32,10 @@ public class OtpLog {
     @JoinColumn(name = "merchant_id")
     private Merchant merchant;
 
-    @Column(name = "phone", nullable = false)
+    @Column(name = "phone", length = 20, nullable = false)
     private String phone;
 
-    @Column(name = "otp_code", nullable = false, length = 6)
+    @Column(name = "otp_code", nullable = false, length = 4)
     private String otpCode;
 
     @Enumerated(EnumType.STRING)
@@ -41,10 +46,11 @@ public class OtpLog {
     @Column(name = "status", nullable = false, length = 20)
     private OtpStatus status = OtpStatus.SENT;
 
-    @Column(name = "ip_address", length = 45)
+    @Column(name = "ip_address")
+    @org.hibernate.annotations.JdbcTypeCode(java.sql.Types.OTHER)
     private String ipAddress;
 
-    @Column(name = "user_agent")
+    @Column(name = "user_agent", columnDefinition = "TEXT")
     private String userAgent;
 
     @Column(name = "attempts_count", nullable = false)
@@ -55,12 +61,22 @@ public class OtpLog {
 
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
-
-    @Column(name = "created_on", insertable = false, updatable = false,
-            columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    
+    @Column(name = "created_on", updatable = false, insertable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime createdOn;
 
-    // Setters
+    // Getters and Setters
+    public Integer getOtpLogId() { return otpLogId; }
+    public Merchant getMerchant() { return merchant; }
+    public String getPhone() { return phone; }
+    public String getOtpCode() { return otpCode; }
+    public OtpType getOtpType() { return otpType; }
+    public OtpStatus getStatus() { return status; }
+    public String getIpAddress() { return ipAddress; }
+    public String getUserAgent() { return userAgent; }
+    public Integer getAttemptsCount() { return attemptsCount; }
+    public LocalDateTime getVerifiedAt() { return verifiedAt; }
+    public LocalDateTime getExpiresAt() { return expiresAt; }
     public void setOtpLogId(Integer otpLogId) { this.otpLogId = otpLogId; }
     public void setMerchant(Merchant merchant) { this.merchant = merchant; }
     public void setPhone(String phone) { this.phone = phone; }
@@ -72,5 +88,7 @@ public class OtpLog {
     public void setAttemptsCount(Integer attemptsCount) { this.attemptsCount = attemptsCount; }
     public void setVerifiedAt(LocalDateTime verifiedAt) { this.verifiedAt = verifiedAt; }
     public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+    
+    public LocalDateTime getCreatedOn() { return createdOn; }
     public void setCreatedOn(LocalDateTime createdOn) { this.createdOn = createdOn; }
 }

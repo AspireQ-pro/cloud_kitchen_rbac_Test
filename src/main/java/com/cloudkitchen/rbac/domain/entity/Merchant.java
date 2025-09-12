@@ -11,10 +11,10 @@ public class Merchant {
     @Column(name = "merchant_id")
     private Integer merchantId;
 
-    @Column(name = "merchant_name", nullable = false, unique = true)
+    @Column(name = "merchant_name", length = 255, nullable = false, unique = true)
     private String merchantName;
 
-    @Column(name = "business_name")
+    @Column(name = "business_name", length = 255, nullable = false)
     private String businessName;
 
     @Column(name = "business_type", length = 100)
@@ -26,7 +26,7 @@ public class Merchant {
     @Column(name = "phone", length = 20)
     private String phone;
 
-    @Column(name = "email", unique = true)
+    @Column(name = "email", length = 255, unique = true)
     private String email;
 
     @Column(name = "address", columnDefinition = "TEXT")
@@ -116,6 +116,8 @@ public class Merchant {
 
     public Boolean getActive() { return active; }
     public void setActive(Boolean active) { this.active = active; }
+    
+    public Boolean isActive() { return active; }
 
     public String getSubscriptionPlan() { return subscriptionPlan; }
     public void setSubscriptionPlan(String subscriptionPlan) { this.subscriptionPlan = subscriptionPlan; }

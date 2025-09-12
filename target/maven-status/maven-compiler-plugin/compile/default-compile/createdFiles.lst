@@ -1,8 +1,10 @@
+com\cloudkitchen\rbac\dto\auth\MerchantLoginRequest.class
 com\cloudkitchen\rbac\service\impl\OtpServiceImpl.class
 com\cloudkitchen\rbac\domain\entity\Role.class
 com\cloudkitchen\rbac\repository\OtpLogRepository.class
 com\cloudkitchen\rbac\service\impl\AuthServiceImpl.class
 com\cloudkitchen\rbac\domain\entity\Permission.class
+com\cloudkitchen\rbac\service\OtpAuditService.class
 com\cloudkitchen\rbac\domain\entity\OtpLog$OtpType.class
 com\cloudkitchen\rbac\dto\auth\OtpRequest.class
 com\cloudkitchen\rbac\domain\entity\Merchant.class
@@ -33,6 +35,7 @@ com\cloudkitchen\rbac\domain\entity\RolePermission.class
 com\cloudkitchen\rbac\service\UserService.class
 com\cloudkitchen\rbac\dto\auth\AuthResponse.class
 com\cloudkitchen\rbac\repository\UserRepository.class
+com\cloudkitchen\rbac\service\SmsService.class
 com\cloudkitchen\rbac\domain\entity\User.class
 com\cloudkitchen\rbac\dto\auth\RegisterRequest.class
 com\cloudkitchen\rbac\RbacServiceApplication.class

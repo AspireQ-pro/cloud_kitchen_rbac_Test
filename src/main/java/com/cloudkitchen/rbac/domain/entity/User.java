@@ -1,17 +1,24 @@
 package com.cloudkitchen.rbac.domain.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Check;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users",
     indexes = {
-        @Index(name = "idx_users_merchant_phone", columnList = "merchant_id, phone"),
-        @Index(name = "idx_users_merchant_email", columnList = "merchant_id, email"),
+        @Index(name = "idx_users_merchant_id", columnList = "merchant_id"),
         @Index(name = "idx_users_phone", columnList = "phone"),
         @Index(name = "idx_users_email", columnList = "email"),
-        @Index(name = "idx_users_active", columnList = "is_active")
+        @Index(name = "idx_users_username", columnList = "username"),
+        @Index(name = "idx_users_active", columnList = "is_active"),
+        @Index(name = "idx_users_merchant_phone", columnList = "merchant_id, phone"),
+        @Index(name = "idx_users_merchant_email", columnList = "merchant_id, email"),
+        @Index(name = "idx_users_user_type", columnList = "user_type"),
+        @Index(name = "idx_users_is_guest", columnList = "is_guest"),
+        @Index(name = "idx_users_otp_expires", columnList = "otp_expires_at"),
+        @Index(name = "idx_users_phone_verified", columnList = "phone_verified")
     }
 )
 public class User {
@@ -46,15 +53,26 @@ public class User {
     private LocalDate dateOfBirth;
 
     @Column(name = "gender", length = 10)
+    @Check(constraints = "gender IN ('male', 'female', 'other')")
     private String gender;
 
     @Column(name = "address", columnDefinition = "TEXT")
     private String address;
+    
+    @Column(name = "city", length = 100)
+    private String city;
+    
+    @Column(name = "state", length = 100)
+    private String state;
+    
+    @Column(name = "pincode", length = 10)
+    private String pincode;
 
     @Column(name = "profile_image_url", length = 500)
     private String profileImageUrl;
 
     @Column(name = "user_type", length = 20)
+    @Check(constraints = "user_type IN ('super_admin', 'merchant', 'customer')")
     private String userType = "customer";
 
     @Column(name = "is_active")
@@ -87,7 +105,7 @@ public class User {
     private LocalDateTime emailVerifiedAt;
 
     // OTP fields
-    @Column(name = "otp_code", length = 6)
+    @Column(name = "otp_code", length = 4)
     private String otpCode;
 
     @Column(name = "otp_expires_at")
@@ -108,6 +126,7 @@ public class User {
 
     // Login preference
     @Column(name = "preferred_login_method", length = 20)
+    @Check(constraints = "preferred_login_method IN ('password', 'otp', 'both')")
     private String preferredLoginMethod = "otp";
 
     @Column(name = "created_by")
@@ -155,6 +174,15 @@ public class User {
 
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
+    
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+    
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
+    
+    public String getPincode() { return pincode; }
+    public void setPincode(String pincode) { this.pincode = pincode; }
 
     public String getProfileImageUrl() { return profileImageUrl; }
     public void setProfileImageUrl(String profileImageUrl) { this.profileImageUrl = profileImageUrl; }
@@ -203,6 +231,9 @@ public class User {
 
     public Boolean getGuest() { return guest; }
     public void setGuest(Boolean guest) { this.guest = guest; }
+    
+    public Boolean getIsGuest() { return guest; }
+    public void setIsGuest(Boolean isGuest) { this.guest = isGuest; }
 
     public LocalDateTime getGuestConvertedAt() { return guestConvertedAt; }
     public void setGuestConvertedAt(LocalDateTime guestConvertedAt) { this.guestConvertedAt = guestConvertedAt; }

@@ -8,4 +8,5 @@ public interface AuthService {
     void requestOtp(OtpRequest req);
     AuthResponse verifyOtp(OtpVerifyRequest req);
     AuthResponse refresh(RefreshTokenRequest req);
+    AuthResponse merchantLogin(MerchantLoginRequest req);
 }

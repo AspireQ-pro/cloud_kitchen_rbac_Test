@@ -1,5 +1,5 @@
 # cloud-kitchen-rbac
-# Main Project Status - All Schema Issues Fixed ✅
+
 
 ## Schema Validation Results
 
@@ -18,7 +18,7 @@
 ✅ role_permissions (with unique constraints)
 ✅ users (with 6-digit OTP, multitenant indexes)
 ✅ user_roles (with multitenant support)
-✅ otp_logs (with 6-digit OTP, VARCHAR IP)
+✅ otp_logs (with 4-digit OTP, VARCHAR IP)
 ```
 
 ### ✅ Key Fixes Applied

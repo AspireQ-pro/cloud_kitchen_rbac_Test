@@ -15,12 +15,15 @@ public class SecurityConfig {
         "/",
         "/api/auth/register",
         "/api/auth/login",
-        "/api/auth/refresh", 
-        "/api/users"         
+        "/api/auth/merchant/login",
+        "/api/auth/otp/request",
+        "/api/auth/otp/verify",
+        "/api/auth/refresh"
     };
 
     // ✅ Swagger endpoints (accessible without authentication)
     private static final String[] SWAGGER_WHITELIST = {
+            "/swagger-ui.html",
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/swagger-resources/**",
@@ -35,6 +38,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers(AUTH_WHITELIST).permitAll()   // ✅ replaced antMatchers
                         .requestMatchers(SWAGGER_WHITELIST).permitAll() // ✅ replaced antMatchers
+                        .requestMatchers("/api/auth/**").permitAll()    // ✅ Allow all auth endpoints
                         .anyRequest().authenticated() // everything else needs login
                 )
                 .addFilterBefore(jwtAuthenticationFilter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class);

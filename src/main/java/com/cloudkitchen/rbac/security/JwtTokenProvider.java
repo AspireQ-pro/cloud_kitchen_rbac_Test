@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.List;
@@ -27,11 +28,11 @@ public class JwtTokenProvider {
     @PostConstruct
     public void init() {
         // ✅ create signing key from Base64 secret
-        this.key = Keys.hmacShaKeyFor(secret.getBytes());
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     // --- Create Access Token ---
-    public String createAccessToken(Integer userId, Integer merchantId, List<String> roles) {
+    public String createAccessToken(Integer userId, Integer merchantId, List<String> roles, List<String> permissions) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + accessTokenValiditySeconds * 1000);
 
@@ -39,6 +40,7 @@ public class JwtTokenProvider {
                 .setSubject(String.valueOf(userId))
                 .claim("merchantId", merchantId)
                 .claim("roles", roles)
+                .claim("permissions", permissions)
                 .setIssuedAt(now)
                 .setExpiration(expiry)
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -71,10 +73,15 @@ public class JwtTokenProvider {
     // --- Validate Token (optional) ---
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
+            parse(token);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
+    }
+    
+    public Integer getUserIdFromToken(String token) {
+        Claims claims = parse(token);
+        return Integer.valueOf(claims.getSubject());
     }
 }

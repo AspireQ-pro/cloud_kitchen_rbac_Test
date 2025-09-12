@@ -4,20 +4,26 @@ import io.jsonwebtoken.Claims;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.List;
 import java.util.Collections;
+import java.util.stream.Collectors;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
     private final JwtTokenProvider jwtTokenProvider;
 
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
@@ -36,20 +42,36 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             try {
                 Claims claims = jwtTokenProvider.parse(token);
-                String username = claims.getSubject();
+                String userId = claims.getSubject();
+                
+                // Extract permissions for authorities
+                List<String> permissions = extractStringList(claims, "permissions");
+                
+                List<SimpleGrantedAuthority> authorities = permissions != null ? 
+                    permissions.stream().map(SimpleGrantedAuthority::new).collect(Collectors.toList()) :
+                    Collections.emptyList();
 
-                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     UsernamePasswordAuthenticationToken auth =
                             new UsernamePasswordAuthenticationToken(
-                                    username, null, Collections.emptyList());
+                                    userId, null, authorities);
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
             } catch (Exception e) {
-                System.out.println("JWT Authentication failed: " + e.getMessage());
+                logger.warn("JWT Authentication failed: {}", e.getMessage());
             }
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> extractStringList(Claims claims, String key) {
+        Object value = claims.get(key);
+        if (value instanceof List<?>) {
+            return (List<String>) value;
+        }
+        return Collections.emptyList();
     }
 }

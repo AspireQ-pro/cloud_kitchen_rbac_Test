@@ -39,4 +39,11 @@ public class AuthController {
     public ResponseEntity<AuthResponse> refresh(@RequestBody RefreshTokenRequest req) {
         return ResponseEntity.ok(auth.refresh(req));
     }
+    
+    @PostMapping("/merchant/login")
+    public ResponseEntity<AuthResponse> merchantLogin(@RequestBody MerchantLoginRequest req) {
+        return ResponseEntity.ok(auth.merchantLogin(req));
+    }
+
+
 }

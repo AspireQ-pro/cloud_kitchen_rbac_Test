@@ -10,4 +10,8 @@ public interface UserRoleRepository extends JpaRepository<UserRole, Integer> {
            "WHERE ur.user.userId = :userId AND " +
            "((:merchantId IS NULL AND ur.merchant IS NULL) OR ur.merchant.merchantId = :merchantId)")
     List<String> findRoleNames(Integer userId, Integer merchantId);
+    
+    boolean existsByUserAndRoleAndMerchant(com.cloudkitchen.rbac.domain.entity.User user, 
+                                          com.cloudkitchen.rbac.domain.entity.Role role, 
+                                          com.cloudkitchen.rbac.domain.entity.Merchant merchant);
 }

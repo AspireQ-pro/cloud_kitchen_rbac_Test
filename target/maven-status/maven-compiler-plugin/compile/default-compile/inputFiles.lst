@@ -12,6 +12,7 @@ C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\domain\entity\
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\domain\entity\UserRole.java
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\dto\auth\AuthRequest.java
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\dto\auth\AuthResponse.java
+C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\dto\auth\MerchantLoginRequest.java
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\dto\auth\OtpRequest.java
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\dto\auth\OtpVerifyRequest.java
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\dto\auth\RefreshTokenRequest.java
@@ -34,5 +35,7 @@ C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\service\Custom
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\service\impl\AuthServiceImpl.java
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\service\impl\OtpServiceImpl.java
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\service\impl\UserServiceImpl.java
+C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\service\OtpAuditService.java
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\service\OtpService.java
+C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\service\SmsService.java
 C:\cloud-kitchen-rbac-service\src\main\java\com\cloudkitchen\rbac\service\UserService.java

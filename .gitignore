@@ -1,0 +1,42 @@
+# Build artifacts
+target/
+*.jar
+*.war
+*.ear
+*.class
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# History and temp files
+.history/
+.qodo/
+temp/
+
+# Database
+*.db
+*.sqlite
+
+# Environment
+.env
+.env.local
+
+# Deployment secrets
+*.pem
+*.key
+aws-credentials
+
+# Docker
+.dockerignore
