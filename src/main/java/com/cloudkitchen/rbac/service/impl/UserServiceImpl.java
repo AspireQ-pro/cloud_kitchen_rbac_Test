@@ -20,6 +20,20 @@ public class UserServiceImpl implements UserService {
         return userRepository.findAll();
     }
 
+        @Override
+        public List<User> getAllCustomers() {
+            return userRepository.findAll().stream()
+                    .filter(u -> "customer".equals(u.getUserType()))
+                    .toList();
+        }
+
+        @Override
+        public List<User> getCustomersByMerchantId(Integer merchantId) {
+            return userRepository.findAll().stream()
+                    .filter(u -> "customer".equals(u.getUserType()) && u.getMerchant() != null && u.getMerchant().getMerchantId().equals(merchantId))
+                    .toList();
+        }
+
     @Override
     public User getUserById(Integer id) {
         return userRepository.findById(id)

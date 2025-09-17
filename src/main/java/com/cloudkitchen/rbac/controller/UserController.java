@@ -21,6 +21,16 @@ public class UserController {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
+        @GetMapping("/customers")
+        public ResponseEntity<List<User>> getAllCustomers() {
+            return ResponseEntity.ok(userService.getAllCustomers());
+        }
+
+        @GetMapping("/customers/merchant/{merchantId}")
+        public ResponseEntity<List<User>> getCustomersByMerchantId(@PathVariable Integer merchantId) {
+            return ResponseEntity.ok(userService.getCustomersByMerchantId(merchantId));
+        }
+
     @GetMapping("/{id}")
     public ResponseEntity<User> getUserById(@PathVariable Integer id) {
         return ResponseEntity.ok(userService.getUserById(id));
