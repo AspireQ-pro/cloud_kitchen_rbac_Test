@@ -7,4 +7,6 @@ import java.util.Optional;
 public interface MerchantRepository extends JpaRepository<Merchant, Integer> {
     Optional<Merchant> findByEmail(String email);
     Optional<Merchant> findByPhone(String phone);
+    boolean existsByEmail(String email);
+    boolean existsByPhone(String phone);
 }

@@ -2,88 +2,171 @@ package com.cloudkitchen.rbac.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.security.SecureRandom;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class JwtTokenProvider {
-
+    private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
+    private static final String TOKEN_TYPE_ACCESS = "access";
+    private static final String TOKEN_TYPE_REFRESH = "refresh";
+    
     @Value("${app.jwt.secret}")
     private String secret;
 
-    @Value("${app.jwt.access-valid-seconds}")
+    @Value("${app.jwt.access-valid-seconds:3600}")
     private long accessTokenValiditySeconds;
 
-    @Value("${app.jwt.refresh-valid-seconds}")
+    @Value("${app.jwt.refresh-valid-seconds:604800}")
     private long refreshTokenValiditySeconds;
+    
+    @Value("${app.jwt.issuer:cloud-kitchen-rbac}")
+    private String issuer;
 
     private Key key;
+    // TODO: Replace with Redis or database-backed blacklist for production
+    private final Set<String> blacklistedTokens = ConcurrentHashMap.newKeySet();
 
     @PostConstruct
     public void init() {
+        if (secret == null || secret.trim().isEmpty()) {
+            throw new IllegalStateException("JWT secret cannot be null or empty. Please configure app.jwt.secret property.");
+        }
+        if (secret.length() < 32) {
+            throw new IllegalStateException("JWT secret must be at least 32 characters long for security.");
+        }
         try {
             this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+            logger.info("JWT token provider initialized successfully");
         } catch (Exception e) {
+            logger.error("Failed to initialize JWT signing key", e);
             throw new IllegalStateException("Failed to initialize JWT signing key", e);
         }
     }
 
-    // --- Create Access Token ---
     public String createAccessToken(Integer userId, Integer merchantId, List<String> roles, List<String> permissions) {
         if (userId == null) {
             throw new IllegalArgumentException("User ID cannot be null");
         }
+        
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + accessTokenValiditySeconds * 1000);
+        Date expiry = new Date(now.getTime() + accessTokenValiditySeconds * 1000L);
+        String jti = generateJti();
 
         return Jwts.builder()
+                .setId(jti)
+                .setIssuer(issuer)
                 .setSubject(String.valueOf(userId))
+                .setAudience("cloud-kitchen-app")
+                .claim("type", TOKEN_TYPE_ACCESS)
                 .claim("merchantId", merchantId)
-                .claim("roles", roles)
-                .claim("permissions", permissions)
+                .claim("roles", roles != null ? roles : List.of())
+                .claim("permissions", permissions != null ? permissions : List.of())
                 .setIssuedAt(now)
+                .setNotBefore(now)
                 .setExpiration(expiry)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    // --- Create Refresh Token ---
     public String createRefreshToken(Integer userId, Integer merchantId) {
         if (userId == null) {
             throw new IllegalArgumentException("User ID cannot be null");
         }
+        
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + refreshTokenValiditySeconds * 1000);
+        Date expiry = new Date(now.getTime() + refreshTokenValiditySeconds * 1000L);
+        String jti = generateJti();
 
         return Jwts.builder()
+                .setId(jti)
+                .setIssuer(issuer)
                 .setSubject(String.valueOf(userId))
+                .setAudience("cloud-kitchen-app")
+                .claim("type", TOKEN_TYPE_REFRESH)
                 .claim("merchantId", merchantId)
                 .setIssuedAt(now)
+                .setNotBefore(now)
                 .setExpiration(expiry)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    // --- Parse Token ---
     public Claims parse(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        if (isTokenBlacklisted(token)) {
+            throw new JwtException("Token has been revoked");
+        }
+        
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(key)
+                    .requireIssuer(issuer)
+                    .setAllowedClockSkewSeconds(60)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+                    
+            // Validate token type for access tokens
+            String tokenType = claims.get("type", String.class);
+            if (tokenType == null) {
+                throw new JwtException("Token type not specified");
+            }
+            
+            return claims;
+        } catch (ExpiredJwtException e) {
+            logger.warn("JWT token expired: {}", e.getMessage());
+            throw e;
+        } catch (UnsupportedJwtException e) {
+            logger.warn("Unsupported JWT token: {}", e.getMessage());
+            throw e;
+        } catch (MalformedJwtException e) {
+            logger.warn("Malformed JWT token: {}", e.getMessage());
+            throw e;
+        } catch (SecurityException e) {
+            logger.warn("Invalid JWT signature: {}", e.getMessage());
+            throw e;
+        } catch (IllegalArgumentException e) {
+            logger.warn("JWT token compact of handler are invalid: {}", e.getMessage());
+            throw e;
+        }
     }
 
-    // --- Validate Token (optional) ---
     public boolean validateToken(String token) {
         try {
-            parse(token);
-            return true;
+            Claims claims = parse(token);
+            return !isTokenExpired(claims) && !isTokenBlacklisted(token);
+        } catch (JwtException | IllegalArgumentException e) {
+            logger.debug("Token validation failed: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+    
+    public boolean validateAccessToken(String token) {
+        try {
+            Claims claims = parse(token);
+            String tokenType = claims.get("type", String.class);
+            return TOKEN_TYPE_ACCESS.equals(tokenType) && !isTokenExpired(claims) && !isTokenBlacklisted(token);
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+    
+    public boolean validateRefreshToken(String token) {
+        try {
+            Claims claims = parse(token);
+            String tokenType = claims.get("type", String.class);
+            return TOKEN_TYPE_REFRESH.equals(tokenType) && !isTokenExpired(claims) && !isTokenBlacklisted(token);
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
@@ -94,8 +177,16 @@ public class JwtTokenProvider {
     public Integer getUserIdFromToken(String token) {
         try {
             Claims claims = parse(token);
-            return Integer.valueOf(claims.getSubject());
+            String subject = claims.getSubject();
+            if (subject == null || subject.trim().isEmpty()) {
+                throw new IllegalArgumentException("Token subject is null or empty");
+            }
+            return Integer.valueOf(subject);
+        } catch (NumberFormatException e) {
+            logger.warn("Invalid user ID format in token: {}", e.getMessage());
+            throw new IllegalArgumentException("Invalid user ID format in token", e);
         } catch (JwtException | IllegalArgumentException e) {
+            logger.warn("Failed to extract user ID from token: {}", e.getMessage());
             throw new IllegalArgumentException("Invalid token", e);
         }
     }
@@ -115,7 +206,43 @@ public class JwtTokenProvider {
             }
             throw new IllegalArgumentException("Invalid merchantId type in token");
         } catch (JwtException | IllegalArgumentException e) {
+            logger.warn("Failed to extract merchant ID from token: {}", e.getMessage());
             throw new IllegalArgumentException("Invalid token", e);
         }
+    }
+    
+    public void blacklistToken(String token) {
+        try {
+            Claims claims = parse(token);
+            String jti = claims.getId();
+            if (jti != null) {
+                blacklistedTokens.add(jti);
+                logger.info("Token blacklisted: {}", jti);
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to blacklist token: {}", e.getMessage());
+        }
+    }
+    
+    public boolean isTokenBlacklisted(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            String jti = claims.getId();
+            return jti != null && blacklistedTokens.contains(jti);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    private boolean isTokenExpired(Claims claims) {
+        return claims.getExpiration().before(new Date());
+    }
+    
+    private String generateJti() {
+        return java.util.UUID.randomUUID().toString();
     }
 }

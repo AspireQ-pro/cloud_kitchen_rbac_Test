@@ -36,7 +36,7 @@ public class OtpLog {
     private String phone;
 
     @Column(name = "otp_code", nullable = false, length = 4)
-    private String otpCode;
+    private String otpCode; // Store hashed OTP in production
 
     @Enumerated(EnumType.STRING)
     @Column(name = "otp_type", nullable = false, length = 20)
@@ -69,7 +69,8 @@ public class OtpLog {
     public Integer getOtpLogId() { return otpLogId; }
     public Merchant getMerchant() { return merchant; }
     public String getPhone() { return phone; }
-    public String getOtpCode() { return otpCode; }
+    // Removed getter for security - OTP should not be exposed
+    // Use service methods for OTP validation instead
     public OtpType getOtpType() { return otpType; }
     public OtpStatus getStatus() { return status; }
     public String getIpAddress() { return ipAddress; }

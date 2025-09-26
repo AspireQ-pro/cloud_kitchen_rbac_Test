@@ -8,8 +8,8 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface OtpLogRepository extends JpaRepository<OtpLog, Integer> {
-    @Query("SELECT COUNT(o) FROM OtpLog o WHERE o.phone = :phone AND o.createdAt > :after")
+    @Query("SELECT COUNT(o) FROM OtpLog o WHERE o.phone = :phone AND o.createdOn > :after")
     long countByPhoneAndCreatedAtAfter(@Param("phone") String phone, @Param("after") LocalDateTime after);
     
-    Optional<OtpLog> findTopByPhoneAndStatusOrderByCreatedAtDesc(String phone, OtpLog.OtpStatus status);
+    Optional<OtpLog> findTopByPhoneAndStatusOrderByCreatedOnDesc(String phone, OtpLog.OtpStatus status);
 }

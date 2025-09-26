@@ -1,5 +1,6 @@
 package com.cloudkitchen.rbac.validation;
 
+import com.cloudkitchen.rbac.constants.ErrorCodes;
 import java.util.regex.Pattern;
 
 public class ValidationUtils {
@@ -10,15 +11,21 @@ public class ValidationUtils {
     private static final Pattern NAME_PATTERN = Pattern.compile("^[a-zA-Z\\s\\-]{2,50}$");
     
     public static void validatePhone(String phone) {
-        if (phone == null || phone.isBlank()) throw new IllegalArgumentException("Phone is required");
-        if (!PHONE_PATTERN.matcher(phone.replaceAll("\\s+", "")).matches()) {
-            throw new IllegalArgumentException("Invalid phone format");
+        if (phone == null || phone.isBlank()) {
+            throw new IllegalArgumentException(ErrorCodes.REQUIRED_FIELD_MISSING + ": Phone is required");
+        }
+        String sanitizedPhone = sanitizeInput(phone.replaceAll("\\s+", ""));
+        if (!PHONE_PATTERN.matcher(sanitizedPhone).matches()) {
+            throw new IllegalArgumentException(ErrorCodes.INVALID_PHONE + ": Invalid phone format");
         }
     }
     
     public static void validateEmail(String email) {
-        if (email != null && !email.isBlank() && !EMAIL_PATTERN.matcher(email).matches()) {
-            throw new IllegalArgumentException("Invalid email format");
+        if (email != null && !email.isBlank()) {
+            String sanitizedEmail = sanitizeInput(email);
+            if (!EMAIL_PATTERN.matcher(sanitizedEmail).matches()) {
+                throw new IllegalArgumentException(ErrorCodes.INVALID_EMAIL + ": Invalid email format");
+            }
         }
     }
     
@@ -34,8 +41,25 @@ public class ValidationUtils {
     }
     
     public static void validateName(String name, String fieldName) {
-        if (name == null || name.isBlank()) throw new IllegalArgumentException(fieldName + " is required");
-        if (name.trim().length() < 2 || name.trim().length() > 50) throw new IllegalArgumentException(fieldName + " must be 2-50 characters");
-        if (!NAME_PATTERN.matcher(name.trim()).matches()) throw new IllegalArgumentException(fieldName + " invalid format");
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException(ErrorCodes.REQUIRED_FIELD_MISSING + ": " + fieldName + " is required");
+        }
+        String sanitizedName = sanitizeInput(name.trim());
+        if (sanitizedName.length() < 2 || sanitizedName.length() > 50) {
+            throw new IllegalArgumentException(ErrorCodes.INVALID_FORMAT + ": " + fieldName + " must be 2-50 characters");
+        }
+        if (!NAME_PATTERN.matcher(sanitizedName).matches()) {
+            throw new IllegalArgumentException(ErrorCodes.INVALID_FORMAT + ": " + fieldName + " invalid format");
+        }
+    }
+    
+    public static String sanitizeInput(String input) {
+        if (input == null) return null;
+        return input.replaceAll("[\r\n\t<>\"'&]", "").trim();
+    }
+    
+    public static String maskPhoneNumber(String phone) {
+        if (phone == null || phone.length() < 4) return "****";
+        return "****" + phone.substring(phone.length() - 4);
     }
 }

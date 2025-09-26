@@ -2,6 +2,7 @@ package com.cloudkitchen.rbac.service.impl;
 
 import com.cloudkitchen.rbac.domain.entity.*;
 import com.cloudkitchen.rbac.dto.auth.*;
+import com.cloudkitchen.rbac.enums.UserType;
 import com.cloudkitchen.rbac.exception.AuthExceptions;
 import com.cloudkitchen.rbac.repository.*;
 import com.cloudkitchen.rbac.service.*;
@@ -97,7 +98,7 @@ public class AuthServiceImpl implements AuthService {
                 .or(() -> users.findByEmailAndMerchantIsNull(req.getPhone()))
                 .orElseThrow(() -> new AuthExceptions.UserNotFoundException("Invalid credentials"));
             
-            if (!List.of("super_admin", "merchant").contains(user.getUserType())) {
+            if (!List.of(UserType.SUPER_ADMIN.getValue(), UserType.MERCHANT.getValue()).contains(user.getUserType())) {
                 throw new AuthExceptions.AccessDeniedException("Access denied");
             }
         }
@@ -127,8 +128,11 @@ public class AuthServiceImpl implements AuthService {
         
         Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : null;
         users.updateOtpByPhone(req.getPhone(), code, expiresAt, merchantId);
-        smsService.sendOtp(req.getPhone(), code);
-        String sanitizedPhone = req.getPhone() != null ? req.getPhone().replaceAll("[\r\n\t]", "") : "null";
+        if (!smsService.sendOtp(req.getPhone(), code)) {
+            throw new RuntimeException("Failed to send OTP");
+        }
+        String maskedPhone = maskPhoneNumber(req.getPhone());
+        String sanitizedPhone = sanitizeForLogging(maskedPhone);
         otpAuditService.logOtp(user.getMerchant() != null ? user.getMerchant().getMerchantId() : null, 
                 sanitizedPhone, "****", expiresAt);
     }
@@ -138,7 +142,7 @@ public class AuthServiceImpl implements AuthService {
             User user = users.findByUsername(req.getPhone())
                     .orElseThrow(() -> new AuthExceptions.UserNotFoundException("User not found"));
             
-            if (!"merchant".equals(user.getUserType())) {
+            if (!UserType.MERCHANT.getValue().equals(user.getUserType())) {
                 throw new AuthExceptions.AccessDeniedException("Only merchants can use merchantId = 0");
             }
             return user;
@@ -155,7 +159,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse verifyOtp(OtpVerifyRequest req) {
         User user = findUserForOtp(new OtpRequest(req.getPhone(), req.getMerchantId()));
         
-        if (!isOtpValid(req.getOtp(), user.getOtpCode()) || 
+        if (!isOtpValid(req.getOtp(), user.getOtpCodeInternal()) || 
             user.getOtpExpiresAt() == null || 
             user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Invalid or expired OTP");
@@ -175,12 +179,19 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse refresh(RefreshTokenRequest req) {
         try {
+            if (jwt.isTokenBlacklisted(req.getRefreshToken())) {
+                throw new AuthExceptions.InvalidPasswordException("Token has been revoked");
+            }
             Claims claims = jwt.parse(req.getRefreshToken());
             Integer userId = Integer.valueOf(claims.getSubject());
             Integer merchantId = (Integer) claims.get("merchantId");
             User user = users.findById(userId).orElseThrow(() -> new AuthExceptions.UserNotFoundException("User not found"));
+            
+            // Blacklist the old refresh token for security (token rotation)
+            jwt.blacklistToken(req.getRefreshToken());
+            
             return buildTokens(user, merchantId);
-        } catch (Exception e) {
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
             throw new AuthExceptions.InvalidPasswordException("Invalid refresh token", e);
         }
     }
@@ -229,9 +240,19 @@ public class AuthServiceImpl implements AuthService {
                 hexString.append(String.format("%02x", b));
             }
             return hexString.toString();
-        } catch (Exception e) {
+        } catch (java.security.NoSuchAlgorithmException e) {
             throw new RuntimeException("Token hashing failed", e);
         }
+    }
+    
+    private String maskPhoneNumber(String phone) {
+        if (phone == null || phone.length() < 4) return "****";
+        return "****" + phone.substring(phone.length() - 4);
+    }
+    
+    private String sanitizeForLogging(String input) {
+        if (input == null) return null;
+        return input.replaceAll("[\\r\\n\\t]", "_").replaceAll("[^\\w\\s*-]", "");
     }
 
     @Override

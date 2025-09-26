@@ -39,7 +39,8 @@ public class OtpAuditService {
             otpLog.setExpiresAt(expiresAt);
             
             otpLogRepository.save(otpLog);
-            logger.info("OTP audit log created for phone: {}", phone);
+            String maskedPhone = maskPhoneNumber(phone);
+            logger.info("OTP audit log created for phone: {}", maskedPhone);
 
         } catch (Exception e) {
             logger.warn("OTP audit logging failed: {}", e.getMessage(), e);
@@ -48,12 +49,13 @@ public class OtpAuditService {
     
     public void updateOtpVerified(String phone, String maskedOtp) {
         try {
-            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedAtDesc(phone, OtpLog.OtpStatus.SENT)
+            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, OtpLog.OtpStatus.SENT)
                 .ifPresent(otpLog -> {
                     otpLog.setStatus(OtpLog.OtpStatus.VERIFIED);
                     otpLog.setVerifiedAt(LocalDateTime.now());
                     otpLogRepository.save(otpLog);
-                    logger.info("OTP marked as verified for phone: {}", phone);
+                    String maskedPhone = maskPhoneNumber(phone);
+                    logger.info("OTP marked as verified for phone: {}", maskedPhone);
                 });
         } catch (Exception e) {
             logger.warn("Failed to update OTP verification audit: {}", e.getMessage(), e);
@@ -62,14 +64,20 @@ public class OtpAuditService {
     
     public void updateOtpFailed(String phone, int attemptCount) {
         try {
-            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedAtDesc(phone, OtpLog.OtpStatus.SENT)
+            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, OtpLog.OtpStatus.SENT)
                 .ifPresent(otpLog -> {
                     otpLog.setAttemptsCount(attemptCount);
                     otpLogRepository.save(otpLog);
-                    logger.info("OTP attempt count updated to {} for phone: {}", attemptCount, phone);
+                    String maskedPhone = maskPhoneNumber(phone);
+                    logger.info("OTP attempt count updated to {} for phone: {}", attemptCount, maskedPhone);
                 });
         } catch (Exception e) {
             logger.warn("Failed to update OTP failure audit: {}", e.getMessage(), e);
         }
+    }
+    
+    private String maskPhoneNumber(String phone) {
+        if (phone == null || phone.length() < 4) return "****";
+        return "****" + phone.substring(phone.length() - 4);
     }
 }

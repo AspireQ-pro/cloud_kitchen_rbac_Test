@@ -208,18 +208,24 @@ public class User {
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
 
-    public String getPasswordResetToken() { return passwordResetToken; }
-    public void setPasswordResetToken(String passwordResetToken) { this.passwordResetToken = passwordResetToken; }
-
+    // Security-sensitive getters removed to prevent accidental exposure
+    // Use dedicated service methods for token validation
+    
     public LocalDateTime getPasswordResetExpiresAt() { return passwordResetExpiresAt; }
     public void setPasswordResetExpiresAt(LocalDateTime passwordResetExpiresAt) { this.passwordResetExpiresAt = passwordResetExpiresAt; }
-
-    public String getEmailVerificationToken() { return emailVerificationToken; }
-    public void setEmailVerificationToken(String emailVerificationToken) { this.emailVerificationToken = emailVerificationToken; }
 
     public LocalDateTime getEmailVerifiedAt() { return emailVerifiedAt; }
     public void setEmailVerifiedAt(LocalDateTime emailVerifiedAt) { this.emailVerifiedAt = emailVerifiedAt; }
 
+    // Public setters for service layer use
+    public void setPasswordResetToken(String passwordResetToken) { this.passwordResetToken = passwordResetToken; }
+    public void setEmailVerificationToken(String emailVerificationToken) { this.emailVerificationToken = emailVerificationToken; }
+    
+    // Public getters for service layer validation
+    public String getPasswordResetTokenInternal() { return passwordResetToken; }
+    public String getEmailVerificationTokenInternal() { return emailVerificationToken; }
+    public String getOtpCodeInternal() { return otpCode; }
+    
     public String getOtpCode() { return otpCode; }
     public void setOtpCode(String otpCode) { this.otpCode = otpCode; }
 

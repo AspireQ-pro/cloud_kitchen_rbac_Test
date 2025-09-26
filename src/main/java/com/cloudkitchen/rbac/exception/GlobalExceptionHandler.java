@@ -4,99 +4,185 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.validation.FieldError;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    @ExceptionHandler(AuthExceptions.UserAlreadyExistsException.class)
-    public ResponseEntity<Map<String, Object>> handleUserAlreadyExists(AuthExceptions.UserAlreadyExistsException ex) {
-        return buildErrorResponse(409, ex.getMessage(), HttpStatus.CONFLICT);
-    }
-
-    @ExceptionHandler(AuthExceptions.UserNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleUserNotFound(AuthExceptions.UserNotFoundException ex) {
-        return buildErrorResponse(404, ex.getMessage(), HttpStatus.NOT_FOUND);
-    }
-
-    @ExceptionHandler(AuthExceptions.AccessDeniedException.class)
-    public ResponseEntity<Map<String, Object>> handleAccessDenied(AuthExceptions.AccessDeniedException ex) {
-        return buildErrorResponse(403, ex.getMessage(), HttpStatus.FORBIDDEN);
-    }
-
-    @ExceptionHandler(AuthExceptions.TooManyAttemptsException.class)
-    public ResponseEntity<Map<String, Object>> handleTooManyAttempts(AuthExceptions.TooManyAttemptsException ex) {
-        return buildErrorResponse(429, ex.getMessage(), HttpStatus.TOO_MANY_REQUESTS);
-    }
-
-    @ExceptionHandler(AuthExceptions.InvalidPasswordException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidPassword(AuthExceptions.InvalidPasswordException ex) {
-        logger.warn("Invalid password attempt: {}", ex.getMessage());
-        return buildErrorResponse(401, ex.getMessage(), HttpStatus.UNAUTHORIZED);
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
-        logger.error("IllegalArgumentException: {}", ex.getMessage());
-        return buildErrorResponse(400, ex.getMessage(), HttpStatus.BAD_REQUEST);
-    }
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
-        logger.error("Data integrity violation: {}", ex.getMessage());
-        String message = "Data conflict occurred";
-        if (ex.getMessage() != null && ex.getMessage().contains("uk_users_merchant_phone")) {
-            message = "Phone number already registered with this merchant";
-        }
-        return buildErrorResponse(409, message, HttpStatus.CONFLICT);
-    }
-
-
-    
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidationException(MethodArgumentNotValidException ex) {
-        StringBuilder errors = new StringBuilder();
+    public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
-            if (error instanceof FieldError) {
-                String fieldName = ((FieldError) error).getField();
+            if (error instanceof FieldError fieldError) {
+                String fieldName = fieldError.getField();
                 String errorMessage = error.getDefaultMessage();
-                errors.append(fieldName).append(": ").append(errorMessage).append("; ");
+                errors.put(fieldName, errorMessage);
             } else {
-                errors.append(error.getDefaultMessage()).append("; ");
+                String objectName = error.getObjectName();
+                String errorMessage = error.getDefaultMessage();
+                errors.put(objectName, errorMessage);
             }
         });
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("code", 400);
-        response.put("message", "Validation failed: " + errors.toString());
-        response.put("success", false);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        ErrorResponse errorResponse = new ErrorResponse(
+            "VALIDATION_FAILED",
+            "Request validation failed",
+            errors,
+            LocalDateTime.now()
+        );
+        
+        logger.warn("Validation failed: {}", errors);
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolationException(ConstraintViolationException ex) {
+        Map<String, String> errors = new HashMap<>();
+        for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
+            String fieldName = violation.getPropertyPath().toString();
+            String errorMessage = violation.getMessage();
+            errors.put(fieldName, errorMessage);
+        }
+        
+        ErrorResponse errorResponse = new ErrorResponse(
+            "CONSTRAINT_VIOLATION",
+            "Constraint validation failed",
+            errors,
+            LocalDateTime.now()
+        );
+        
+        logger.warn("Constraint violation: {}", sanitizeLogMessage(errors.toString()));
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatchException(MethodArgumentTypeMismatchException ex) {
+        Map<String, String> errors = new HashMap<>();
+        String expectedType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
+        errors.put(ex.getName(), "Invalid value type. Expected: " + expectedType);
+        
+        ErrorResponse errorResponse = new ErrorResponse(
+            "TYPE_MISMATCH",
+            "Invalid parameter type",
+            errors,
+            LocalDateTime.now()
+        );
+        
+        String sanitizedValue = sanitizeLogMessage(String.valueOf(ex.getValue()));
+        logger.warn("Type mismatch for parameter {}: {}", ex.getName(), sanitizedValue);
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleBadCredentialsException(BadCredentialsException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+            "INVALID_CREDENTIALS",
+            "Invalid phone number or OTP",
+            null,
+            LocalDateTime.now()
+        );
+        
+        logger.warn("Authentication failed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationException(AuthenticationException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+            "AUTHENTICATION_FAILED",
+            "Authentication failed",
+            null,
+            LocalDateTime.now()
+        );
+        
+        logger.warn("Authentication exception: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDeniedException(AccessDeniedException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+            "ACCESS_DENIED",
+            "Insufficient permissions to access this resource",
+            null,
+            LocalDateTime.now()
+        );
+        
+        logger.warn("Access denied: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+            "INVALID_ARGUMENT",
+            sanitizeErrorMessage(ex.getMessage()),
+            null,
+            LocalDateTime.now()
+        );
+        
+        logger.warn("Invalid argument: {}", sanitizeLogMessage(ex.getMessage()));
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex, WebRequest request) {
+        ErrorResponse errorResponse = new ErrorResponse(
+            "INTERNAL_ERROR",
+            "An unexpected error occurred",
+            null,
+            LocalDateTime.now()
+        );
+        
+        logger.error("Unexpected exception in {}: {}", request.getDescription(false), ex.getMessage(), ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+    }
+
+    private String sanitizeErrorMessage(String message) {
+        if (message == null) return "Invalid request";
+        return message.replaceAll("[\r\n\t]", "").trim();
     }
     
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
-        logger.error("Unexpected exception: {}", ex.getMessage(), ex);
-        String detailedMessage = ex.getMessage() != null ? ex.getMessage() : "Unexpected error: " + ex.getClass().getSimpleName();
-        return buildErrorResponse(500, detailedMessage, HttpStatus.INTERNAL_SERVER_ERROR);
+    private String sanitizeLogMessage(String message) {
+        if (message == null) return "null";
+        return message.replaceAll("[\r\n\t]", "");
     }
 
-    private ResponseEntity<Map<String, Object>> buildErrorResponse(int code, String message, HttpStatus status) {
-        return ResponseEntity.status(status).body(buildErrorMap(code, message));
-    }
+    public static class ErrorResponse {
+        private final String code;
+        private final String message;
+        private final Map<String, String> details;
+        private final LocalDateTime timestamp;
+        private final String traceId;
 
-    private Map<String, Object> buildErrorMap(int code, String message) {
-        Map<String, Object> response = new java.util.HashMap<>();
-        response.put("code", code);
-        response.put("message", message);
-        response.put("success", false);
-        return response;
+        public ErrorResponse(String code, String message, Map<String, String> details, LocalDateTime timestamp) {
+            this.code = code;
+            this.message = message;
+            this.details = details;
+            this.timestamp = timestamp;
+            this.traceId = java.util.UUID.randomUUID().toString().substring(0, 8);
+        }
+
+        public String getCode() { return code; }
+        public String getMessage() { return message; }
+        public Map<String, String> getDetails() { return details; }
+        public LocalDateTime getTimestamp() { return timestamp; }
+        public String getTraceId() { return traceId; }
     }
 }

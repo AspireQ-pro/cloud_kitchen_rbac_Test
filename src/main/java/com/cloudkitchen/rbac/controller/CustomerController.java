@@ -27,6 +27,8 @@ public class CustomerController {
             return ResponseEntity.ok(ResponseBuilder.success(200, "Customers retrieved successfully", customerService.getAllCustomers(userId)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(401).body(ResponseBuilder.error(401, "Invalid token"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ResponseBuilder.error(500, "Internal server error"));
         }
     }
 

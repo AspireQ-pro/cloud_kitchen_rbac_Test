@@ -34,7 +34,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<CustomerResponse> getAllUsers(Integer requestingUserId) {
+    public List<CustomerResponse> getAllUsers(Integer requestingUserId, int page, int size) {
         if (requestingUserId == null) {
             throw new IllegalArgumentException("Requesting user ID cannot be null");
         }
@@ -47,7 +47,8 @@ public class UserServiceImpl implements UserService {
         }
         
         try {
-            return userRepository.findAll().stream()
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        return userRepository.findAll(pageable).getContent().stream()
                     .map(this::mapToResponse)
                     .collect(Collectors.toList());
         } catch (Exception e) {
