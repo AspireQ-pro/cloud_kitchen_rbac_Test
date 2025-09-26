@@ -27,12 +27,18 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
-        // ✅ create signing key from Base64 secret
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        try {
+            this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to initialize JWT signing key", e);
+        }
     }
 
     // --- Create Access Token ---
     public String createAccessToken(Integer userId, Integer merchantId, List<String> roles, List<String> permissions) {
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
         Date now = new Date();
         Date expiry = new Date(now.getTime() + accessTokenValiditySeconds * 1000);
 
@@ -49,6 +55,9 @@ public class JwtTokenProvider {
 
     // --- Create Refresh Token ---
     public String createRefreshToken(Integer userId, Integer merchantId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
         Date now = new Date();
         Date expiry = new Date(now.getTime() + refreshTokenValiditySeconds * 1000);
 
@@ -80,8 +89,33 @@ public class JwtTokenProvider {
         }
     }
     
+
+    
     public Integer getUserIdFromToken(String token) {
-        Claims claims = parse(token);
-        return Integer.valueOf(claims.getSubject());
+        try {
+            Claims claims = parse(token);
+            return Integer.valueOf(claims.getSubject());
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid token", e);
+        }
+    }
+    
+    public Integer getMerchantId(String token) {
+        try {
+            Claims claims = parse(token);
+            Object merchantIdObj = claims.get("merchantId");
+            if (merchantIdObj == null) {
+                return null;
+            }
+            if (merchantIdObj instanceof Integer) {
+                return (Integer) merchantIdObj;
+            }
+            if (merchantIdObj instanceof Number) {
+                return ((Number) merchantIdObj).intValue();
+            }
+            throw new IllegalArgumentException("Invalid merchantId type in token");
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid token", e);
+        }
     }
 }

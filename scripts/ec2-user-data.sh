@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # EC2 User Data Script for Cloud Kitchen RBAC Service
 # This script sets up the EC2 instance for deployment
@@ -44,6 +45,7 @@ JWT_EXPIRATION=3600000
 PORT=8081
 EOF
 
+
 # Set proper permissions
 chown ec2-user:ec2-user /opt/cloud-kitchen-rbac/.env
 chmod 600 /opt/cloud-kitchen-rbac/.env
@@ -66,6 +68,7 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 EOF
+
 
 # Enable the service
 systemctl daemon-reload

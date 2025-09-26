@@ -9,6 +9,7 @@ public class AuthResponse {
     private long expiresIn;
     private Integer userId;
     private Integer merchantId;
+    private String phone;
     private List<String> roles;
 
     // Getters and Setters
@@ -29,6 +30,9 @@ public class AuthResponse {
 
     public Integer getMerchantId() { return merchantId; }
     public void setMerchantId(Integer merchantId) { this.merchantId = merchantId; }
+
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
 
     public List<String> getRoles() { return roles; }
     public void setRoles(List<String> roles) { this.roles = roles; }

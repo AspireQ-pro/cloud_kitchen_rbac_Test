@@ -3,10 +3,10 @@ package com.cloudkitchen.rbac.service;
 import com.cloudkitchen.rbac.dto.auth.*;
 
 public interface AuthService {
-    AuthResponse registerCustomer(RegisterRequest req);
-    AuthResponse loginWithPassword(AuthRequest req);
+    AuthResponse registerUser(RegisterRequest req);
+    AuthResponse login(AuthRequest req);
     void requestOtp(OtpRequest req);
     AuthResponse verifyOtp(OtpVerifyRequest req);
     AuthResponse refresh(RefreshTokenRequest req);
-    AuthResponse merchantLogin(MerchantLoginRequest req);
+    void logout(Integer userId);
 }

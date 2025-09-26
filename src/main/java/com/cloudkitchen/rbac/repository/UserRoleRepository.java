@@ -2,7 +2,9 @@ package com.cloudkitchen.rbac.repository;
 
 import com.cloudkitchen.rbac.domain.entity.UserRole;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 public interface UserRoleRepository extends JpaRepository<UserRole, Integer> {
@@ -14,4 +16,8 @@ public interface UserRoleRepository extends JpaRepository<UserRole, Integer> {
     boolean existsByUserAndRoleAndMerchant(com.cloudkitchen.rbac.domain.entity.User user, 
                                           com.cloudkitchen.rbac.domain.entity.Role role, 
                                           com.cloudkitchen.rbac.domain.entity.Merchant merchant);
+    
+    @Modifying
+    @Transactional
+    void deleteByUser(com.cloudkitchen.rbac.domain.entity.User user);
 }

@@ -1,43 +1,51 @@
 package com.cloudkitchen.rbac.controller;
 
 import com.cloudkitchen.rbac.domain.entity.Merchant;
+import com.cloudkitchen.rbac.dto.merchant.MerchantRequest;
 import com.cloudkitchen.rbac.service.MerchantService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.cloudkitchen.rbac.util.ResponseBuilder;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
-import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
+import java.util.Map;
 
 @RestController
-@RequestMapping("/api/merchant")
+@RequestMapping("/api/merchants")
 public class MerchantController {
-    @Autowired
-    private MerchantService merchantService;
+    private final MerchantService merchantService;
+
+    public MerchantController(MerchantService merchantService) {
+        this.merchantService = merchantService;
+    }
 
     @PostMapping
-    public ResponseEntity<Merchant> addMerchant(@RequestBody Merchant merchant) {
-        return ResponseEntity.ok(merchantService.addMerchant(merchant));
+    public ResponseEntity<Map<String, Object>> createMerchant(@Valid @RequestBody MerchantRequest req) {
+        Merchant merchant = merchantService.createMerchant(req);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ResponseBuilder.success(201, "Merchant created successfully", merchant));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Merchant> updateMerchant(@PathVariable Integer id, @RequestBody Merchant merchant) {
-        return ResponseEntity.ok(merchantService.updateMerchant(id, merchant));
+    public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @Valid @RequestBody MerchantRequest req) {
+        Merchant merchant = merchantService.updateMerchant(id, req);
+        return ResponseEntity.ok(ResponseBuilder.success(200, "Merchant updated successfully", merchant));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Merchant> getMerchantById(@PathVariable Integer id) {
-        return ResponseEntity.ok(merchantService.getMerchantById(id));
+    public ResponseEntity<Map<String, Object>> getMerchant(@PathVariable Integer id) {
+        Merchant merchant = merchantService.getMerchantById(id);
+        return ResponseEntity.ok(ResponseBuilder.success(200, "Merchant retrieved successfully", merchant));
     }
 
-    @Operation(summary = "Get all merchants")
     @GetMapping
-    public ResponseEntity<List<Merchant>> getAllMerchants() {
-        return ResponseEntity.ok(merchantService.getAllMerchants());
+    public ResponseEntity<Map<String, Object>> getAllMerchants() {
+        return ResponseEntity.ok(ResponseBuilder.success(200, "Merchants retrieved successfully", merchantService.getAllMerchants()));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteMerchant(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, Object>> deleteMerchant(@PathVariable Integer id) {
         merchantService.deleteMerchant(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ResponseBuilder.success(200, "Merchant deleted successfully"));
     }
 }

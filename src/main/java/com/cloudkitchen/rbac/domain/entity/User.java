@@ -19,6 +19,9 @@ import java.time.LocalDateTime;
         @Index(name = "idx_users_is_guest", columnList = "is_guest"),
         @Index(name = "idx_users_otp_expires", columnList = "otp_expires_at"),
         @Index(name = "idx_users_phone_verified", columnList = "phone_verified")
+    },
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_users_merchant_phone", columnNames = {"merchant_id", "phone"})
     }
 )
 public class User {
@@ -56,7 +59,7 @@ public class User {
     @Check(constraints = "gender IN ('male', 'female', 'other')")
     private String gender;
 
-    @Column(name = "address", columnDefinition = "TEXT")
+    @Column(name = "address", length = 250)
     private String address;
     
     @Column(name = "city", length = 100)
@@ -231,15 +234,19 @@ public class User {
 
     public Boolean getGuest() { return guest; }
     public void setGuest(Boolean guest) { this.guest = guest; }
-    
-    public Boolean getIsGuest() { return guest; }
-    public void setIsGuest(Boolean isGuest) { this.guest = isGuest; }
 
     public LocalDateTime getGuestConvertedAt() { return guestConvertedAt; }
     public void setGuestConvertedAt(LocalDateTime guestConvertedAt) { this.guestConvertedAt = guestConvertedAt; }
 
     public String getPreferredLoginMethod() { return preferredLoginMethod; }
     public void setPreferredLoginMethod(String preferredLoginMethod) { this.preferredLoginMethod = preferredLoginMethod; }
+
+    // Convenience methods for boolean fields
+    public Boolean isActive() { return active; }
+    public Boolean isVerified() { return verified; }
+    public Boolean isPhoneVerified() { return phoneVerified; }
+    public Boolean isEmailVerified() { return emailVerified; }
+    public Boolean isGuest() { return guest; }
 
     public Integer getCreatedBy() { return createdBy; }
     public void setCreatedBy(Integer createdBy) { this.createdBy = createdBy; }

@@ -15,20 +15,32 @@ public class MerchantServiceImpl implements MerchantService {
     private MerchantRepository merchantRepository;
 
     @Override
-    public Merchant addMerchant(Merchant merchant) {
+    public Merchant createMerchant(com.cloudkitchen.rbac.dto.merchant.MerchantRequest req) {
+        Merchant merchant = new Merchant();
+        merchant.setMerchantName(req.getMerchantName());
+        merchant.setAddress(req.getAddress());
+        merchant.setPhone(req.getPhone());
+        merchant.setEmail(req.getEmail());
         return merchantRepository.save(merchant);
     }
 
     @Override
-    public Merchant updateMerchant(Integer id, Merchant merchant) {
-        merchant.setMerchantId(Long.valueOf(id));
+    public Merchant updateMerchant(Integer id, com.cloudkitchen.rbac.dto.merchant.MerchantRequest req) {
+        Merchant merchant = merchantRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Merchant not found"));
+        merchant.setMerchantName(req.getMerchantName());
+        merchant.setAddress(req.getAddress());
+        merchant.setPhone(req.getPhone());
+        merchant.setEmail(req.getEmail());
         return merchantRepository.save(merchant);
     }
+    
+
 
     @Override
     public Merchant getMerchantById(Integer id) {
-        Optional<Merchant> merchant = merchantRepository.findById(id);
-        return merchant.orElse(null);
+        return merchantRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Merchant not found"));
     }
 
     @Override

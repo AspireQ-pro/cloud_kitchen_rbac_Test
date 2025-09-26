@@ -13,16 +13,10 @@ public class SwaggerConfig {
     @Bean
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
-                .info(new Info()
-                        .title("Cloud Kitchen RBAC API")
-                        .version("1.0.0")
-                        .description("Role-Based Access Control Service for Cloud Kitchen"))
-                .addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"))
+                .info(new Info().title("Cloud Kitchen RBAC API").version("1.0.0"))
+                .addSecurityItem(new SecurityRequirement().addList("Bearer"))
                 .components(new io.swagger.v3.oas.models.Components()
-                        .addSecuritySchemes("Bearer Authentication",
-                                new SecurityScheme()
-                                        .type(SecurityScheme.Type.HTTP)
-                                        .scheme("bearer")
-                                        .bearerFormat("JWT")));
+                        .addSecuritySchemes("Bearer", new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP).scheme("bearer")));
     }
 }

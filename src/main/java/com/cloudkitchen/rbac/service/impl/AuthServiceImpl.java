@@ -2,12 +2,9 @@ package com.cloudkitchen.rbac.service.impl;
 
 import com.cloudkitchen.rbac.domain.entity.*;
 import com.cloudkitchen.rbac.dto.auth.*;
+import com.cloudkitchen.rbac.exception.AuthExceptions;
 import com.cloudkitchen.rbac.repository.*;
-import com.cloudkitchen.rbac.service.AuthService;
-import com.cloudkitchen.rbac.service.OtpService;
-import com.cloudkitchen.rbac.service.OtpAuditService;
-import com.cloudkitchen.rbac.service.SmsService;
-
+import com.cloudkitchen.rbac.service.*;
 import com.cloudkitchen.rbac.security.JwtTokenProvider;
 import io.jsonwebtoken.Claims;
 import org.slf4j.Logger;
@@ -20,252 +17,226 @@ import java.util.List;
 
 @Service
 public class AuthServiceImpl implements AuthService {
-    private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
     private final UserRepository users;
     private final MerchantRepository merchants;
     private final RoleRepository roles;
     private final UserRoleRepository userRoles;
-    private final OtpLogRepository otpLogs;
     private final PasswordEncoder encoder;
     private final OtpService otpService;
     private final OtpAuditService otpAuditService;
     private final SmsService smsService;
     private final JwtTokenProvider jwt;
-
+    private final UserSessionRepository sessionRepo;
+    
     public AuthServiceImpl(UserRepository users, MerchantRepository merchants, RoleRepository roles,
-            UserRoleRepository userRoles, OtpLogRepository otpLogs, PasswordEncoder encoder,
-            OtpService otpService, OtpAuditService otpAuditService, SmsService smsService, JwtTokenProvider jwt) {
+            UserRoleRepository userRoles, PasswordEncoder encoder, OtpService otpService,
+            OtpAuditService otpAuditService, SmsService smsService, JwtTokenProvider jwt,
+            UserSessionRepository sessionRepo) {
         this.users = users;
         this.merchants = merchants;
         this.roles = roles;
         this.userRoles = userRoles;
-        this.otpLogs = otpLogs;
         this.encoder = encoder;
         this.otpService = otpService;
         this.otpAuditService = otpAuditService;
         this.smsService = smsService;
         this.jwt = jwt;
+        this.sessionRepo = sessionRepo;
     }
 
     @Override
     @Transactional
-    public AuthResponse registerCustomer(RegisterRequest req) {
-        try {
-            // Merchant is required for customer registration
-            if (req.getMerchantId() == null) {
-                throw new IllegalArgumentException("Merchant ID is required for customer registration");
-            }
-            
-            Merchant merchant = merchants.findById(req.getMerchantId())
-                    .orElseThrow(() -> new IllegalArgumentException("Merchant not found: " + req.getMerchantId()));
-            
-            logger.info("Merchant found: {}", merchant.getMerchantName());
-            
-            // Check for duplicate phone number within merchant
-            if (users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {
-                throw new IllegalArgumentException("Phone number already registered with this merchant");
-            }
-            
-            User user = new User();
-            user.setMerchant(merchant);
-            user.setPhone(req.getPhone());
-            user.setEmail(req.getEmail());
-            user.setUsername(req.getPhone());
-            user.setFirstName(req.getFirstName());
-            user.setLastName(req.getLastName());
-            user.setAddress(req.getAddress());
-            user.setCity(req.getCity());
-            user.setState(req.getState());
-            user.setPincode(req.getPincode());
-            user.setUserType("customer");
-            user.setPasswordHash(encoder.encode(req.getPassword()));
-            user.setPreferredLoginMethod("password"); // Set to password for registration
-            users.save(user);
-
-            Role customerRole = roles.findByRoleName("customer")
-                    .orElseThrow(() -> new IllegalStateException("Role 'customer' missing from database"));
-            
-            // Check if user-role assignment already exists
-            if (!userRoles.existsByUserAndRoleAndMerchant(user, customerRole, merchant)) {
-                UserRole userRole = new UserRole();
-                userRole.setUser(user);
-                userRole.setRole(customerRole);
-                userRole.setMerchant(merchant);
-                userRole.setAssignedAt(LocalDateTime.now());
-                userRoles.save(userRole);
-            }
-
-            return buildTokens(user, null);
-        } catch (Exception e) {
-            logger.error("Registration error: {}", e.getMessage(), e);
-            throw e;
+    public AuthResponse registerUser(RegisterRequest req) {
+        Merchant merchant = merchants.findById(req.getMerchantId())
+                .orElseThrow(() -> new IllegalArgumentException("Merchant not found"));
+        
+        if (users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {
+            throw new AuthExceptions.UserAlreadyExistsException("Phone already registered");
         }
+        
+        User user = createUser(req, merchant);
+        users.save(user);
+        
+        assignCustomerRole(user, merchant);
+        return buildTokens(user, null);
+    }
+    
+    private User createUser(RegisterRequest req, Merchant merchant) {
+        User user = new User();
+        user.setMerchant(merchant);
+        user.setPhone(req.getPhone());
+        user.setUsername(req.getPhone());
+        user.setFirstName(req.getFirstName());
+        user.setLastName(req.getLastName());
+        user.setUserType(req.getUserType() != null ? req.getUserType() : "customer");
+        user.setPasswordHash(encoder.encode(req.getPassword()));
+        user.setAddress(req.getAddress());
+        return user;
+    }
+    
+    private void assignCustomerRole(User user, Merchant merchant) {
+        Role role = roles.findByRoleName("customer")
+                .orElseThrow(() -> new IllegalStateException("Customer role not found"));
+        
+        UserRole userRole = new UserRole();
+        userRole.setUser(user);
+        userRole.setRole(role);
+        userRole.setMerchant(merchant);
+        userRole.setAssignedAt(LocalDateTime.now());
+        userRoles.save(userRole);
     }
 
     @Override
-    public AuthResponse loginWithPassword(AuthRequest req) {
-        User user = loadByPhoneAndMerchant(req.getPhone(), null);
-        if (user.getPasswordHash() == null || !encoder.matches(req.getPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("Invalid credentials");
+    public AuthResponse login(AuthRequest req) {
+        User user;
+        
+        // Merchant login (merchantId = 0)
+        if (req.getMerchantId() != null && Integer.valueOf(0).equals(req.getMerchantId())) {
+            user = users.findByUsername(req.getPhone())
+                .or(() -> users.findByEmailAndMerchantIsNull(req.getPhone()))
+                .orElseThrow(() -> new AuthExceptions.UserNotFoundException("Invalid credentials"));
+            
+            if (!List.of("super_admin", "merchant").contains(user.getUserType())) {
+                throw new AuthExceptions.AccessDeniedException("Access denied");
+            }
         }
-        return buildTokens(user, null);
+        // Customer login (requires specific merchantId > 0)
+        else if (req.getMerchantId() != null && req.getMerchantId() > 0) {
+            user = users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId())
+                    .orElseThrow(() -> new AuthExceptions.UserNotFoundException("Invalid credentials"));
+        }
+        // Invalid: no merchantId or merchantId < 0
+        else {
+            throw new IllegalArgumentException("MerchantId required: use 0 for merchants, >0 for customers");
+        }
+        
+        if (!encoder.matches(req.getPassword(), user.getPasswordHash())) {
+            throw new AuthExceptions.InvalidPasswordException("Invalid credentials");
+        }
+        
+        return buildTokens(user, req.getMerchantId());
     }
 
     @Override
     @Transactional
     public void requestOtp(OtpRequest req) {
-        try {
-            User u = users.findByUsername(req.getPhone()).orElse(null);
+        User user = findUserForOtp(req);
+        String code = otpService.generateOtp();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
+        
+        Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : null;
+        users.updateOtpByPhone(req.getPhone(), code, expiresAt, merchantId);
+        smsService.sendOtp(req.getPhone(), code);
+        String sanitizedPhone = req.getPhone() != null ? req.getPhone().replaceAll("[\r\n\t]", "") : "null";
+        otpAuditService.logOtp(user.getMerchant() != null ? user.getMerchant().getMerchantId() : null, 
+                sanitizedPhone, "****", expiresAt);
+    }
+    
+    private User findUserForOtp(OtpRequest req) {
+        if (req.getMerchantId() != null && Integer.valueOf(0).equals(req.getMerchantId())) {
+            User user = users.findByUsername(req.getPhone())
+                    .orElseThrow(() -> new AuthExceptions.UserNotFoundException("User not found"));
             
-            if (u == null) {
-                // Create new user
-                Merchant m = null;
-                if (req.getMerchantId() != null) {
-                    m = merchants.findById(req.getMerchantId()).orElse(null);
-                    if (m == null) {
-                        logger.warn("Merchant {} not found, creating user without merchant", req.getMerchantId());
-                    }
-                }
-
-                u = new User();
-                u.setMerchant(m);
-                u.setPhone(req.getPhone());
-                u.setUsername(req.getPhone());
-                u.setUserType("customer");
-                u.setGuest(false);
-                u.setPreferredLoginMethod("otp"); // Set to OTP for OTP-based creation
-                u = users.save(u);
-                logger.info("Created new user with ID: {} for phone: {}", u.getUserId(), req.getPhone());
-
-                // Try to assign customer role if it exists
-                Role customer = roles.findByRoleName("customer").orElse(null);
-                if (customer != null) {
-                    UserRole ur = new UserRole();
-                    ur.setUser(u);
-                    ur.setRole(customer);
-                    ur.setMerchant(m);
-                    ur.setAssignedAt(LocalDateTime.now());
-                    userRoles.save(ur);
-                    logger.info("Assigned customer role to user: {}", u.getUserId());
-                } else {
-                    logger.warn("Customer role not found, user created without role");
-                }
+            if (!"merchant".equals(user.getUserType())) {
+                throw new AuthExceptions.AccessDeniedException("Only merchants can use merchantId = 0");
             }
-
-            String code = otpService.generateOtp();
-            logger.info("Generated OTP for phone: {}, Length: {}", req.getPhone(), code.length());
-            
-            u.setOtpCode(code);
-            u.setOtpExpiresAt(LocalDateTime.now().plusMinutes(5));
-            u.setOtpAttempts(0);
-            
-            users.save(u);
-            logger.info("OTP stored successfully for user ID: {}, phone: {}", u.getUserId(), u.getPhone());
-            
-            // Send OTP via SMS service
-            smsService.sendOtp(u.getPhone(), code);
-            
-            // Audit logging
-            Long merchantIdLong = u.getMerchant() != null ? u.getMerchant().getMerchantId() : null;
-            Integer merchantId = merchantIdLong != null ? Math.toIntExact(merchantIdLong) : null;
-            otpAuditService.logOtp(merchantId, u.getPhone(), code, u.getOtpExpiresAt());
-            
-        } catch (Exception e) {
-            logger.error("Failed to process OTP request for phone: {}", req.getPhone(), e);
-            throw new RuntimeException("OTP request failed: " + e.getMessage());
+            return user;
         }
+        return req.getMerchantId() != null 
+            ? users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId())
+                .orElseThrow(() -> new AuthExceptions.UserNotFoundException("User not found"))
+            : users.findByUsername(req.getPhone())
+                .orElseThrow(() -> new AuthExceptions.UserNotFoundException("User not found"));
     }
 
     @Override
     @Transactional
     public AuthResponse verifyOtp(OtpVerifyRequest req) {
-        User u = loadByPhoneAndMerchant(req.getPhone(), null);
-        if (u.getOtpExpiresAt() == null || u.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("OTP expired");
-        }
-        int currentAttempts = u.getOtpAttempts() != null ? u.getOtpAttempts() : 0;
-        if (currentAttempts >= 5) {
-            throw new IllegalArgumentException("Too many attempts");
-        }
-        if (!req.getOtp().equals(u.getOtpCode())) {
-            int newAttempts = currentAttempts + 1;
-            u.setOtpAttempts(newAttempts);
-            users.save(u);
-            
-            // Log failed attempt
-            otpAuditService.updateOtpFailed(u.getPhone(), newAttempts);
-            
-            throw new IllegalArgumentException("Invalid OTP");
-        }
-
-        // Log successful verification
-        otpAuditService.updateOtpVerified(u.getPhone(), req.getOtp());
+        User user = findUserForOtp(new OtpRequest(req.getPhone(), req.getMerchantId()));
         
-        u.setOtpCode(null);
-        u.setOtpExpiresAt(null);
-        u.setOtpAttempts(0);
-        users.save(u);
-
-        return buildTokens(u, null);
+        if (!isOtpValid(req.getOtp(), user.getOtpCode()) || 
+            user.getOtpExpiresAt() == null || 
+            user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Invalid or expired OTP");
+        }
+        
+        user.setOtpCode(null);
+        user.setOtpExpiresAt(null);
+        users.save(user);
+        
+        Integer merchantIdForToken = (req.getMerchantId() != null && Integer.valueOf(0).equals(req.getMerchantId())) 
+                ? (user.getMerchant() != null ? user.getMerchant().getMerchantId() : null)
+                : req.getMerchantId();
+        
+        return buildTokens(user, merchantIdForToken);
     }
 
     @Override
     public AuthResponse refresh(RefreshTokenRequest req) {
-        Claims claims = jwt.parse(req.getRefreshToken());
-        Integer userId = Integer.valueOf(claims.getSubject());
-        Integer merchantId = (Integer) claims.get("merchantId");
-        User u = users.findById(userId).orElseThrow(() -> new IllegalArgumentException("User missing"));
-        return buildTokens(u, merchantId);
+        try {
+            Claims claims = jwt.parse(req.getRefreshToken());
+            Integer userId = Integer.valueOf(claims.getSubject());
+            Integer merchantId = (Integer) claims.get("merchantId");
+            User user = users.findById(userId).orElseThrow(() -> new AuthExceptions.UserNotFoundException("User not found"));
+            return buildTokens(user, merchantId);
+        } catch (Exception e) {
+            throw new AuthExceptions.InvalidPasswordException("Invalid refresh token", e);
+        }
+    }
+
+    private AuthResponse buildTokens(User user, Integer merchantId) {
+        Integer actualMerchantId = merchantId != null ? merchantId : 
+                (user.getMerchant() != null ? user.getMerchant().getMerchantId() : null);
+        List<String> roleNames = userRoles.findRoleNames(user.getUserId(), actualMerchantId);
+        
+        String accessToken = jwt.createAccessToken(user.getUserId(), actualMerchantId, roleNames, List.of());
+        String refreshToken = jwt.createRefreshToken(user.getUserId(), actualMerchantId);
+        
+        createUserSession(user.getUserId(), accessToken);
+        
+        AuthResponse response = new AuthResponse();
+        response.setAccessToken(accessToken);
+        response.setRefreshToken(refreshToken);
+        response.setExpiresIn(86400);
+        response.setUserId(user.getUserId());
+        response.setMerchantId(actualMerchantId);
+        response.setPhone(user.getPhone());
+        response.setRoles(roleNames);
+        return response;
     }
     
+    private void createUserSession(Integer userId, String accessToken) {
+        UserSession session = new UserSession();
+        session.setUserId(userId);
+        session.setTokenHash(hashToken(accessToken));
+        session.setCreatedAt(LocalDateTime.now());
+        session.setExpiresAt(LocalDateTime.now().plusDays(1));
+        sessionRepo.save(session);
+    }
+    
+    private boolean isOtpValid(String inputOtp, String storedOtp) {
+        if (inputOtp == null || storedOtp == null) return false;
+        return inputOtp.equals(storedOtp);
+    }
+    
+    private String hashToken(String token) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                hexString.append(String.format("%02x", b));
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Token hashing failed", e);
+        }
+    }
+
     @Override
-    public AuthResponse merchantLogin(MerchantLoginRequest req) {
-        // Find merchant by email
-        Merchant merchant = merchants.findByEmail(req.getEmail())
-            .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
-        
-        if (!merchant.isActive()) {
-            throw new IllegalArgumentException("Merchant account is inactive");
-        }
-        
-        // Find merchant user
-        User merchantUser = users.findByMerchantAndUserType(merchant, "merchant")
-            .orElseThrow(() -> new IllegalArgumentException("Merchant user not found"));
-        
-        if (merchantUser.getPasswordHash() == null || !encoder.matches(req.getPassword(), merchantUser.getPasswordHash())) {
-            throw new IllegalArgumentException("Invalid credentials");
-        }
-        
-        Long merchantIdLong = merchant.getMerchantId();
-        Integer merchantIdInt = merchantIdLong != null ? Math.toIntExact(merchantIdLong) : null;
-        return buildTokens(merchantUser, merchantIdInt);
-    }
-
-    private User loadByPhoneAndMerchant(String phone, Integer merchantId) {
-        return users.findByUsername(phone)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-    }
-
-    private AuthResponse buildTokens(User u, Integer merchantId) {
-        // Use user's actual merchant ID if not provided
-        Integer actualMerchantId = merchantId;
-        if (actualMerchantId == null && u.getMerchant() != null) {
-            Long merchantIdLong = u.getMerchant().getMerchantId();
-            actualMerchantId = merchantIdLong != null ? Math.toIntExact(merchantIdLong) : null;
-        }
-        
-        List<String> roleNames = userRoles.findRoleNames(u.getUserId(), actualMerchantId);
-        List<String> permissions = List.of(); // Empty permissions for now
-        String access = jwt.createAccessToken(u.getUserId(), actualMerchantId, roleNames, permissions);
-        String refresh = jwt.createRefreshToken(u.getUserId(), actualMerchantId);
-        
-        AuthResponse res = new AuthResponse();
-        res.setAccessToken(access);
-        res.setRefreshToken(refresh);
-        res.setExpiresIn(86400);
-        res.setUserId(u.getUserId());
-        res.setMerchantId(actualMerchantId);
-        res.setRoles(roleNames);
-        return res;
+    @Transactional
+    public void logout(Integer userId) {
+        sessionRepo.deactivateUserSessions(userId);
     }
 }

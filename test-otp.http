@@ -1,0 +1,18 @@
+### Test OTP Request
+POST http://localhost:8082/api/auth/otp/request
+Content-Type: application/json
+
+{
+  "merchantId": 1,
+  "phone": "9075027004"
+}
+
+### Test OTP Verify
+POST http://localhost:8082/api/auth/otp/verify
+Content-Type: application/json
+
+{
+  "merchantId": 1,
+  "phone": "9075027004",
+  "otp": "1234"
+}

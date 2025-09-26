@@ -1,13 +1,13 @@
 package com.cloudkitchen.rbac.service;
 
-import com.cloudkitchen.rbac.domain.entity.User;
+import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
+import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
 import java.util.List;
 
 public interface UserService {
-    List<User> getAllUsers();
-    List<User> getAllCustomers();
-    List<User> getCustomersByMerchantId(Integer merchantId);
-    User getUserById(Integer id);
-    User updateUser(Integer id, User user);
-    void deleteUser(Integer id);
+    List<CustomerResponse> getAllUsers(Integer requestingUserId);
+    CustomerResponse getUserById(Integer userId, Integer requestingUserId);
+    CustomerResponse createUser(RegisterRequest req, Integer requestingUserId);
+    CustomerResponse updateUser(Integer userId, RegisterRequest req, Integer requestingUserId);
+    void deleteUser(Integer userId, Integer requestingUserId);
 }

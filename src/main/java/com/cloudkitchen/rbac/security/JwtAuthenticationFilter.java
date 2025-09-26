@@ -66,11 +66,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    @SuppressWarnings("unchecked")
     private List<String> extractStringList(Claims claims, String key) {
         Object value = claims.get(key);
         if (value instanceof List<?>) {
-            return (List<String>) value;
+            List<?> list = (List<?>) value;
+            return list.stream()
+                    .filter(item -> item instanceof String)
+                    .map(String.class::cast)
+                    .collect(Collectors.toList());
         }
         return Collections.emptyList();
     }

@@ -1,7 +1,6 @@
 package com.cloudkitchen.rbac.dto.auth;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
 public class AuthRequest {
     private Integer merchantId;
@@ -10,7 +9,6 @@ public class AuthRequest {
     private String phone;
     
     @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
     // Getters and Setters
