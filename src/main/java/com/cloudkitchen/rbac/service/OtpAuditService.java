@@ -20,7 +20,7 @@ public class OtpAuditService {
         this.merchantRepository = merchantRepository;
     }
     
-    public void logOtp(Integer merchantId, String phone, String otpCode, LocalDateTime expiresAt) {
+    public void logOtp(Integer merchantId, String phone, String otpCode, String otpType, String status, LocalDateTime expiresAt) {
         try {
             OtpLog otpLog = new OtpLog();
             
@@ -30,17 +30,18 @@ public class OtpAuditService {
             }
             
             otpLog.setPhone(phone);
-            otpLog.setOtpCode("****");
-            otpLog.setOtpType(OtpLog.OtpType.LOGIN);
-            otpLog.setStatus(OtpLog.OtpStatus.SENT);
-            otpLog.setIpAddress("127.0.0.1");
-            otpLog.setUserAgent("API-Request");
+            otpLog.setOtpCode(otpCode); // Store actual OTP for verification
+            otpLog.setOtpType(otpType);
+            otpLog.setStatus(status);
+            // TODO: Extract actual IP and user agent from request context
+            otpLog.setIpAddress("127.0.0.1"); // Should be extracted from HttpServletRequest
+            otpLog.setUserAgent("API-Request"); // Should be extracted from HttpServletRequest
             otpLog.setAttemptsCount(0);
             otpLog.setExpiresAt(expiresAt);
             
             otpLogRepository.save(otpLog);
             String maskedPhone = maskPhoneNumber(phone);
-            logger.info("OTP audit log created for phone: {}", maskedPhone);
+            logger.info("OTP audit log created for phone: {} with type: {} and status: {}", maskedPhone, otpType, status);
 
         } catch (Exception e) {
             logger.warn("OTP audit logging failed: {}", e.getMessage(), e);
@@ -49,9 +50,9 @@ public class OtpAuditService {
     
     public void updateOtpVerified(String phone, String maskedOtp) {
         try {
-            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, OtpLog.OtpStatus.SENT)
+            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, "sent")
                 .ifPresent(otpLog -> {
-                    otpLog.setStatus(OtpLog.OtpStatus.VERIFIED);
+                    otpLog.setStatus("verified");
                     otpLog.setVerifiedAt(LocalDateTime.now());
                     otpLogRepository.save(otpLog);
                     String maskedPhone = maskPhoneNumber(phone);
@@ -64,9 +65,12 @@ public class OtpAuditService {
     
     public void updateOtpFailed(String phone, int attemptCount) {
         try {
-            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, OtpLog.OtpStatus.SENT)
+            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, "sent")
                 .ifPresent(otpLog -> {
                     otpLog.setAttemptsCount(attemptCount);
+                    if (attemptCount >= 3) {
+                        otpLog.setStatus("failed");
+                    }
                     otpLogRepository.save(otpLog);
                     String maskedPhone = maskPhoneNumber(phone);
                     logger.info("OTP attempt count updated to {} for phone: {}", attemptCount, maskedPhone);

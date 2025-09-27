@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
-import java.security.SecureRandom;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;

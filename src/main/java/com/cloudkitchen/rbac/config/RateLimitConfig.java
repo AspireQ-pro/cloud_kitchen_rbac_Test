@@ -1,10 +1,10 @@
 package com.cloudkitchen.rbac.config;
 
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.lang.NonNull;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,7 +16,7 @@ public class RateLimitConfig implements WebMvcConfigurer {
     private final RateLimitInterceptor rateLimitInterceptor = new RateLimitInterceptor();
 
     @Override
-    public void addInterceptors(InterceptorRegistry registry) {
+    public void addInterceptors(@NonNull InterceptorRegistry registry) {
         registry.addInterceptor(rateLimitInterceptor)
                 .addPathPatterns("/api/auth/**");
     }
@@ -29,7 +29,7 @@ public class RateLimitConfig implements WebMvcConfigurer {
         private final long cleanupIntervalMs = 300000; // 5 minutes
 
         @Override
-        public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        public boolean preHandle(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull Object handler) throws Exception {
             String clientId = getClientId(request);
             long currentTime = System.currentTimeMillis();
             

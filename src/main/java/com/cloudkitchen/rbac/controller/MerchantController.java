@@ -7,6 +7,7 @@ import com.cloudkitchen.rbac.util.ResponseBuilder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import jakarta.validation.Valid;
 import java.util.Map;
 
@@ -19,6 +20,7 @@ public class MerchantController {
         this.merchantService = merchantService;
     }
 
+    @PreAuthorize("hasRole('super_admin')")
     @PostMapping
     public ResponseEntity<Map<String, Object>> createMerchant(@Valid @RequestBody MerchantRequest req) {
         Merchant merchant = merchantService.createMerchant(req);
@@ -26,6 +28,7 @@ public class MerchantController {
                 .body(ResponseBuilder.success(201, "Merchant created successfully", merchant));
     }
 
+    @PreAuthorize("hasRole('super_admin') or (hasRole('merchant_admin') and @securityService.canAccessMerchant(authentication.name, #id))")
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @Valid @RequestBody MerchantRequest req) {
         Merchant merchant = merchantService.updateMerchant(id, req);
@@ -43,6 +46,7 @@ public class MerchantController {
         return ResponseEntity.ok(ResponseBuilder.success(200, "Merchants retrieved successfully", merchantService.getAllMerchants()));
     }
 
+    @PreAuthorize("hasRole('super_admin')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteMerchant(@PathVariable Integer id) {
         merchantService.deleteMerchant(id);

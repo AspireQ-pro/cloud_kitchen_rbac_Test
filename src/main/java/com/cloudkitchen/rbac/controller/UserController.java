@@ -30,7 +30,6 @@ public class UserController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
     public ResponseEntity<Map<String, Object>> getAllUsers(
             @RequestHeader(value = "Authorization", required = true) String authHeader,
             @RequestParam(value = "page", defaultValue = "0") @Min(0) Integer page,
@@ -59,7 +58,6 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     public ResponseEntity<Map<String, Object>> getUserById(
             @PathVariable @NotNull @Min(1) Integer userId, 
             @RequestHeader(value = "Authorization", required = true) String authHeader) {
@@ -87,7 +85,7 @@ public class UserController {
     }
     
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('super_admin') or hasRole('merchant_admin')")
     public ResponseEntity<Map<String, Object>> createUser(
             @Valid @RequestBody RegisterRequest req, 
             @RequestHeader(value = "Authorization", required = true) String authHeader) {
@@ -145,7 +143,7 @@ public class UserController {
     }
     
     @DeleteMapping("/{userId}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('super_admin')")
     public ResponseEntity<Map<String, Object>> deleteUser(
             @PathVariable @NotNull @Min(1) Integer userId, 
             @RequestHeader(value = "Authorization", required = true) String authHeader) {

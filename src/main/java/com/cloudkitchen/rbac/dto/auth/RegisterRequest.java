@@ -3,21 +3,18 @@ package com.cloudkitchen.rbac.dto.auth;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.*;
 import org.hibernate.validator.constraints.Length;
-import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 public class RegisterRequest {
     
-    @NotNull(message = "Merchant ID is required")
-    @NotNull(message = "Merchant ID is required")
-    @Min(value = 1, message = "Merchant ID must be positive")
+    @Schema(description = "Merchant ID (use 0 for super_admin, >0 for merchant/customer)", example = "1")
+    @Min(value = 0, message = "Merchant ID must be 0 or greater")
     @JsonProperty("merchantId")
-    private Integer merchantId;
+    private Integer merchantId = 1; // Default to 1 for customer
     
-    @NotBlank(message = "User type is required")
-    @Pattern(regexp = "^(super_admin|merchant|customer)$", message = "User type must be: super_admin, merchant, or customer")
-    @JsonProperty("userType")
-    private String userType = "customer";
+
     
+    @Schema(description = "Phone number (10 digits starting with 6-9)", example = "9876543210", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "Phone number cannot be null")
     @NotBlank(message = "Phone number is required")
     @Pattern(regexp = "^[6-9]\\d{9}$", message = "Invalid phone number format. Must be 10 digits starting with 6-9")
@@ -25,6 +22,7 @@ public class RegisterRequest {
     @JsonProperty("phone")
     private String phone;
     
+    @Schema(description = "Password (8-128 chars with uppercase, lowercase, digit, special char)", example = "SecurePass123!", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "Password cannot be null")
     @NotBlank(message = "Password is required")
     @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,128}$", 
@@ -33,25 +31,29 @@ public class RegisterRequest {
     @JsonProperty("password")
     private String password;
     
+    @Schema(description = "First name", example = "John", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "First name cannot be null")
     @NotBlank(message = "First name is required")
-    @Pattern(regexp = "^[a-zA-Z\\s\\-']{2,50}$", message = "First name contains invalid characters")
+    @Pattern(regexp = "^[a-zA-Z\\s\\-']{2,50}$", message = "First name must be 2-50 characters and contain only letters, spaces, hyphens, and apostrophes")
     @Length(min = 2, max = 50, message = "First name must be 2-50 characters")
     @JsonProperty("firstName")
     private String firstName;
     
+    @Schema(description = "Last name", example = "Doe", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "Last name cannot be null")
     @NotBlank(message = "Last name is required")
-    @Pattern(regexp = "^[a-zA-Z\\s\\-']{2,50}$", message = "Last name contains invalid characters")
+    @Pattern(regexp = "^[a-zA-Z\\s\\-']{2,50}$", message = "Last name must be 2-50 characters and contain only letters, spaces, hyphens, and apostrophes")
     @Length(min = 2, max = 50, message = "Last name must be 2-50 characters")
     @JsonProperty("lastName")
     private String lastName;
     
+    @Schema(description = "Address", example = "123 Main Street, City, State")
     @Length(max = 500, message = "Address cannot exceed 500 characters")
     @Pattern(regexp = "^[a-zA-Z0-9\\s\\-,.'#/]*$", message = "Address contains invalid characters")
     @JsonProperty("address")
     private String address;
     
+    @Schema(description = "Email address", example = "john.doe@example.com")
     @Email(message = "Invalid email format")
     @Length(max = 100, message = "Email cannot exceed 100 characters")
     @JsonProperty("email")
@@ -111,11 +113,8 @@ public class RegisterRequest {
         }
     }
 
-    public String getUserType() { return userType; }
-    public void setUserType(String userType) { 
-        this.userType = userType != null ? userType.trim().toLowerCase() : "customer"; 
-    }
-    
+
+
     public String getEmail() { return email; }
     public void setEmail(String email) { 
         this.email = email != null ? email.trim().toLowerCase() : null; 

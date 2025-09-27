@@ -1,6 +1,5 @@
 package com.cloudkitchen.rbac.util;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public class ResponseBuilder {

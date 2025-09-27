@@ -139,15 +139,15 @@ public class UserServiceImpl implements UserService {
             user.setUsername(req.getPhone());
             user.setFirstName(req.getFirstName());
             user.setLastName(req.getLastName());
-            user.setUserType(req.getUserType());
+            user.setUserType("customer"); // Admin-created users default to customer
             user.setPasswordHash(encoder.encode(req.getPassword()));
             user.setAddress(req.getAddress());
             user.setCreatedBy(requestingUserId);
             
             userRepository.save(user);
             
-            // Assign role
-            assignRole(user, req.getUserType(), merchant);
+            // Assign customer role
+            assignRole(user, "customer", merchant);
             
             return mapToResponse(user);
         } catch (Exception e) {

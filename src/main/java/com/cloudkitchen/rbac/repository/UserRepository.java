@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Integer> {
+    Optional<User> findByPhone(String phone);
     Optional<User> findByPhoneAndMerchantIsNull(String phone);
     Optional<User> findByPhoneAndMerchant_MerchantId(String phone, Integer merchantId);
     Optional<User> findByEmailAndMerchantIsNull(String email);
@@ -21,6 +22,12 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     boolean existsByPhone(String phone);
     boolean existsByEmail(String email);
     boolean existsByUsername(String username);
+    
+    // Merchant-aware existence checks
+    boolean existsByPhoneAndMerchant_MerchantId(String phone, Integer merchantId);
+    boolean existsByPhoneAndMerchantIsNull(String phone);
+    boolean existsByEmailAndMerchant_MerchantId(String email, Integer merchantId);
+    boolean existsByEmailAndMerchantIsNull(String email);
     
     @Modifying
     @Transactional

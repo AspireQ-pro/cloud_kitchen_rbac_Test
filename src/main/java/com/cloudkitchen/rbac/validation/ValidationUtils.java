@@ -1,6 +1,6 @@
 package com.cloudkitchen.rbac.validation;
 
-import com.cloudkitchen.rbac.constants.ErrorCodes;
+
 import java.util.regex.Pattern;
 
 public class ValidationUtils {
@@ -12,11 +12,11 @@ public class ValidationUtils {
     
     public static void validatePhone(String phone) {
         if (phone == null || phone.isBlank()) {
-            throw new IllegalArgumentException(ErrorCodes.REQUIRED_FIELD_MISSING + ": Phone is required");
+            throw new IllegalArgumentException("Phone is required");
         }
         String sanitizedPhone = sanitizeInput(phone.replaceAll("\\s+", ""));
         if (!PHONE_PATTERN.matcher(sanitizedPhone).matches()) {
-            throw new IllegalArgumentException(ErrorCodes.INVALID_PHONE + ": Invalid phone format");
+            throw new IllegalArgumentException("Invalid phone format");
         }
     }
     
@@ -24,7 +24,7 @@ public class ValidationUtils {
         if (email != null && !email.isBlank()) {
             String sanitizedEmail = sanitizeInput(email);
             if (!EMAIL_PATTERN.matcher(sanitizedEmail).matches()) {
-                throw new IllegalArgumentException(ErrorCodes.INVALID_EMAIL + ": Invalid email format");
+                throw new IllegalArgumentException("Invalid email format");
             }
         }
     }
@@ -42,14 +42,14 @@ public class ValidationUtils {
     
     public static void validateName(String name, String fieldName) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException(ErrorCodes.REQUIRED_FIELD_MISSING + ": " + fieldName + " is required");
+            throw new IllegalArgumentException(fieldName + " is required");
         }
         String sanitizedName = sanitizeInput(name.trim());
         if (sanitizedName.length() < 2 || sanitizedName.length() > 50) {
-            throw new IllegalArgumentException(ErrorCodes.INVALID_FORMAT + ": " + fieldName + " must be 2-50 characters");
+            throw new IllegalArgumentException(fieldName + " must be 2-50 characters");
         }
         if (!NAME_PATTERN.matcher(sanitizedName).matches()) {
-            throw new IllegalArgumentException(ErrorCodes.INVALID_FORMAT + ": " + fieldName + " invalid format");
+            throw new IllegalArgumentException(fieldName + " contains invalid characters");
         }
     }
     

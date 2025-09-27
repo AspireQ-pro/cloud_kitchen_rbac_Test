@@ -1,0 +1,62 @@
+{
+  "properties": [
+    {
+      "name": "app.jwt.secret",
+      "type": "java.lang.String",
+      "description": "JWT signing secret key"
+    },
+    {
+      "name": "app.jwt.access-valid-seconds",
+      "type": "java.lang.Long",
+      "description": "JWT access token validity in seconds",
+      "defaultValue": 3600
+    },
+    {
+      "name": "app.jwt.refresh-valid-seconds",
+      "type": "java.lang.Long",
+      "description": "JWT refresh token validity in seconds",
+      "defaultValue": 604800
+    },
+    {
+      "name": "app.jwt.issuer",
+      "type": "java.lang.String",
+      "description": "JWT token issuer",
+      "defaultValue": "cloud-kitchen-rbac"
+    },
+    {
+      "name": "app.cors.allowed-origins",
+      "type": "java.lang.String",
+      "description": "CORS allowed origins"
+    },
+    {
+      "name": "app.otp.length",
+      "type": "java.lang.Integer",
+      "description": "OTP length",
+      "defaultValue": 4
+    },
+    {
+      "name": "app.otp.expiry-minutes",
+      "type": "java.lang.Integer",
+      "description": "OTP expiry time in minutes",
+      "defaultValue": 5
+    },
+    {
+      "name": "app.otp.max-attempts",
+      "type": "java.lang.Integer",
+      "description": "Maximum OTP attempts",
+      "defaultValue": 3
+    },
+    {
+      "name": "app.security.password.min-length",
+      "type": "java.lang.Integer",
+      "description": "Minimum password length",
+      "defaultValue": 8
+    },
+    {
+      "name": "app.security.max-login-attempts",
+      "type": "java.lang.Integer",
+      "description": "Maximum login attempts",
+      "defaultValue": 5
+    }
+  ]
+}

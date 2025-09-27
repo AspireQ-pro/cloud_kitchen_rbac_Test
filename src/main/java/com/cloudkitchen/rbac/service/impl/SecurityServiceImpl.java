@@ -1,6 +1,6 @@
 package com.cloudkitchen.rbac.service.impl;
 
-import com.cloudkitchen.rbac.constants.ErrorCodes;
+
 import com.cloudkitchen.rbac.domain.entity.User;
 import com.cloudkitchen.rbac.exception.AuthExceptions;
 import com.cloudkitchen.rbac.repository.UserRepository;
@@ -23,17 +23,31 @@ public class SecurityServiceImpl implements SecurityService {
     }
     
     @Override
-    public boolean hasPermission(Integer userId, String permission) {
+    public boolean hasPermission(Integer userId, String permission, Integer merchantId) {
         if (userId == null || permission == null) return false;
-        List<String> permissions = getUserPermissions(userId, null);
+        List<String> permissions = getUserPermissions(userId, merchantId);
         return permissions.contains(permission);
     }
     
     @Override
-    public boolean hasRole(Integer userId, String role) {
+    public boolean hasRole(Integer userId, String role, Integer merchantId) {
         if (userId == null || role == null) return false;
-        List<String> roles = getUserRoles(userId, null);
+        List<String> roles = getUserRoles(userId, merchantId);
         return roles.contains(role);
+    }
+    
+    @Override
+    public boolean canAccessMerchant(String username, Integer merchantId) {
+        User user = userRepository.findByUsername(username).orElse(null);
+        if (user == null) return false;
+        
+        // Super admin can access all merchants
+        if (hasRole(user.getUserId(), "SUPER_ADMIN", null)) {
+            return true;
+        }
+        
+        // Users can only access their own merchant
+        return user.getMerchant() != null && user.getMerchant().getMerchantId().equals(merchantId);
     }
     
     @Override
@@ -48,14 +62,19 @@ public class SecurityServiceImpl implements SecurityService {
     
     @Override
     public boolean canAccessResource(Integer userId, String resource, String action) {
+        if (resource == null || action == null) {
+            return false;
+        }
         String permission = resource + "." + action;
-        return hasPermission(userId, permission);
+        User user = userRepository.findById(userId).orElse(null);
+        Integer merchantId = user != null && user.getMerchant() != null ? user.getMerchant().getMerchantId() : null;
+        return hasPermission(userId, permission, merchantId);
     }
     
     @Override
     public void validateUserAccess(Integer requestingUserId, Integer targetUserId) {
         if (requestingUserId == null || targetUserId == null) {
-            throw new AuthExceptions.AccessDeniedException(ErrorCodes.ACCESS_DENIED + ": Invalid user IDs");
+            throw new AuthExceptions.AccessDeniedException("Invalid user IDs");
         }
         
         // Users can access their own data
@@ -64,26 +83,29 @@ public class SecurityServiceImpl implements SecurityService {
         }
         
         // Check if requesting user has admin privileges
-        if (hasRole(requestingUserId, "super_admin") || hasRole(requestingUserId, "merchant_admin")) {
+        User requestingUser = userRepository.findById(requestingUserId).orElse(null);
+        Integer merchantId = requestingUser != null && requestingUser.getMerchant() != null ? requestingUser.getMerchant().getMerchantId() : null;
+        
+        if (hasRole(requestingUserId, "super_admin", null) || hasRole(requestingUserId, "merchant_admin", merchantId)) {
             return;
         }
         
-        throw new AuthExceptions.AccessDeniedException(ErrorCodes.ACCESS_DENIED + ": Insufficient permissions");
+        throw new AuthExceptions.AccessDeniedException("Insufficient permissions");
     }
     
     @Override
     public User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
-            throw new AuthExceptions.UserNotFoundException(ErrorCodes.USER_NOT_FOUND + ": No authenticated user");
+            throw new AuthExceptions.UserNotFoundException("No authenticated user");
         }
         
         try {
             Integer userId = Integer.valueOf(auth.getName());
             return userRepository.findById(userId)
-                    .orElseThrow(() -> new AuthExceptions.UserNotFoundException(ErrorCodes.USER_NOT_FOUND + ": User not found"));
+                    .orElseThrow(() -> new AuthExceptions.UserNotFoundException("User not found"));
         } catch (NumberFormatException e) {
-            throw new AuthExceptions.UserNotFoundException(ErrorCodes.USER_NOT_FOUND + ": Invalid user ID format");
+            throw new AuthExceptions.UserNotFoundException("Invalid user ID format");
         }
     }
 }

@@ -11,5 +11,8 @@ public interface OtpLogRepository extends JpaRepository<OtpLog, Integer> {
     @Query("SELECT COUNT(o) FROM OtpLog o WHERE o.phone = :phone AND o.createdOn > :after")
     long countByPhoneAndCreatedOnAfter(@Param("phone") String phone, @Param("after") LocalDateTime after);
     
-    Optional<OtpLog> findTopByPhoneAndStatusOrderByCreatedOnDesc(String phone, OtpLog.OtpStatus status);
+    Optional<OtpLog> findTopByPhoneAndStatusOrderByCreatedOnDesc(String phone, String status);
+    
+    @Query("SELECT COALESCE(o.attemptsCount, 0) FROM OtpLog o WHERE o.phone = :phone AND o.status = 'sent' ORDER BY o.createdOn DESC LIMIT 1")
+    Integer getCurrentAttemptCount(@Param("phone") String phone);
 }
