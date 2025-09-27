@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Maven
+target/
+!target/rbac-service-1.0.0.jar
+.mvn/
+mvnw
+mvnw.cmd
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+.env.example
+
+# Documentation
+README.md
+*.md
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Scripts
+scripts/
+*.sh
+
+# Test files
+src/test/

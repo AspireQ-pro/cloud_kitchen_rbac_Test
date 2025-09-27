@@ -49,18 +49,51 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse registerUser(RegisterRequest req) {
+        // Validate merchant exists
         Merchant merchant = merchants.findById(req.getMerchantId())
                 .orElseThrow(() -> new IllegalArgumentException("Merchant not found"));
         
+        // Check for duplicate phone number
         if (users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {
-            throw new AuthExceptions.UserAlreadyExistsException("Phone already registered");
+            throw new AuthExceptions.UserAlreadyExistsException("Phone number already registered");
         }
+        
+        // Additional validation
+        validateRegistrationRequest(req);
         
         User user = createUser(req, merchant);
         users.save(user);
         
         assignCustomerRole(user, merchant);
         return buildTokens(user, null);
+    }
+    
+    private void validateRegistrationRequest(RegisterRequest req) {
+        // Validate phone format
+        if (req.getPhone() == null || !req.getPhone().matches("^[6-9]\\d{9}$")) {
+            throw new IllegalArgumentException("Invalid phone number format");
+        }
+        
+        // Validate password strength
+        if (req.getPassword() == null || !req.getPassword().matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,128}$")) {
+            throw new IllegalArgumentException("Password must be 8-128 characters with uppercase, lowercase, digit, and special character");
+        }
+        
+        // Validate names
+        if (req.getFirstName() == null || req.getFirstName().trim().isEmpty()) {
+            throw new IllegalArgumentException("First name is required");
+        }
+        if (req.getLastName() == null || req.getLastName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Last name is required");
+        }
+        
+        // Validate name format
+        if (!req.getFirstName().matches("^[a-zA-Z\\s\\-']{2,50}$")) {
+            throw new IllegalArgumentException("First name contains invalid characters");
+        }
+        if (!req.getLastName().matches("^[a-zA-Z\\s\\-']{2,50}$")) {
+            throw new IllegalArgumentException("Last name contains invalid characters");
+        }
     }
     
     private User createUser(RegisterRequest req, Merchant merchant) {

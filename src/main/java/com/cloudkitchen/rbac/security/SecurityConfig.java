@@ -10,6 +10,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.config.Customizer;
 import org.springframework.web.cors.CorsConfiguration;
@@ -42,10 +44,15 @@ public class SecurityConfig {
     private static final String[] SWAGGER_WHITELIST = {
             "/swagger-ui.html",
             "/swagger-ui/**",
+            "/swagger-ui.html/**",
+            "/v3/api-docs",
             "/v3/api-docs/**",
-            "/swagger-resources/**",
             "/swagger-resources",
-            "/webjars/**"
+            "/swagger-resources/**",
+            "/configuration/ui",
+            "/configuration/security",
+            "/webjars/**",
+            "/swagger-config"
     };
 
     @Bean
@@ -56,21 +63,22 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(httpBasic -> httpBasic.disable())
                 .formLogin(formLogin -> formLogin.disable())
-                .headers(headers -> headers
-                        .frameOptions(frameOptions -> frameOptions.deny())
-                        .contentTypeOptions(Customizer.withDefaults())
-                        .httpStrictTransportSecurity(hstsConfig -> hstsConfig
-                                .maxAgeInSeconds(31536000)
-                                .includeSubDomains(true)
-                                .preload(true))
-                        .referrerPolicy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
-                )
+                .logout(logout -> logout.disable())
+                .headers(headers -> headers.disable())
                 .authorizeHttpRequests(authz -> authz
+                        .requestMatchers("/", "/error", "/favicon.ico").permitAll()
                         .requestMatchers(AUTH_WHITELIST).permitAll()
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(401);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Authentication required\"}");
+                        })
                 )
                 .addFilterBefore(jwtAuthenticationFilter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -79,12 +87,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(allowedOrigins);
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"
-        ));
-        configuration.setExposedHeaders(Arrays.asList("Authorization"));
+        // Development: Allow all origins
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setExposedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -95,5 +102,10 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(12);
+    }
+    
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
     }
 }

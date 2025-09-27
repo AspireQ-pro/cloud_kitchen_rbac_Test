@@ -140,6 +140,19 @@ public class GlobalExceptionHandler {
         logger.warn("Invalid argument: {}", sanitizeLogMessage(ex.getMessage()));
         return ResponseEntity.badRequest().body(errorResponse);
     }
+    
+    @ExceptionHandler(com.cloudkitchen.rbac.exception.AuthExceptions.UserAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleUserAlreadyExistsException(com.cloudkitchen.rbac.exception.AuthExceptions.UserAlreadyExistsException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+            "USER_ALREADY_EXISTS",
+            "Phone number already registered",
+            null,
+            LocalDateTime.now()
+        );
+        
+        logger.warn("User already exists: {}", sanitizeLogMessage(ex.getMessage()));
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex, WebRequest request) {

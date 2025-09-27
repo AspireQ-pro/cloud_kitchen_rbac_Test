@@ -18,9 +18,21 @@ public class MerchantServiceImpl implements MerchantService {
     public Merchant createMerchant(com.cloudkitchen.rbac.dto.merchant.MerchantRequest req) {
         Merchant merchant = new Merchant();
         merchant.setMerchantName(req.getMerchantName());
-        merchant.setAddress(req.getAddress());
+        merchant.setBusinessName(req.getBusinessName());
+        merchant.setBusinessType(req.getBusinessType());
+        merchant.setWebsiteUrl(req.getWebsiteUrl());
         merchant.setPhone(req.getPhone());
         merchant.setEmail(req.getEmail());
+        merchant.setAddress(req.getAddress());
+        merchant.setCity(req.getCity());
+        merchant.setState(req.getState());
+        merchant.setCountry(req.getCountry());
+        merchant.setPincode(req.getPincode());
+        merchant.setGstin(req.getGstin());
+        merchant.setFssaiLicense(req.getFssaiLicense());
+        merchant.setActive(req.getActive());
+        merchant.setSubscriptionPlan(req.getSubscriptionPlan());
+        merchant.setSubscriptionExpiresAt(req.getSubscriptionExpiresAt());
         return merchantRepository.save(merchant);
     }
 
@@ -29,9 +41,21 @@ public class MerchantServiceImpl implements MerchantService {
         Merchant merchant = merchantRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Merchant not found"));
         merchant.setMerchantName(req.getMerchantName());
-        merchant.setAddress(req.getAddress());
+        merchant.setBusinessName(req.getBusinessName());
+        merchant.setBusinessType(req.getBusinessType());
+        merchant.setWebsiteUrl(req.getWebsiteUrl());
         merchant.setPhone(req.getPhone());
         merchant.setEmail(req.getEmail());
+        merchant.setAddress(req.getAddress());
+        merchant.setCity(req.getCity());
+        merchant.setState(req.getState());
+        merchant.setCountry(req.getCountry());
+        merchant.setPincode(req.getPincode());
+        merchant.setGstin(req.getGstin());
+        merchant.setFssaiLicense(req.getFssaiLicense());
+        merchant.setActive(req.getActive());
+        merchant.setSubscriptionPlan(req.getSubscriptionPlan());
+        merchant.setSubscriptionExpiresAt(req.getSubscriptionExpiresAt());
         return merchantRepository.save(merchant);
     }
     

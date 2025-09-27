@@ -27,4 +27,9 @@ public class AuthExceptions {
         public InvalidPasswordException(String message) { super(message); }
         public InvalidPasswordException(String message, Throwable cause) { super(message, cause); }
     }
+    
+    public static class ValidationException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        public ValidationException(String message) { super(message); }
+    }
 }

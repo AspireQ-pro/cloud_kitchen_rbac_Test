@@ -1,42 +1,68 @@
-# Build artifacts
+# Compiled class files
+*.class
 target/
 *.jar
 *.war
 *.ear
-*.class
+*.nar
+
+# Log files
+*.log
+logs/
 
 # IDE files
 .idea/
-.vscode/
 *.iml
 *.ipr
 *.iws
+.vscode/
+.settings/
+.project
+.classpath
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-logs/
+# Environment files
+.env
+.env.local
+.env.production
+application-local.properties
+application-dev.properties
 
-# History and temp files
-.history/
-.qodo/
-temp/
-
-# Database
+# Database files
 *.db
 *.sqlite
 
-# Environment
-.env
-.env.local
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
 
-# Deployment secrets
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.properties
+
+# Spring Boot
+spring.log
+
+# Security sensitive files
 *.pem
 *.key
-aws-credentials
+*.crt
+*.p12
+*.jks
 
-# Docker
-.dockerignore
+# Build artifacts
+build/
+dist/
+out/
+
+# Node modules (if any frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
