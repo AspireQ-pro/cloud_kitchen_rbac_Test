@@ -65,8 +65,6 @@ public class User {
 
     @Column(name = "address", length = 250)
     private String address;
- @Column(name = "address", columnDefinition = "TEXT")
-    private String address;
     @Column(name = "user_type", length = 20)
     @Check(constraints = "user_type IN ('super_admin', 'merchant', 'customer')")
     private String userType = "customer";

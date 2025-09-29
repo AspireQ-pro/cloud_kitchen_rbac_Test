@@ -1,6 +1,5 @@
 package com.cloudkitchen.rbac.domain.entity;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.Check;
@@ -64,9 +63,10 @@ public class User {
     @Column(name = "last_name", length = 100)
     private String lastName;
 
-    @Column(name = "address", columnDefinition = "TEXT")
+    @Column(name = "address", length = 250)
     private String address;
-
+ @Column(name = "address", columnDefinition = "TEXT")
+    private String address;
     @Column(name = "user_type", length = 20)
     @Check(constraints = "user_type IN ('super_admin', 'merchant', 'customer')")
     private String userType = "customer";
@@ -162,26 +162,10 @@ public class User {
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { this.lastName = lastName; }
 
-    public LocalDate getDateOfBirth() { return dateOfBirth; }
-    public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
-
-    public String getGender() { return gender; }
-    public void setGender(String gender) { this.gender = gender; }
-
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
-    
-    public String getCity() { return city; }
-    public void setCity(String city) { this.city = city; }
-    
-    public String getState() { return state; }
-    public void setState(String state) { this.state = state; }
-    
-    public String getPincode() { return pincode; }
-    public void setPincode(String pincode) { this.pincode = pincode; }
 
-    public String getProfileImageUrl() { return profileImageUrl; }
-    public void setProfileImageUrl(String profileImageUrl) { this.profileImageUrl = profileImageUrl; }
+
 
     public String getUserType() { return userType; }
     public void setUserType(String userType) { this.userType = userType; }

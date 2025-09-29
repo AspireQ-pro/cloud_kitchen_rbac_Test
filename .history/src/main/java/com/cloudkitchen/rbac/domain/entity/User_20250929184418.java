@@ -63,9 +63,8 @@ public class User {
     @Column(name = "last_name", length = 100)
     private String lastName;
 
-    @Column(name = "address", columnDefinition = "TEXT")
+    @Column(name = "address", length = 250)
     private String address;
-
     @Column(name = "user_type", length = 20)
     @Check(constraints = "user_type IN ('super_admin', 'merchant', 'customer')")
     private String userType = "customer";
@@ -163,6 +162,8 @@ public class User {
 
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
+
+
 
     public String getUserType() { return userType; }
     public void setUserType(String userType) { this.userType = userType; }
