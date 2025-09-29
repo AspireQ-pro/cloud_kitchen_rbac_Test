@@ -20,6 +20,18 @@ public class CustomerController {
         this.jwt = jwt;
     }
 
+    @GetMapping("/profile")
+    public ResponseEntity<Map<String, Object>> getProfile(@RequestHeader("Authorization") String authHeader) {
+        try {
+            Integer userId = extractUserId(authHeader);
+            return ResponseEntity.ok(ResponseBuilder.success(200, "Profile retrieved successfully", customerService.getCustomerById(userId, userId)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(401).body(ResponseBuilder.error(401, "Invalid token"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ResponseBuilder.error(500, "Internal server error"));
+        }
+    }
+
     @GetMapping
     public ResponseEntity<Map<String, Object>> getAllCustomers(@RequestHeader("Authorization") String authHeader) {
         try {

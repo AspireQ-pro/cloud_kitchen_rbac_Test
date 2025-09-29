@@ -3,7 +3,6 @@ package com.cloudkitchen.rbac.service.impl;
 import com.cloudkitchen.rbac.domain.entity.*;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
-import com.cloudkitchen.rbac.exception.AuthExceptions;
 import com.cloudkitchen.rbac.repository.*;
 import com.cloudkitchen.rbac.service.UserService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,9 +40,8 @@ public class UserServiceImpl implements UserService {
         
         User requestingUser = getUser(requestingUserId);
         
-        // Only super_admin can see all users
         if (!"super_admin".equals(requestingUser.getUserType())) {
-            throw new AuthExceptions.AccessDeniedException("Access denied");
+            throw new RuntimeException("Access denied");
         }
         
         try {
@@ -65,27 +63,24 @@ public class UserServiceImpl implements UserService {
         User requestingUser = getUser(requestingUserId);
         User user = getUser(userId);
         
-        // Super admin can see any user
         if ("super_admin".equals(requestingUser.getUserType())) {
             return mapToResponse(user);
         }
         
-        // Merchant can see users in their merchant
         if ("merchant".equals(requestingUser.getUserType())) {
             Integer requestingMerchantId = requestingUser.getMerchant() != null ? requestingUser.getMerchant().getMerchantId() : null;
             Integer userMerchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : null;
             if (!Objects.equals(requestingMerchantId, userMerchantId)) {
-                throw new AuthExceptions.AccessDeniedException("Access denied");
+                throw new RuntimeException("Access denied");
             }
             return mapToResponse(user);
         }
         
-        // Users can see their own profile
         if (userId.equals(requestingUserId)) {
             return mapToResponse(user);
         }
         
-        throw new AuthExceptions.AccessDeniedException("Access denied");
+        throw new RuntimeException("Access denied");
     }
 
     @Override
@@ -109,26 +104,23 @@ public class UserServiceImpl implements UserService {
         
         User requestingUser = getUser(requestingUserId);
         
-        // Only super_admin can create users
         if (!"super_admin".equals(requestingUser.getUserType())) {
-            throw new AuthExceptions.AccessDeniedException("Access denied");
+            throw new RuntimeException("Access denied");
         }
         
-        // Validate merchant exists if provided
         Merchant merchant = null;
         if (req.getMerchantId() != null) {
             merchant = merchantRepository.findById(req.getMerchantId())
                     .orElseThrow(() -> new IllegalArgumentException("Merchant not found"));
         }
         
-        // Check for duplicate phone
         if (req.getMerchantId() != null) {
             if (userRepository.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {
-                throw new AuthExceptions.UserAlreadyExistsException("Phone already registered");
+                throw new RuntimeException("Phone already registered");
             }
         } else {
             if (userRepository.findByPhoneAndMerchantIsNull(req.getPhone()).isPresent()) {
-                throw new AuthExceptions.UserAlreadyExistsException("Phone already registered");
+                throw new RuntimeException("Phone already registered");
             }
         }
         
@@ -139,14 +131,13 @@ public class UserServiceImpl implements UserService {
             user.setUsername(req.getPhone());
             user.setFirstName(req.getFirstName());
             user.setLastName(req.getLastName());
-            user.setUserType("customer"); // Admin-created users default to customer
+            user.setUserType("customer");
             user.setPasswordHash(encoder.encode(req.getPassword()));
             user.setAddress(req.getAddress());
             user.setCreatedBy(requestingUserId);
             
             userRepository.save(user);
             
-            // Assign customer role
             assignRole(user, "customer", merchant);
             
             return mapToResponse(user);
@@ -166,14 +157,12 @@ public class UserServiceImpl implements UserService {
         User user = getUser(userId);
         
         try {
-            // Super admin can update any user
             if ("super_admin".equals(requestingUser.getUserType())) {
                 updateUserFields(user, req, requestingUserId);
                 userRepository.save(user);
                 return mapToResponse(user);
             }
             
-            // Users can update their own profile (limited fields)
             if (userId.equals(requestingUserId)) {
                 user.setFirstName(req.getFirstName());
                 user.setLastName(req.getLastName());
@@ -183,9 +172,7 @@ public class UserServiceImpl implements UserService {
                 return mapToResponse(user);
             }
             
-            throw new AuthExceptions.AccessDeniedException("Access denied");
-        } catch (AuthExceptions.AccessDeniedException e) {
-            throw e;
+            throw new RuntimeException("Access denied");
         } catch (Exception e) {
             throw new RuntimeException("Failed to update user", e);
         }
@@ -200,12 +187,10 @@ public class UserServiceImpl implements UserService {
         
         User requestingUser = getUser(requestingUserId);
         
-        // Only super_admin can delete users
         if (!"super_admin".equals(requestingUser.getUserType())) {
-            throw new AuthExceptions.AccessDeniedException("Access denied");
+            throw new RuntimeException("Access denied");
         }
         
-        // Prevent self-deletion
         if (userId.equals(requestingUserId)) {
             throw new IllegalArgumentException("Cannot delete your own account");
         }
@@ -223,7 +208,7 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("User ID cannot be null");
         }
         return userRepository.findById(userId)
-                .orElseThrow(() -> new AuthExceptions.UserNotFoundException("User not found with ID: " + userId));
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
     }
 
     private void updateUserFields(User user, RegisterRequest req, Integer updatedBy) {
@@ -248,12 +233,16 @@ public class UserServiceImpl implements UserService {
         }
         
         try {
-            String roleName = switch (userType) {
-                case "super_admin" -> "super_admin";
-                case "merchant" -> "merchant_admin";
-                case "customer" -> "customer";
-                default -> "customer";
-            };
+            String roleName;
+            if ("super_admin".equals(userType)) {
+                roleName = "super_admin";
+            } else if ("merchant".equals(userType)) {
+                roleName = "merchant_admin";
+            } else if ("customer".equals(userType)) {
+                roleName = "customer";
+            } else {
+                roleName = "customer";
+            }
             
             Role role = roleRepository.findByRoleName(roleName)
                     .orElseThrow(() -> new IllegalStateException("Role not found: " + roleName));

@@ -2,7 +2,6 @@ package com.cloudkitchen.rbac.service.impl;
 
 import com.cloudkitchen.rbac.domain.entity.User;
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
-import com.cloudkitchen.rbac.exception.AuthExceptions;
 import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.service.CustomerService;
 import org.springframework.stereotype.Service;
@@ -25,7 +24,7 @@ public class CustomerServiceImpl implements CustomerService {
         
         // Only super_admin can see all customers
         if (!"super_admin".equals(requestingUser.getUserType())) {
-            throw new AuthExceptions.AccessDeniedException("Access denied");
+            throw new RuntimeException("Access denied");
         }
         
         return userRepository.findByUserType("customer").stream()
@@ -48,14 +47,14 @@ public class CustomerServiceImpl implements CustomerService {
         if ("merchant".equals(requestingUser.getUserType())) {
             Integer userMerchantId = requestingUser.getMerchant() != null ? requestingUser.getMerchant().getMerchantId() : null;
             if (!merchantId.equals(userMerchantId)) {
-                throw new AuthExceptions.AccessDeniedException("Access denied");
+                throw new RuntimeException("Access denied");
             }
             return userRepository.findByUserTypeAndMerchant_MerchantId("customer", merchantId).stream()
                     .map(this::mapToCustomerResponse)
                     .collect(Collectors.toList());
         }
         
-        throw new AuthExceptions.AccessDeniedException("Access denied");
+        throw new RuntimeException("Access denied");
     }
     
     @Override
@@ -78,7 +77,7 @@ public class CustomerServiceImpl implements CustomerService {
             Integer userMerchantId = requestingUser.getMerchant() != null ? requestingUser.getMerchant().getMerchantId() : null;
             Integer customerMerchantId = customer.getMerchant() != null ? customer.getMerchant().getMerchantId() : null;
             if (!Objects.equals(userMerchantId, customerMerchantId)) {
-                throw new AuthExceptions.AccessDeniedException("Access denied");
+                throw new RuntimeException("Access denied");
             }
             return mapToCustomerResponse(customer);
         }
@@ -86,12 +85,12 @@ public class CustomerServiceImpl implements CustomerService {
         // Customer can only see their own profile
         if ("customer".equals(requestingUser.getUserType())) {
             if (!customerId.equals(requestingUserId)) {
-                throw new AuthExceptions.AccessDeniedException("Access denied");
+                throw new RuntimeException("Access denied");
             }
             return mapToCustomerResponse(customer);
         }
         
-        throw new AuthExceptions.AccessDeniedException("Access denied");
+        throw new RuntimeException("Access denied");
     }
     
     @Override
@@ -114,14 +113,14 @@ public class CustomerServiceImpl implements CustomerService {
         // Customer can only update their own profile
         if ("customer".equals(requestingUser.getUserType())) {
             if (!customerId.equals(requestingUserId)) {
-                throw new AuthExceptions.AccessDeniedException("Access denied");
+                throw new RuntimeException("Access denied");
             }
             updateCustomerFields(customer, req);
             userRepository.save(customer);
             return mapToCustomerResponse(customer);
         }
         
-        throw new AuthExceptions.AccessDeniedException("Access denied");
+        throw new RuntimeException("Access denied");
     }
     
     private User getUser(Integer userId) {

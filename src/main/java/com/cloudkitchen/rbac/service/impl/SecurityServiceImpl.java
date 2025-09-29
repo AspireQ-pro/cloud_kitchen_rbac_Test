@@ -2,7 +2,7 @@ package com.cloudkitchen.rbac.service.impl;
 
 
 import com.cloudkitchen.rbac.domain.entity.User;
-import com.cloudkitchen.rbac.exception.AuthExceptions;
+
 import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.repository.UserRoleRepository;
 import com.cloudkitchen.rbac.service.SecurityService;
@@ -74,7 +74,7 @@ public class SecurityServiceImpl implements SecurityService {
     @Override
     public void validateUserAccess(Integer requestingUserId, Integer targetUserId) {
         if (requestingUserId == null || targetUserId == null) {
-            throw new AuthExceptions.AccessDeniedException("Invalid user IDs");
+            throw new RuntimeException("Invalid user IDs");
         }
         
         // Users can access their own data
@@ -90,22 +90,22 @@ public class SecurityServiceImpl implements SecurityService {
             return;
         }
         
-        throw new AuthExceptions.AccessDeniedException("Insufficient permissions");
+        throw new RuntimeException("Insufficient permissions");
     }
     
     @Override
     public User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
-            throw new AuthExceptions.UserNotFoundException("No authenticated user");
+            throw new RuntimeException("No authenticated user");
         }
         
         try {
             Integer userId = Integer.valueOf(auth.getName());
             return userRepository.findById(userId)
-                    .orElseThrow(() -> new AuthExceptions.UserNotFoundException("User not found"));
+                    .orElseThrow(() -> new RuntimeException("User not found"));
         } catch (NumberFormatException e) {
-            throw new AuthExceptions.UserNotFoundException("Invalid user ID format");
+            throw new RuntimeException("Invalid user ID format", e);
         }
     }
 }

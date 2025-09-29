@@ -10,6 +10,8 @@ public interface AuthService {
     void logout(Integer userId);
 
     void requestOtp(OtpRequest req);
-    boolean verifyOtp(OtpVerifyRequest req);
+    AuthResponse verifyOtp(OtpVerifyRequest req);
     void resetPassword(PasswordResetRequest req);
+    
+    long getUserCount();
 }

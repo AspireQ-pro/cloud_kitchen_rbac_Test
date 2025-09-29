@@ -16,7 +16,7 @@ public class PasswordResetRequest {
     @NotBlank(message = "OTP is required")
     @Size(min = 4, max = 4, message = "OTP must be 4 digits")
     @Pattern(regexp = "\\d{4}", message = "OTP must contain only digits")
-    @Schema(description = "4-digit OTP", example = "1234")
+    @Schema(description = "4-digit OTP for password reset", example = "1234")
     private String otp;
     
     @NotBlank(message = "New password is required")

@@ -6,7 +6,7 @@ public class AuthResponse {
     private String accessToken;
     private String refreshToken;
     private String tokenType = "Bearer";
-    private long expiresIn;
+    private int expiresIn;
     private Integer userId;
     private Integer merchantId;
     private String phone;
@@ -22,8 +22,8 @@ public class AuthResponse {
     public String getTokenType() { return tokenType; }
     public void setTokenType(String tokenType) { this.tokenType = tokenType; }
 
-    public long getExpiresIn() { return expiresIn; }
-    public void setExpiresIn(long expiresIn) { this.expiresIn = expiresIn; }
+    public int getExpiresIn() { return expiresIn; }
+    public void setExpiresIn(int expiresIn) { this.expiresIn = expiresIn; }
 
     public Integer getUserId() { return userId; }
     public void setUserId(Integer userId) { this.userId = userId; }

@@ -1,31 +1,25 @@
 package com.cloudkitchen.rbac.exception;
 
-import com.cloudkitchen.rbac.util.ResponseBuilder;
-import com.cloudkitchen.rbac.exception.AuthExceptions;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.AuthenticationException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-import org.springframework.web.HttpRequestMethodNotSupportedException;
-import org.springframework.web.HttpMediaTypeNotSupportedException;
-import org.springframework.dao.DataAccessException;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import jakarta.validation.ConstraintViolationException;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.UUID;
+import com.cloudkitchen.rbac.util.ResponseBuilder;
+
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -88,37 +82,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
     
-    @ExceptionHandler(AuthExceptions.UserNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleUserNotFoundException(AuthExceptions.UserNotFoundException ex, WebRequest request) {
-        Map<String, Object> response = ResponseBuilder.error(404, "User not found");
-        response.put("details", "No user found with the provided credentials");
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(500, "Runtime error");
+        response.put("details", sanitizeErrorMessage(ex.getMessage()));
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
         
-        logger.warn("User not found");
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-    }
-    
-    @ExceptionHandler(AuthExceptions.UserAlreadyExistsException.class)
-    public ResponseEntity<Map<String, Object>> handleUserAlreadyExistsException(AuthExceptions.UserAlreadyExistsException ex, WebRequest request) {
-        Map<String, Object> response = ResponseBuilder.error(400, "User already exists");
-        response.put("details", "The phone number you provided is already registered. Please use a different phone number or try logging in.");
-        response.put("path", request.getDescription(false).replace("uri=", ""));
-        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
-        
-        logger.warn("User registration failed - phone already exists");
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
-    
-    @ExceptionHandler(AuthExceptions.InvalidPasswordException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidPasswordException(AuthExceptions.InvalidPasswordException ex, WebRequest request) {
-        Map<String, Object> response = ResponseBuilder.error(401, "Invalid password");
-        response.put("details", "The provided password is incorrect");
-        response.put("path", request.getDescription(false).replace("uri=", ""));
-        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
-        
-        logger.warn("Invalid password attempt");
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        logger.warn("Runtime exception: {}", sanitizeLogMessage(ex.getMessage()));
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
     
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -145,11 +117,11 @@ public class GlobalExceptionHandler {
 
     private String sanitizeErrorMessage(String message) {
         if (message == null) return "Invalid request";
-        return message.replaceAll("[\r\n\t]", "").trim();
+        return message.replaceAll("[\\r\\n\\t]", "").trim();
     }
     
     private String sanitizeLogMessage(String message) {
         if (message == null) return "null";
-        return message.replaceAll("[\r\n\t]", "");
+        return message.replaceAll("[\\r\\n\\t]", "");
     }
 }

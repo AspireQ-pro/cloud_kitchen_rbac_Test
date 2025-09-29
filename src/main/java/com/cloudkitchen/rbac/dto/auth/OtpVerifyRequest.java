@@ -16,6 +16,8 @@ public class OtpVerifyRequest {
     @Pattern(regexp = "^\\d{4}$", message = "OTP must be 4 digits")
     @Length(min = 4, max = 4, message = "OTP must be exactly 4 digits")
     private String otp;
+    
+    private String purpose; // login, password_reset, phone_verification, etc.
 
     public Integer getMerchantId() { return merchantId; }
     public void setMerchantId(Integer merchantId) { this.merchantId = merchantId; }
@@ -29,4 +31,7 @@ public class OtpVerifyRequest {
     public void setOtp(String otp) { 
         this.otp = otp != null ? otp.trim().replaceAll("\\s+", "") : null; 
     }
+    
+    public String getPurpose() { return purpose; }
+    public void setPurpose(String purpose) { this.purpose = purpose; }
 }

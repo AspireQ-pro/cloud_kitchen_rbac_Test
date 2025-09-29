@@ -31,12 +31,12 @@ public class OtpLog {
     private String otpCode;
 
     @Column(name = "otp_type", length = 20)
-    private String otpType = "login";
+    private String otpType;
 
     @Column(name = "status", length = 20)
-    private String status = "sent";
+    private String status;
 
-    @Column(name = "ip_address")
+    @Column(name = "ip_address", length = 45)
     private String ipAddress;
 
     @Column(name = "user_agent", columnDefinition = "TEXT")

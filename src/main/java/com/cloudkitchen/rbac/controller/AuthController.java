@@ -31,23 +31,56 @@ public class AuthController {
                            "• **merchantId > 0**: Creates customer user\n\n" +
                            "No need to specify userType - it's determined automatically based on merchantId.")
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest req) {
-        AuthResponse authResponse = auth.registerUser(req);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ResponseBuilder.success(201, "User created successfully", authResponse));
+        try {
+            AuthResponse authResponse = auth.registerUser(req);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ResponseBuilder.success(201, "User created successfully", authResponse));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(400, e.getMessage()));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("already registered")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ResponseBuilder.error(409, e.getMessage()));
+            }
+            throw e;
+        }
     }
 
 
 
     @PostMapping("/customer/login")
     public ResponseEntity<Map<String, Object>> customerLogin(@Valid @RequestBody AuthRequest req) {
-        AuthResponse authResponse = auth.login(req);
-        return ResponseEntity.ok(ResponseBuilder.success(200, "Customer login successful", authResponse));
+        try {
+            AuthResponse authResponse = auth.login(req);
+            return ResponseEntity.ok(ResponseBuilder.success(200, "Customer login successful", authResponse));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(400, e.getMessage()));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Invalid credentials") || e.getMessage().contains("Access denied")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ResponseBuilder.error(401, "Invalid credentials"));
+            }
+            throw e;
+        }
     }
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> merchantAdminLogin(@Valid @RequestBody AuthRequest req) {
-        AuthResponse authResponse = auth.login(req);
-        return ResponseEntity.ok(ResponseBuilder.success(200, "Login successful", authResponse));
+        try {
+            AuthResponse authResponse = auth.login(req);
+            return ResponseEntity.ok(ResponseBuilder.success(200, "Login successful", authResponse));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(400, e.getMessage()));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Invalid credentials") || e.getMessage().contains("Access denied")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ResponseBuilder.error(401, "Invalid credentials"));
+            }
+            throw e;
+        }
     }
 
 
@@ -56,8 +89,16 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<Map<String, Object>> refresh(@Valid @RequestBody RefreshTokenRequest req) {
-        AuthResponse authResponse = auth.refresh(req);
-        return ResponseEntity.ok(ResponseBuilder.success(200, "Token refreshed successfully", authResponse));
+        try {
+            AuthResponse authResponse = auth.refresh(req);
+            return ResponseEntity.ok(ResponseBuilder.success(200, "Token refreshed successfully", authResponse));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Invalid refresh token") || e.getMessage().contains("revoked")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ResponseBuilder.error(401, "Invalid or expired refresh token"));
+            }
+            throw e;
+        }
     }
 
     @PostMapping("/logout")
@@ -80,28 +121,115 @@ public class AuthController {
 
     
     @PostMapping("/otp/request")
-    @Operation(summary = "Request OTP", description = "Send OTP for user verification - handles all 3 roles (super_admin, merchant, customer)")
+    @Operation(summary = "Request OTP", 
+               description = "Send OTP based on type: login, password_reset, registration, phone_verification, account_verification")
     public ResponseEntity<Map<String, Object>> requestOtp(@Valid @RequestBody OtpRequest req) {
-        auth.requestOtp(req);
-        return ResponseEntity.ok(ResponseBuilder.success(200, "OTP sent successfully"));
-    }
-    
-    @PostMapping("/otp/verify")
-    @Operation(summary = "Verify OTP", description = "Verify OTP for user authentication - returns true/false")
-    public ResponseEntity<Map<String, Object>> verifyOtp(@Valid @RequestBody OtpVerifyRequest req) {
-        boolean isValid = auth.verifyOtp(req);
-        if (isValid) {
-            return ResponseEntity.ok(ResponseBuilder.success(200, "OTP verified successfully", Map.of("verified", true)));
-        } else {
-            return ResponseEntity.ok(ResponseBuilder.success(200, "OTP verification failed", Map.of("verified", false)));
+        try {
+            // Validate otpType is provided
+            if (req.getOtpType() == null || req.getOtpType().trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(400, "OTP type is required"));
+            }
+            
+            auth.requestOtp(req);
+            String message = getSuccessMessageByType(req.getOtpType());
+            return ResponseEntity.ok(ResponseBuilder.success(200, message));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Too many")) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ResponseBuilder.error(429, e.getMessage()));
+            }
+            if (e.getMessage().contains("User not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(404, "User not found"));
+            }
+            if (e.getMessage().contains("SMS service")) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(ResponseBuilder.error(503, "SMS service temporarily unavailable"));
+            }
+            throw e;
         }
     }
     
+    @PostMapping("/otp/verify")
+    @Operation(summary = "Verify OTP", 
+               description = "Verify OTP. For password_reset purpose, auto-generates default password and logs user in.")
+    public ResponseEntity<Map<String, Object>> verifyOtp(@Valid @RequestBody OtpVerifyRequest req) {
+        try {
+            AuthResponse authResponse = auth.verifyOtp(req);
+            if (authResponse != null) {
+                String message = "password_reset".equals(req.getPurpose()) ? 
+                    "OTP verified. Default password has been set. Please change it in your profile." : 
+                    "OTP verified successfully";
+                return ResponseEntity.ok(ResponseBuilder.success(200, message, authResponse));
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(400, "Invalid or expired OTP"));
+            }
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("User not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(404, "User not found"));
+            }
+            throw e;
+        }
+    }
+    
+
+    
+
+    
     @PostMapping("/password/reset")
-    @Operation(summary = "Reset Password", description = "Reset password using OTP verification")
+    @Operation(summary = "Reset Password", 
+               description = "Reset password after OTP verification. Requires valid OTP.")
     public ResponseEntity<Map<String, Object>> resetPassword(@Valid @RequestBody PasswordResetRequest req) {
-        auth.resetPassword(req);
-        return ResponseEntity.ok(ResponseBuilder.success(200, "Password reset successfully"));
+        try {
+            auth.resetPassword(req);
+            return ResponseEntity.ok(ResponseBuilder.success(200, "Password reset successfully. You can now login with your new password."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(400, e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/test-db")
+    public ResponseEntity<Map<String, Object>> testDatabase() {
+        try {
+            // Test database connectivity by counting users
+            long userCount = auth.getUserCount();
+            return ResponseEntity.ok(ResponseBuilder.success(200, "Database connected. User count: " + userCount));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(500, "Database connection failed: " + e.getMessage()));
+        }
+    }
+    
+    @PostMapping("/create-merchant")
+    public ResponseEntity<Map<String, Object>> createMerchant() {
+        try {
+            // This is a temporary endpoint to create a merchant for testing
+            return ResponseEntity.ok(ResponseBuilder.success(200, "Use direct SQL or restart application"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(500, "Error: " + e.getMessage()));
+        }
+    }
+    
+    private String getSuccessMessageByType(String otpType) {
+        switch (otpType) {
+            case "password_reset":
+                return "Password reset OTP sent to your phone. Valid for 5 minutes.";
+            case "login":
+                return "Login OTP sent to your phone. Valid for 3 minutes.";
+            case "registration":
+                return "Registration OTP sent to your phone. Valid for 10 minutes.";
+            case "phone_verification":
+                return "Phone verification OTP sent. Valid for 10 minutes.";
+            case "account_verification":
+                return "Account verification OTP sent. Valid for 15 minutes.";
+            default:
+                return "OTP sent to your phone successfully.";
+        }
     }
 
 

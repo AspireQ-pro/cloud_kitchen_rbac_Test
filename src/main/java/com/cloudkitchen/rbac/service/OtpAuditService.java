@@ -34,7 +34,7 @@ public class OtpAuditService {
             otpLog.setOtpType(otpType);
             otpLog.setStatus(status);
             // TODO: Extract actual IP and user agent from request context
-            otpLog.setIpAddress("127.0.0.1"); // Should be extracted from HttpServletRequest
+            otpLog.setIpAddress("127.0.0.1"); // Valid INET format
             otpLog.setUserAgent("API-Request"); // Should be extracted from HttpServletRequest
             otpLog.setAttemptsCount(0);
             otpLog.setExpiresAt(expiresAt);
@@ -70,13 +70,44 @@ public class OtpAuditService {
                     otpLog.setAttemptsCount(attemptCount);
                     if (attemptCount >= 3) {
                         otpLog.setStatus("failed");
+                    } else {
+                        otpLog.setStatus("invalid_attempt");
                     }
                     otpLogRepository.save(otpLog);
                     String maskedPhone = maskPhoneNumber(phone);
-                    logger.info("OTP attempt count updated to {} for phone: {}", attemptCount, maskedPhone);
+                    logger.info("OTP attempt count updated to {} for phone: {}, status: {}", 
+                               attemptCount, maskedPhone, otpLog.getStatus());
                 });
         } catch (Exception e) {
             logger.warn("Failed to update OTP failure audit: {}", e.getMessage(), e);
+        }
+    }
+    
+    public void updateOtpExpired(String phone) {
+        try {
+            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, "sent")
+                .ifPresent(otpLog -> {
+                    otpLog.setStatus("expired");
+                    otpLogRepository.save(otpLog);
+                    String maskedPhone = maskPhoneNumber(phone);
+                    logger.info("OTP marked as expired for phone: {}", maskedPhone);
+                });
+        } catch (Exception e) {
+            logger.warn("Failed to update OTP expiry audit: {}", e.getMessage(), e);
+        }
+    }
+    
+    public void updateOtpCancelled(String phone, String reason) {
+        try {
+            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, "sent")
+                .ifPresent(otpLog -> {
+                    otpLog.setStatus("cancelled");
+                    otpLogRepository.save(otpLog);
+                    String maskedPhone = maskPhoneNumber(phone);
+                    logger.info("OTP cancelled for phone: {}, reason: {}", maskedPhone, reason);
+                });
+        } catch (Exception e) {
+            logger.warn("Failed to update OTP cancellation audit: {}", e.getMessage(), e);
         }
     }
     

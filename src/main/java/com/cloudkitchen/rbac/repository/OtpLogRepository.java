@@ -9,7 +9,7 @@ import java.util.Optional;
 
 public interface OtpLogRepository extends JpaRepository<OtpLog, Integer> {
     @Query("SELECT COUNT(o) FROM OtpLog o WHERE o.phone = :phone AND o.createdOn > :after")
-    long countByPhoneAndCreatedOnAfter(@Param("phone") String phone, @Param("after") LocalDateTime after);
+    int countByPhoneAndCreatedOnAfter(@Param("phone") String phone, @Param("after") LocalDateTime after);
     
     Optional<OtpLog> findTopByPhoneAndStatusOrderByCreatedOnDesc(String phone, String status);
     

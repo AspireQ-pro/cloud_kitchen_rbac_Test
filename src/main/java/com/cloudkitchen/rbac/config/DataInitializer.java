@@ -12,23 +12,22 @@ public class DataInitializer implements CommandLineRunner {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final RolePermissionRepository rolePermissionRepository;
+    private final MerchantRepository merchantRepository;
 
     public DataInitializer(RoleRepository roleRepository, 
                           PermissionRepository permissionRepository,
-                          RolePermissionRepository rolePermissionRepository) {
+                          RolePermissionRepository rolePermissionRepository,
+                          MerchantRepository merchantRepository) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.rolePermissionRepository = rolePermissionRepository;
+        this.merchantRepository = merchantRepository;
     }
 
     @Override
     @Transactional
     public void run(String... args) {
-        // Skip initialization if data already exists
-        if (roleRepository.count() > 0) {
-            return;
-        }
-        
+        initializeMerchants();
         initializeRoles();
         initializePermissions();
         assignPermissions();
@@ -138,6 +137,24 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
+    private void initializeMerchants() {
+        if (merchantRepository.count() == 0) {
+            merchantRepository.save(createMerchant("Demo Restaurant", "demo@restaurant.com", "9876543210", "123 Main St"));
+            merchantRepository.save(createMerchant("Pizza Palace", "info@pizzapalace.com", "9876543211", "456 Oak Ave"));
+        }
+    }
+    
+    private Merchant createMerchant(String name, String email, String phone, String address) {
+        Merchant merchant = new Merchant();
+        merchant.setMerchantName(name);
+        merchant.setBusinessName(name); // Required field
+        merchant.setEmail(email);
+        merchant.setPhone(phone);
+        merchant.setAddress(address);
+        merchant.setActive(true);
+        return merchant;
+    }
+    
     private Role createRole(String name, String description, boolean isSystem) {
         Role role = new Role();
         role.setRoleName(name);

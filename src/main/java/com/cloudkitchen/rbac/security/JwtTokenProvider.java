@@ -25,16 +25,16 @@ public class JwtTokenProvider {
     private String secret;
 
     @Value("${app.jwt.access-valid-seconds:3600}")
-    private long accessTokenValiditySeconds;
+    private int accessTokenValiditySeconds;
 
     @Value("${app.jwt.refresh-valid-seconds:604800}")
-    private long refreshTokenValiditySeconds;
+    private int refreshTokenValiditySeconds;
     
     @Value("${app.jwt.issuer:cloud-kitchen-rbac}")
     private String issuer;
 
     private Key key;
-    // TODO: Replace with Redis or database-backed blacklist for production
+    // In-memory token blacklist (suitable for single-instance deployments)
     private final Set<String> blacklistedTokens = ConcurrentHashMap.newKeySet();
 
     @PostConstruct
@@ -60,7 +60,7 @@ public class JwtTokenProvider {
         }
         
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + accessTokenValiditySeconds * 1000L);
+        Date expiry = new Date(now.getTime() + (long)accessTokenValiditySeconds * 1000L);
         String jti = generateJti();
 
         return Jwts.builder()
@@ -85,7 +85,7 @@ public class JwtTokenProvider {
         }
         
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + refreshTokenValiditySeconds * 1000L);
+        Date expiry = new Date(now.getTime() + (long)refreshTokenValiditySeconds * 1000L);
         String jti = generateJti();
 
         return Jwts.builder()
@@ -136,7 +136,7 @@ public class JwtTokenProvider {
             logger.warn("Invalid JWT signature: {}", e.getMessage());
             throw e;
         } catch (IllegalArgumentException e) {
-            logger.warn("JWT token compact of handler are invalid: {}", e.getMessage());
+            logger.warn("JWT token compact of handler are invalid: {}", e.getMessage(), e);
             throw e;
         }
     }
@@ -197,11 +197,11 @@ public class JwtTokenProvider {
             if (merchantIdObj == null) {
                 return null;
             }
-            if (merchantIdObj instanceof Integer) {
-                return (Integer) merchantIdObj;
+            if (merchantIdObj instanceof Integer integer) {
+                return integer;
             }
-            if (merchantIdObj instanceof Number) {
-                return ((Number) merchantIdObj).intValue();
+            if (merchantIdObj instanceof Number number) {
+                return number.intValue();
             }
             throw new IllegalArgumentException("Invalid merchantId type in token");
         } catch (JwtException | IllegalArgumentException e) {

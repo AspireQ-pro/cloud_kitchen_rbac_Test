@@ -1,8 +1,10 @@
 package com.cloudkitchen.rbac.service.impl;
 
-import com.cloudkitchen.rbac.service.OtpService;
-import org.springframework.stereotype.Service;
 import java.security.SecureRandom;
+
+import org.springframework.stereotype.Service;
+
+import com.cloudkitchen.rbac.service.OtpService;
 
 @Service
 public class OtpServiceImpl implements OtpService {
