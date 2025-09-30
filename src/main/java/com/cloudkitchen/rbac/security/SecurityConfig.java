@@ -69,7 +69,7 @@ public class SecurityConfig {
                     .httpStrictTransportSecurity(hstsConfig -> hstsConfig
                         .maxAgeInSeconds(31536000)
                         .includeSubDomains(true))
-                    .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:")))
+                    .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:")))
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/", "/error", "/favicon.ico").permitAll()
                         .requestMatchers(AUTH_WHITELIST).permitAll()

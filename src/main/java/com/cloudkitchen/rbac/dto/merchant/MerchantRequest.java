@@ -24,9 +24,11 @@ public class MerchantRequest {
              message = "Invalid website URL format")
     private String websiteUrl;
     
+    @NotBlank(message = "Phone number is required")
     @Pattern(regexp = "^[6-9]\\d{9}$", message = "Phone number must be a valid 10-digit Indian mobile number")
     private String phone;
     
+    @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format")
     @Size(max = 255, message = "Email must not exceed 255 characters")
     private String email;

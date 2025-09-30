@@ -5,6 +5,9 @@ import com.cloudkitchen.rbac.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -33,9 +36,13 @@ public class OtpAuditService {
             otpLog.setOtpCode(otpCode); // Store actual OTP for verification
             otpLog.setOtpType(otpType);
             otpLog.setStatus(status);
-            // TODO: Extract actual IP and user agent from request context
-            otpLog.setIpAddress("127.0.0.1"); // Valid INET format
-            otpLog.setUserAgent("API-Request"); // Should be extracted from HttpServletRequest
+            
+            // Extract IP address and user agent from HTTP request
+            String ipAddress = getClientIpAddress();
+            String userAgent = getUserAgent();
+            
+            otpLog.setIpAddress(ipAddress);
+            otpLog.setUserAgent(userAgent);
             otpLog.setAttemptsCount(0);
             otpLog.setExpiresAt(expiresAt);
             
@@ -48,18 +55,34 @@ public class OtpAuditService {
         }
     }
     
-    public void updateOtpVerified(String phone, String maskedOtp) {
+    public void logOtpVerified(String phone, Integer merchantId) {
         try {
-            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, "sent")
-                .ifPresent(otpLog -> {
-                    otpLog.setStatus("verified");
-                    otpLog.setVerifiedAt(LocalDateTime.now());
-                    otpLogRepository.save(otpLog);
-                    String maskedPhone = maskPhoneNumber(phone);
-                    logger.info("OTP marked as verified for phone: {}", maskedPhone);
-                });
+            OtpLog otpLog = new OtpLog();
+            
+            if (merchantId != null) {
+                Optional<Merchant> merchant = merchantRepository.findById(merchantId);
+                merchant.ifPresent(otpLog::setMerchant);
+            }
+            
+            otpLog.setPhone(phone);
+            otpLog.setOtpCode("****"); // Don't store actual OTP in verification log
+            otpLog.setOtpType("verification");
+            otpLog.setStatus("verified");
+            otpLog.setVerifiedAt(LocalDateTime.now());
+            
+            String ipAddress = getClientIpAddress();
+            String userAgent = getUserAgent();
+            
+            otpLog.setIpAddress(ipAddress);
+            otpLog.setUserAgent(userAgent);
+            otpLog.setAttemptsCount(0);
+            otpLog.setExpiresAt(LocalDateTime.now().plusMinutes(1)); // Short expiry for verification log
+            
+            otpLogRepository.save(otpLog);
+            String maskedPhone = maskPhoneNumber(phone);
+            logger.info("OTP verification logged for phone: {}", maskedPhone);
         } catch (Exception e) {
-            logger.warn("Failed to update OTP verification audit: {}", e.getMessage(), e);
+            logger.warn("Failed to log OTP verification: {}", e.getMessage(), e);
         }
     }
     
@@ -101,7 +124,7 @@ public class OtpAuditService {
         try {
             otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, "sent")
                 .ifPresent(otpLog -> {
-                    otpLog.setStatus("cancelled");
+                    otpLog.setStatus("expired");
                     otpLogRepository.save(otpLog);
                     String maskedPhone = maskPhoneNumber(phone);
                     logger.info("OTP cancelled for phone: {}, reason: {}", maskedPhone, reason);
@@ -114,5 +137,61 @@ public class OtpAuditService {
     private String maskPhoneNumber(String phone) {
         if (phone == null || phone.length() < 4) return "****";
         return "****" + phone.substring(phone.length() - 4);
+    }
+    
+    private String getClientIpAddress() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                
+                // Check for IP address from various headers (for proxy/load balancer scenarios)
+                String ipAddress = request.getHeader("X-Forwarded-For");
+                if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+                    ipAddress = request.getHeader("Proxy-Client-IP");
+                }
+                if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+                    ipAddress = request.getHeader("WL-Proxy-Client-IP");
+                }
+                if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+                    ipAddress = request.getHeader("HTTP_CLIENT_IP");
+                }
+                if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+                    ipAddress = request.getHeader("HTTP_X_FORWARDED_FOR");
+                }
+                if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+                    ipAddress = request.getRemoteAddr();
+                }
+                
+                // Handle multiple IPs in X-Forwarded-For header
+                if (ipAddress != null && ipAddress.contains(",")) {
+                    ipAddress = ipAddress.split(",")[0].trim();
+                }
+                
+                // Format IPv6 localhost to IPv4
+                if ("0:0:0:0:0:0:0:1".equals(ipAddress)) {
+                    ipAddress = "127.0.0.1";
+                }
+                
+                return ipAddress != null ? ipAddress : "127.0.0.1";
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to extract IP address: {}", e.getMessage());
+        }
+        return "127.0.0.1";
+    }
+    
+    private String getUserAgent() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                String userAgent = request.getHeader("User-Agent");
+                return userAgent != null ? userAgent : "Unknown";
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to extract User-Agent: {}", e.getMessage());
+        }
+        return "Unknown";
     }
 }

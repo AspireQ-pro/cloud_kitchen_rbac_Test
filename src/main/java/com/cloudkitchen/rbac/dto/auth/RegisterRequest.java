@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "User registration request")
 public class RegisterRequest {
     
+    @Min(value = 0, message = "Merchant ID must be non-negative")
     @Schema(description = "Merchant ID (null=super_admin, 0=merchant, >0=customer)", example = "1")
     @JsonProperty("merchantId")
     private Integer merchantId;

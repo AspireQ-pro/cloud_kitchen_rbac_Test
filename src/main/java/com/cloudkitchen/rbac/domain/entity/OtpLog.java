@@ -36,7 +36,7 @@ public class OtpLog {
     @Column(name = "status", length = 20)
     private String status;
 
-    @Column(name = "ip_address", length = 45)
+    @Column(name = "ip_address", length = 45, columnDefinition = "VARCHAR(45)")
     private String ipAddress;
 
     @Column(name = "user_agent", columnDefinition = "TEXT")

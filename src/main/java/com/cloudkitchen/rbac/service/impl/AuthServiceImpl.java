@@ -318,20 +318,22 @@ public class AuthServiceImpl implements AuthService {
     }
     
     private void validateOtpRateLimit(String phone, String otpType) {
-        LocalDateTime timeLimit = getTimeLimitByType(otpType);
-        int maxRequests = getMaxRequestsByType(otpType);
+        LocalDateTime timeLimit = LocalDateTime.now().minusMinutes(30); // 30-minute window
+        int maxRequests = 3; // Allow 3 requests
         int recentRequests = otpLogRepository.countByPhoneAndCreatedOnAfter(phone, timeLimit);
         
         if (recentRequests >= maxRequests) {
-            log.warn("Rate limit exceeded for phone: {}, type: {}, requests: {}", maskPhoneNumber(phone), otpType, recentRequests);
-            throw new RuntimeException(String.format("Too many %s OTP requests. Please try again later.", otpType));
+            log.warn("Rate limit exceeded for phone: {}, type: {}, requests: {} in last 30 minutes", 
+                    maskPhoneNumber(phone), otpType, recentRequests);
+            throw new RuntimeException("Too many OTP requests. You have exceeded the limit of 3 OTP requests. Please try again after 30 minutes.");
         }
     }
     
     private void invalidateExistingOtp(User user, String otpType) {
         if (user.getOtpCode() != null) {
-            otpAuditService.updateOtpCancelled(user.getPhone(), "new_" + otpType + "_request");
+            // Just clear the OTP data, don't update audit logs
             clearOtpData(user);
+            log.debug("Cleared existing OTP for user: {}", user.getUserId());
         }
     }
     
@@ -346,21 +348,7 @@ public class AuthServiceImpl implements AuthService {
         };
     }
     
-    private LocalDateTime getTimeLimitByType(String otpType) {
-        return switch (otpType) {
-            case "password_reset", "account_verification" -> LocalDateTime.now().minusHours(1);
-            case "login" -> LocalDateTime.now().minusMinutes(15);
-            case "registration", "phone_verification" -> LocalDateTime.now().minusMinutes(30);
-            default -> LocalDateTime.now().minusHours(1);
-        };
-    }
-    
-    private int getMaxRequestsByType(String otpType) {
-        return switch (otpType) {
-            case "password_reset", "account_verification", "phone_verification" -> 3;
-            default -> 3;
-        };
-    }
+
     
     private boolean sendOtpByType(String phone, String otpCode) {
         return smsService.sendOtp(phone, otpCode);
@@ -411,7 +399,24 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void logout(Integer userId) {
-        log.info("Logout completed for user: {}", userId);
+        try {
+            // Blacklist current token if available
+            org.springframework.security.core.Authentication auth = 
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getCredentials() instanceof String) {
+                String token = (String) auth.getCredentials();
+                jwt.blacklistToken(token);
+                log.debug("Token blacklisted for user: {}", userId);
+            }
+            
+            // Clear security context
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+            
+            log.info("User {} logged out successfully with token invalidation", userId);
+        } catch (Exception e) {
+            log.error("Error during logout for user {}: {}", userId, e.getMessage());
+            throw new RuntimeException("Logout failed");
+        }
     }
     
     @Override
@@ -559,7 +564,8 @@ public class AuthServiceImpl implements AuthService {
             }
             
             // 5. Success - clear OTP and mark verified
-            otpAuditService.updateOtpVerified(req.getPhone(), "****");
+            Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
+            otpAuditService.logOtpVerified(req.getPhone(), merchantId);
             clearOtpData(user);
             
             // 6. Handle password reset purpose

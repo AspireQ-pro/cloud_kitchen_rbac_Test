@@ -25,6 +25,8 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
+    @Operation(summary = "User Registration", 
+               
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest req) {
         try {
             AuthResponse authResponse = auth.registerUser(req);
@@ -134,10 +136,6 @@ public class AuthController {
             String message = getSuccessMessageByType(req.getOtpType());
             return ResponseEntity.ok(ResponseBuilder.success(200, message));
         } catch (RuntimeException e) {
-            if (e.getMessage().contains("Too many OTP requests")) {
-                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(ResponseBuilder.error(429, "Rate limit exceeded: " + e.getMessage()));
-            }
             if (e.getMessage().contains("Too many")) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                         .body(ResponseBuilder.error(429, e.getMessage()));
@@ -215,4 +213,4 @@ public class AuthController {
                 return "OTP sent to your phone successfully.";
         }
     }
-}
+n }

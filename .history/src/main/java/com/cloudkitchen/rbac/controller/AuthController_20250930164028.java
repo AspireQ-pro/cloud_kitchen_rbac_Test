@@ -25,6 +25,11 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
+    @Operation(summary = "User Registration", 
+               description = "Register new users. User type is automatically determined:\n" +
+                           "• **merchantId = 0**: Creates super_admin user\n" +
+                           "• **merchantId > 0**: Creates customer user\n\n" +
+                           "No need to specify userType - it's determined automatically based on merchantId.")
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest req) {
         try {
             AuthResponse authResponse = auth.registerUser(req);
@@ -38,8 +43,7 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(ResponseBuilder.error(409, e.getMessage()));
             }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Registration failed"));
+            throw e;
         }
     }
 
@@ -58,8 +62,7 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(ResponseBuilder.error(401, "Invalid credentials"));
             }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Login failed"));
+            throw e;
         }
     }
 
@@ -76,8 +79,7 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(ResponseBuilder.error(401, "Invalid credentials"));
             }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Login failed"));
+            throw e;
         }
     }
 
@@ -95,8 +97,7 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(ResponseBuilder.error(401, "Invalid or expired refresh token"));
             }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Token refresh failed"));
+            throw e;
         }
     }
 
@@ -134,10 +135,6 @@ public class AuthController {
             String message = getSuccessMessageByType(req.getOtpType());
             return ResponseEntity.ok(ResponseBuilder.success(200, message));
         } catch (RuntimeException e) {
-            if (e.getMessage().contains("Too many OTP requests")) {
-                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(ResponseBuilder.error(429, "Rate limit exceeded: " + e.getMessage()));
-            }
             if (e.getMessage().contains("Too many")) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                         .body(ResponseBuilder.error(429, e.getMessage()));
@@ -150,8 +147,7 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                         .body(ResponseBuilder.error(503, "SMS service temporarily unavailable"));
             }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "OTP request failed"));
+            throw e;
         }
     }
     
@@ -175,8 +171,7 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(ResponseBuilder.error(404, "User not found"));
             }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "OTP verification failed"));
+            throw e;
         }
     }
     
@@ -215,4 +210,4 @@ public class AuthController {
                 return "OTP sent to your phone successfully.";
         }
     }
-}
+n }
