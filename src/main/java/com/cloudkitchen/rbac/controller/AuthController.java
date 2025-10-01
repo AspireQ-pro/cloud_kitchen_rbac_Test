@@ -1,16 +1,29 @@
 package com.cloudkitchen.rbac.controller;
 
-import com.cloudkitchen.rbac.dto.auth.*;
-import com.cloudkitchen.rbac.service.AuthService;
-import com.cloudkitchen.rbac.security.JwtTokenProvider;
-import com.cloudkitchen.rbac.util.ResponseBuilder;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.cloudkitchen.rbac.dto.auth.AuthRequest;
+import com.cloudkitchen.rbac.dto.auth.AuthResponse;
+import com.cloudkitchen.rbac.dto.auth.OtpRequest;
+import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
+
+import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
+import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
+import com.cloudkitchen.rbac.security.JwtTokenProvider;
+import com.cloudkitchen.rbac.service.AuthService;
+import com.cloudkitchen.rbac.util.ResponseBuilder;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -25,11 +38,19 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
+    @Operation(summary = "Customer Registration", 
+               description = "Register new customer only. MerchantId must be > 0 to specify which merchant the customer belongs to")
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest req) {
         try {
+            // Only allow customer signup (merchantId > 0)
+            if (req.getMerchantId() == null || req.getMerchantId() <= 0) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(400, "Only customer signup is allowed. Valid merchantId (>0) is required"));
+            }
+            
             AuthResponse authResponse = auth.registerUser(req);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ResponseBuilder.success(201, "User created successfully", authResponse));
+                    .body(ResponseBuilder.success(201, "Customer registration successful", authResponse));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ResponseBuilder.error(400, e.getMessage()));
@@ -121,19 +142,32 @@ public class AuthController {
     
     @PostMapping("/otp/request")
     @Operation(summary = "Request OTP", 
-               description = "Send OTP based on type: login, password_reset, registration, phone_verification, account_verification")
+               description = "Send OTP by phone number. Use merchantId=0 for general OTP (any user), >0 for specific merchant customers")
     public ResponseEntity<Map<String, Object>> requestOtp(@Valid @RequestBody OtpRequest req) {
         try {
-            // Validate otpType is provided
-            if (req.getOtpType() == null || req.getOtpType().trim().isEmpty()) {
+            // Validate merchantId is provided
+            if (req.getMerchantId() == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "OTP type is required"));
+                        .body(ResponseBuilder.error(400, "MerchantId is required (use 0 for OTP by phone number)"));
+            }
+            
+            // Set default otpType if not provided
+            if (req.getOtpType() == null || req.getOtpType().trim().isEmpty()) {
+                req.setOtpType("login");
             }
             
             auth.requestOtp(req);
             String message = getSuccessMessageByType(req.getOtpType());
             return ResponseEntity.ok(ResponseBuilder.success(200, message));
         } catch (RuntimeException e) {
+            if (e.getMessage().contains("Access denied")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ResponseBuilder.error(403, e.getMessage()));
+            }
+            if (e.getMessage().contains("Phone is blocked")) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ResponseBuilder.error(429, e.getMessage()));
+            }
             if (e.getMessage().contains("Too many OTP requests")) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                         .body(ResponseBuilder.error(429, "Rate limit exceeded: " + e.getMessage()));
@@ -157,9 +191,15 @@ public class AuthController {
     
     @PostMapping("/otp/verify")
     @Operation(summary = "Verify OTP", 
-               description = "Verify OTP. For password_reset purpose, auto-generates default password and logs user in.")
+               description = "Verify OTP by phone number. Use merchantId=0 for general verification, >0 for specific merchant")
     public ResponseEntity<Map<String, Object>> verifyOtp(@Valid @RequestBody OtpVerifyRequest req) {
         try {
+            // Validate merchantId is provided
+            if (req.getMerchantId() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(400, "MerchantId is required (use 0 for OTP by phone number)"));
+            }
+            
             AuthResponse authResponse = auth.verifyOtp(req);
             if (authResponse != null) {
                 String message = "password_reset".equals(req.getPurpose()) ? 
@@ -184,18 +224,7 @@ public class AuthController {
     
 
     
-    @PostMapping("/password/reset")
-    @Operation(summary = "Reset Password", 
-               description = "Reset password after OTP verification. Requires valid OTP.")
-    public ResponseEntity<Map<String, Object>> resetPassword(@Valid @RequestBody PasswordResetRequest req) {
-        try {
-            auth.resetPassword(req);
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Password reset successfully. You can now login with your new password."));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ResponseBuilder.error(400, e.getMessage()));
-        }
-    }
+
     
 
     
@@ -203,10 +232,6 @@ public class AuthController {
         switch (otpType) {
             case "password_reset":
                 return "Password reset OTP sent to your phone. Valid for 5 minutes.";
-            case "login":
-                return "Login OTP sent to your phone. Valid for 3 minutes.";
-            case "registration":
-                return "Registration OTP sent to your phone. Valid for 10 minutes.";
             case "phone_verification":
                 return "Phone verification OTP sent. Valid for 10 minutes.";
             case "account_verification":

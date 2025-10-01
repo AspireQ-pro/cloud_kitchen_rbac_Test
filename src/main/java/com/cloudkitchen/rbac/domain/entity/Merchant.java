@@ -50,6 +50,11 @@ public class Merchant {
     @Column(name = "pincode", length = 10)
     private String pincode;
     
+    @Column(name = "gst_number", length = 50)
+    private String gstNumber;
+    
+    @Column(name = "fssai_license", length = 50)
+    private String fssaiLicense;
 
     @Column(name = "is_active")
     private Boolean active = true;
@@ -131,4 +136,10 @@ public class Merchant {
 
     public LocalDateTime getUpdatedOn() { return updatedOn; }
     public void setUpdatedOn(LocalDateTime updatedOn) { this.updatedOn = updatedOn; }
+
+    public String getGstNumber() { return gstNumber; }
+    public void setGstNumber(String gstNumber) { this.gstNumber = gstNumber; }
+
+    public String getFssaiLicense() { return fssaiLicense; }
+    public void setFssaiLicense(String fssaiLicense) { this.fssaiLicense = fssaiLicense; }
 }

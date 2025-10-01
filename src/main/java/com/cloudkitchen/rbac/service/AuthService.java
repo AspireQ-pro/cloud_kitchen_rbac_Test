@@ -11,7 +11,6 @@ public interface AuthService {
 
     void requestOtp(OtpRequest req);
     AuthResponse verifyOtp(OtpVerifyRequest req);
-    void resetPassword(PasswordResetRequest req);
     
     long getUserCount();
 }

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.*;
 import org.hibernate.validator.constraints.Length;
 
 public class OtpVerifyRequest {
+    @NotNull(message = "Merchant ID is required")
     @Min(value = 0, message = "Merchant ID must be 0 or positive")
     private Integer merchantId;
     

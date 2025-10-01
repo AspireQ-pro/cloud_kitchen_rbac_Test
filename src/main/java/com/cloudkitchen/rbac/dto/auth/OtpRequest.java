@@ -1,12 +1,19 @@
 package com.cloudkitchen.rbac.dto.auth;
 
-import jakarta.validation.constraints.*;
 import org.hibernate.validator.constraints.Length;
+
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 public class OtpRequest {
+    @NotNull(message = "Merchant ID is required")
     @Min(value = 0, message = "Merchant ID must be 0 or positive")
-    @Schema(description = "Merchant ID (0 for super admin/merchant, >0 for customer)", example = "1")
+    @Schema(description = "Merchant ID (0 for OTP by phone number, >0 for specific merchant customers)", 
+            example = "0", 
+            allowableValues = {"0", "1", "2", "3"})
     private Integer merchantId;
     
     @NotBlank(message = "Phone number is required")
@@ -15,12 +22,12 @@ public class OtpRequest {
     @Schema(description = "User's phone number", example = "9876543210")
     private String phone;
     
-    @Pattern(regexp = "^(login|password_reset|registration|phone_verification)$", 
-             message = "OTP type must be one of: login, password_reset, registration, phone_verification")
+    @Pattern(regexp = "^(login|password_reset|registration|phone_verification|account_verification)$", 
+             message = "OTP type must be one of: login, password_reset, registration, phone_verification, account_verification")
     @Schema(description = "Type of OTP request", 
             example = "password_reset", 
             allowableValues = {"login", "password_reset", "registration", "phone_verification", "account_verification"})
-    private String otpType;
+    private String otpType; 
     
     public OtpRequest() {}
     

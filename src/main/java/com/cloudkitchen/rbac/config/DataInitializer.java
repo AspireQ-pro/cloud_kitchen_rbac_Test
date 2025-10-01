@@ -1,10 +1,22 @@
 package com.cloudkitchen.rbac.config;
 
-import com.cloudkitchen.rbac.domain.entity.*;
-import com.cloudkitchen.rbac.repository.*;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.cloudkitchen.rbac.domain.entity.Merchant;
+import com.cloudkitchen.rbac.domain.entity.Permission;
+import com.cloudkitchen.rbac.domain.entity.Role;
+import com.cloudkitchen.rbac.domain.entity.RolePermission;
+import com.cloudkitchen.rbac.domain.entity.User;
+import com.cloudkitchen.rbac.domain.entity.UserRole;
+import com.cloudkitchen.rbac.repository.MerchantRepository;
+import com.cloudkitchen.rbac.repository.PermissionRepository;
+import com.cloudkitchen.rbac.repository.RolePermissionRepository;
+import com.cloudkitchen.rbac.repository.RoleRepository;
+import com.cloudkitchen.rbac.repository.UserRepository;
+import com.cloudkitchen.rbac.repository.UserRoleRepository;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
@@ -13,15 +25,24 @@ public class DataInitializer implements CommandLineRunner {
     private final PermissionRepository permissionRepository;
     private final RolePermissionRepository rolePermissionRepository;
     private final MerchantRepository merchantRepository;
+    private final UserRepository userRepository;
+    private final UserRoleRepository userRoleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public DataInitializer(RoleRepository roleRepository, 
                           PermissionRepository permissionRepository,
                           RolePermissionRepository rolePermissionRepository,
-                          MerchantRepository merchantRepository) {
+                          MerchantRepository merchantRepository,
+                          UserRepository userRepository,
+                          UserRoleRepository userRoleRepository,
+                          PasswordEncoder passwordEncoder) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.rolePermissionRepository = rolePermissionRepository;
         this.merchantRepository = merchantRepository;
+        this.userRepository = userRepository;
+        this.userRoleRepository = userRoleRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -31,6 +52,7 @@ public class DataInitializer implements CommandLineRunner {
         initializeRoles();
         initializePermissions();
         assignPermissions();
+        initializeUsers();
     }
 
 
@@ -138,10 +160,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void initializeMerchants() {
-        if (merchantRepository.count() == 0) {
-            merchantRepository.save(createMerchant("Demo Restaurant", "demo@restaurant.com", "9876543210", "123 Main St"));
-            merchantRepository.save(createMerchant("Pizza Palace", "info@pizzapalace.com", "9876543211", "456 Oak Ave"));
-        }
+        // No hardcoded merchants - will be created via frontend
     }
     
     private Merchant createMerchant(String name, String email, String phone, String address) {
@@ -172,5 +191,9 @@ public class DataInitializer implements CommandLineRunner {
         permission.setDescription(description);
         permission.setCreatedBy(1);
         return permission;
+    }
+
+    private void initializeUsers() {
+        // No hardcoded users - will be created via frontend registration
     }
 }

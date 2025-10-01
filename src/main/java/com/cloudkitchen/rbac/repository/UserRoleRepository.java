@@ -27,4 +27,6 @@ public interface UserRoleRepository extends JpaRepository<UserRole, Integer> {
     @Modifying
     @Transactional
     void deleteByUser(com.cloudkitchen.rbac.domain.entity.User user);
+    
+    boolean existsByUser_UserIdAndMerchant_MerchantId(Integer userId, Integer merchantId);
 }

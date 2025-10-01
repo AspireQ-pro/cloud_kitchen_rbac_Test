@@ -1,13 +1,14 @@
 package com.cloudkitchen.rbac.service;
 
-import com.cloudkitchen.rbac.domain.entity.Merchant;
-import com.cloudkitchen.rbac.dto.merchant.MerchantRequest;
 import java.util.List;
 
+import com.cloudkitchen.rbac.dto.merchant.MerchantRequest;
+import com.cloudkitchen.rbac.dto.merchant.MerchantResponse;
+
 public interface MerchantService {
-    Merchant createMerchant(MerchantRequest req);
-    Merchant updateMerchant(Integer id, MerchantRequest req);
-    Merchant getMerchantById(Integer id);
-    List<Merchant> getAllMerchants();
+    MerchantResponse createMerchant(MerchantRequest request);
+    MerchantResponse updateMerchant(Integer id, MerchantRequest request);
+    MerchantResponse getMerchantById(Integer id);
+    List<MerchantResponse> getAllMerchants();
     void deleteMerchant(Integer id);
 }

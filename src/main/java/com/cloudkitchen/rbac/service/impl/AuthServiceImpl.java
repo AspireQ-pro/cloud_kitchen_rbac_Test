@@ -13,12 +13,11 @@ import com.cloudkitchen.rbac.domain.entity.Merchant;
 import com.cloudkitchen.rbac.domain.entity.Role;
 import com.cloudkitchen.rbac.domain.entity.User;
 import com.cloudkitchen.rbac.domain.entity.UserRole;
-
 import com.cloudkitchen.rbac.dto.auth.AuthRequest;
 import com.cloudkitchen.rbac.dto.auth.AuthResponse;
 import com.cloudkitchen.rbac.dto.auth.OtpRequest;
 import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
-import com.cloudkitchen.rbac.dto.auth.PasswordResetRequest;
+
 import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.enums.UserType;
@@ -27,7 +26,6 @@ import com.cloudkitchen.rbac.repository.OtpLogRepository;
 import com.cloudkitchen.rbac.repository.RoleRepository;
 import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.repository.UserRoleRepository;
-
 import com.cloudkitchen.rbac.security.JwtTokenProvider;
 import com.cloudkitchen.rbac.service.AuthService;
 import com.cloudkitchen.rbac.service.OtpAuditService;
@@ -198,18 +196,21 @@ public class AuthServiceImpl implements AuthService {
     
     private void assignUserRole(User user, String userType, Merchant merchant) {
         String roleName = "super_admin".equals(userType) ? "super_admin" : "customer";
-        
+
         log.debug("User role assignment: userType={}, roleName={}", userType, roleName);
-        
+
         Role role = roles.findByRoleName(roleName)
-                .orElseThrow(() -> new IllegalStateException(roleName + " role not found"));
-        
+                .orElseThrow(() -> new IllegalStateException(roleName + " role not found. Please ensure roles are properly initialized."));
+
         UserRole userRole = new UserRole();
         userRole.setUser(user);
         userRole.setRole(role);
         userRole.setMerchant(merchant);
         userRole.setAssignedAt(LocalDateTime.now());
         userRoles.save(userRole);
+
+        log.info("Successfully assigned role '{}' to user '{}' for merchant '{}'",
+                roleName, user.getUserId(), merchant != null ? merchant.getMerchantId() : "null");
     }
 
     @Override
@@ -240,23 +241,27 @@ public class AuthServiceImpl implements AuthService {
         return buildTokens(user, req.getMerchantId());
     }
     
-    private User findUserForOtp(OtpRequest req) {
+    private User findUserByPhoneAndMerchantId(String phone, Integer merchantId) {
         try {
-            if (req.getMerchantId() != null && Integer.valueOf(0).equals(req.getMerchantId())) {
-                return users.findByPhoneAndMerchantIsNull(req.getPhone())
-                        .orElseThrow(() -> new RuntimeException("No admin/merchant user found with phone: " + maskPhoneNumber(req.getPhone())));
-            }
-            else if (req.getMerchantId() != null && req.getMerchantId() > 0) {
-                return users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId())
-                        .orElseThrow(() -> new RuntimeException("No customer found with phone: " + maskPhoneNumber(req.getPhone()) + " for merchant: " + req.getMerchantId()));
-            }
-            else {
-                return users.findByPhone(req.getPhone())
-                        .orElseThrow(() -> new RuntimeException("No user found with phone: " + maskPhoneNumber(req.getPhone())));
+            if (merchantId == null || merchantId == 0) {
+                // For merchantId=0, find admin/merchant users (merchant_id is null)
+                // Also try to find by phone number only if no admin/merchant found
+                return users.findByPhoneAndMerchantIsNull(phone)
+                        .or(() -> {
+                            // If no admin/merchant user found, try to find any user by phone
+                            // This allows OTP generation for merchantId=0 with any phone number
+                            log.debug("No admin/merchant user found, trying to find any user with phone: {}", maskPhoneNumber(phone));
+                            return users.findByPhone(phone).stream().findFirst();
+                        })
+                        .orElseThrow(() -> new RuntimeException("No user found with phone: " + maskPhoneNumber(phone)));
+            } else {
+                // For merchantId>0, find customer users for specific merchant
+                return users.findByPhoneAndMerchant_MerchantId(phone, merchantId)
+                        .orElseThrow(() -> new RuntimeException("No customer found with phone: " + maskPhoneNumber(phone) + " for merchant: " + merchantId));
             }
         } catch (Exception e) {
-            log.error("Database error while finding user for OTP: phone={}, merchantId={}, error={}", 
-                     maskPhoneNumber(req.getPhone()), req.getMerchantId(), e.getMessage());
+            log.error("Database error while finding user: phone={}, merchantId={}, error={}", 
+                     maskPhoneNumber(phone), merchantId, e.getMessage());
             throw new RuntimeException("User lookup failed: " + e.getMessage(), e);
         }
     }
@@ -281,15 +286,14 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthResponse buildTokens(User user, Integer merchantId) {
-        Integer actualMerchantId = merchantId != null ? merchantId : 
+        Integer actualMerchantId = merchantId != null ? merchantId :
                 (user.getMerchant() != null ? user.getMerchant().getMerchantId() : null);
         List<String> roleNames = userRoles.findRoleNames(user.getUserId(), actualMerchantId);
-        
-        String accessToken = jwt.createAccessToken(user.getUserId(), actualMerchantId, roleNames, List.of());
-        String refreshToken = jwt.createRefreshToken(user.getUserId(), actualMerchantId);
-        
+        List<String> permissionNames = userRoles.findPermissionNames(user.getUserId(), actualMerchantId);
 
-        
+        String accessToken = jwt.createAccessToken(user.getUserId(), actualMerchantId, roleNames, permissionNames);
+        String refreshToken = jwt.createRefreshToken(user.getUserId(), actualMerchantId);
+
         AuthResponse response = new AuthResponse();
         response.setAccessToken(accessToken);
         response.setRefreshToken(refreshToken);
@@ -300,12 +304,13 @@ public class AuthServiceImpl implements AuthService {
         response.setRoles(roleNames);
         return response;
     }
-    
 
     
     private boolean isOtpValid(String inputOtp, String storedOtp) {
         if (inputOtp == null || storedOtp == null) return false;
-        return inputOtp.equals(storedOtp);
+        // SECURITY NOTE: Plain text comparison for development stage
+        // In production, use otpService.verifyOtp(inputOtp, storedOtp) for hashed comparison
+        return otpService.verifyOtp(inputOtp, storedOtp);
     }
     
 
@@ -315,6 +320,52 @@ public class AuthServiceImpl implements AuthService {
     private String maskPhoneNumber(String phone) {
         if (phone == null || phone.length() < 4) return "****";
         return "****" + phone.substring(phone.length() - 4);
+    }
+    
+    private void validateUserRoleForOtp(User user, Integer merchantId) {
+        if (merchantId == null || merchantId == 0) {
+            // For merchantId=0, send OTP to phone number (any user type allowed)
+            log.debug("OTP request with merchantId=0 for phone: {}, allowing OTP generation", maskPhoneNumber(user.getPhone()));
+        } else {
+            // For merchantId>0, user must be customer
+            if (!"customer".equals(user.getUserType())) {
+                throw new RuntimeException("Access denied. Only customers can request OTP for specific merchant.");
+            }
+            
+            // Verify customer is associated with this merchant
+            if (!isUserAssociatedWithMerchant(user.getUserId(), merchantId)) {
+                throw new RuntimeException("Access denied. User is not associated with the given merchant.");
+            }
+        }
+    }
+    
+    private boolean isUserAssociatedWithMerchant(Integer userId, Integer merchantId) {
+        try {
+            return userRoles.existsByUser_UserIdAndMerchant_MerchantId(userId, merchantId);
+        } catch (Exception e) {
+            log.warn("Error checking user-merchant association: userId={}, merchantId={}, error={}", 
+                    userId, merchantId, e.getMessage());
+            return false;
+        }
+    }
+    
+    private boolean isPhoneBlocked(String phone, Integer merchantId) {
+        try {
+            User user = findUserByPhoneAndMerchantId(phone, merchantId);
+            LocalDateTime blockedUntil = user.getOtpBlockedUntil();
+            boolean isBlocked = blockedUntil != null && blockedUntil.isAfter(LocalDateTime.now());
+            
+            if (isBlocked) {
+                log.warn("Phone {} is blocked until: {}", maskPhoneNumber(phone), blockedUntil);
+            }
+            
+            return isBlocked;
+        } catch (Exception e) {
+            log.warn("Error checking phone block status: phone={}, merchantId={}, error={}", 
+                    maskPhoneNumber(phone), merchantId, e.getMessage());
+            // If we can't check block status, assume not blocked to allow OTP generation
+            return false;
+        }
     }
     
     private void validateOtpRateLimit(String phone, String otpType) {
@@ -338,7 +389,10 @@ public class AuthServiceImpl implements AuthService {
     }
     
     private String generateOtp() {
-        return otpService.generateOtp();
+        String otp = otpService.generateOtp();
+        // SECURITY NOTE: OTP is generated and stored in plain text for development
+        // In production, consider using otpService.hashOtp(otp) for storage
+        return otp;
     }
     
     private LocalDateTime getExpiryByType(String otpType) {
@@ -443,11 +497,12 @@ public class AuthServiceImpl implements AuthService {
                 throw new IllegalArgumentException("Invalid OTP type. Must be one of: login, password_reset, registration, phone_verification");
             }
             
-            // 2. Validate user exists
+            // 2. Find user by phone and merchant context
             User user;
             try {
-                user = findUserForOtp(req);
-                log.debug("Found user for OTP request: userId={}, merchantId={}", user.getUserId(), 
+                user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
+                log.debug("Found user for OTP request: userId={}, userType={}, merchantId={}", 
+                         user.getUserId(), user.getUserType(), 
                          user.getMerchant() != null ? user.getMerchant().getMerchantId() : "null");
             } catch (RuntimeException e) {
                 log.error("User not found for OTP request: phone={}, merchantId={}, error={}", 
@@ -458,6 +513,32 @@ public class AuthServiceImpl implements AuthService {
                 }
                 // For other types, could potentially create user (but not implemented yet)
                 throw new RuntimeException("User not found for the provided phone number and merchant. Please register first.");
+            }
+            
+            // 2.1. Validate user role and merchant association
+            try {
+                validateUserRoleForOtp(user, req.getMerchantId());
+                log.debug("User role validation passed for userId={}, userType={}, merchantId={}", 
+                         user.getUserId(), user.getUserType(), req.getMerchantId());
+            } catch (RuntimeException e) {
+                log.warn("Role validation failed for user: userId={}, userType={}, merchantId={}, error={}", 
+                        user.getUserId(), user.getUserType(), req.getMerchantId(), e.getMessage());
+                throw e;
+            }
+            
+            // 2.2. Check if phone is blocked due to failed OTP attempts
+            try {
+                if (isPhoneBlocked(req.getPhone(), req.getMerchantId())) {
+                    log.warn("Phone blocked for OTP requests: phone={}, merchantId={}", 
+                            maskedPhone, req.getMerchantId());
+                    throw new RuntimeException("Phone is blocked due to too many failed OTP attempts. Please try again later.");
+                }
+            } catch (RuntimeException e) {
+                if (e.getMessage().contains("blocked")) {
+                    throw e;
+                }
+                log.warn("Error checking phone block status: phone={}, continuing: {}", 
+                        maskedPhone, e.getMessage());
             }
             
             // 3. Check rate limiting based on OTP type
@@ -528,7 +609,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("OTP verification attempt for phone: {}, purpose: {}", maskedPhone, req.getPurpose());
         
         try {
-            User user = findUserForOtp(new OtpRequest(req.getPhone(), req.getMerchantId()));
+            User user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
             
             // 1. Check if OTP exists
             if (user.getOtpCode() == null) {
@@ -588,31 +669,7 @@ public class AuthServiceImpl implements AuthService {
     
 
     
-    @Override
-    @Transactional
-    public void resetPassword(PasswordResetRequest req) {
-        User user = findUserForOtp(new OtpRequest(req.getPhone(), req.getMerchantId()));
-        
-        OtpVerifyRequest otpVerifyReq = new OtpVerifyRequest();
-        otpVerifyReq.setPhone(req.getPhone());
-        otpVerifyReq.setMerchantId(req.getMerchantId());
-        otpVerifyReq.setOtp(req.getOtp());
-        
-        AuthResponse verifyResult = verifyOtp(otpVerifyReq);
-        if (verifyResult == null) {
-            throw new IllegalArgumentException("Invalid or expired OTP");
-        }
-        
-        if (!req.getNewPassword().matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$")) {
-            throw new IllegalArgumentException("Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character");
-        }
-        
-        user.setPasswordHash(encoder.encode(req.getNewPassword()));
-        users.save(user);
-        
-        // Log password reset completion
-        log.info("Password reset completed for user: {}", maskPhoneNumber(req.getPhone()));
-    }
+
     
     @Override
     public long getUserCount() {
