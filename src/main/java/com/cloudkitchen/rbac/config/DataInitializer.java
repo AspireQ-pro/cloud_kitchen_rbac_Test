@@ -160,7 +160,17 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void initializeMerchants() {
-        // No hardcoded merchants - will be created via frontend
+        // Create test merchant for API testing
+        if (merchantRepository.count() == 0) {
+            Merchant testMerchant = createMerchant(
+                "Pizza Palace Mumbai", 
+                "admin@pizzapalace.com", 
+                "9876543210", 
+                "123 MG Road, Mumbai, Maharashtra 400001"
+            );
+            merchantRepository.save(testMerchant);
+            System.out.println("Created test merchant: Pizza Palace Mumbai (ID: " + testMerchant.getMerchantId() + ")");
+        }
     }
     
     private Merchant createMerchant(String name, String email, String phone, String address) {

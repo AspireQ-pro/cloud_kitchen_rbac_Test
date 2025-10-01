@@ -65,81 +65,28 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse registerUser(RegisterRequest req) {
-        String userType = determineUserType(req.getMerchantId());
-        log.info("Registration attempt: merchantId={}, userType={}", req.getMerchantId(), userType);
+        log.info("Customer registration attempt: merchantId={}", req.getMerchantId());
         validateRegistrationRequest(req);
         
-        Merchant merchant = null;
-        log.info("Checking merchant lookup: userType={}, merchantId={}", userType, req.getMerchantId());
-        if ("customer".equals(userType)) {
-            log.info("Looking up merchant with ID: {}", req.getMerchantId());
-            merchant = merchants.findById(req.getMerchantId())
-                    .orElseGet(() -> {
-                        log.info("Merchant {} not found, creating new merchant", req.getMerchantId());
-                        try {
-                            Merchant newMerchant = new Merchant();
-                            String merchantName = "Test Restaurant " + req.getMerchantId();
-                            newMerchant.setMerchantName(merchantName);
-                            newMerchant.setBusinessName(merchantName); // Required field
-                            newMerchant.setEmail("test" + req.getMerchantId() + "@restaurant.com");
-                            newMerchant.setPhone("987654321" + req.getMerchantId());
-                            newMerchant.setAddress("Test Address " + req.getMerchantId());
-                            newMerchant.setActive(true);
-                            Merchant savedMerchant = merchants.save(newMerchant);
-                            log.info("Created new merchant with ID: {}", savedMerchant.getMerchantId());
-                            return savedMerchant;
-                        } catch (Exception e) {
-                            log.error("Failed to create merchant: {}", e.getMessage(), e);
-                            throw new RuntimeException("Failed to create merchant: " + e.getMessage(), e);
-                        }
-                    });
-            
-            try {
-                if (users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {
-                    throw new RuntimeException("Phone number " + maskPhoneNumber(req.getPhone()) + " is already registered for this merchant. Please use a different phone number or login instead.");
-                }
-            } catch (Exception e) {
-                if (e.getMessage().contains("already registered")) {
-                    throw e;
-                }
-                log.warn("Error checking existing user for phone: {}, merchantId: {}, error: {}", 
-                        maskPhoneNumber(req.getPhone()), req.getMerchantId(), e.getMessage());
-            }
-        } else {
-            log.info("Skipping merchant lookup for super_admin user");
-            try {
-                if (users.findByPhoneAndMerchantIsNull(req.getPhone()).isPresent()) {
-                    throw new RuntimeException("Phone number " + maskPhoneNumber(req.getPhone()) + " is already registered as admin/merchant. Please use a different phone number or login instead.");
-                }
-            } catch (Exception e) {
-                if (e.getMessage().contains("already registered")) {
-                    throw e;
-                }
-                log.warn("Error checking existing admin user for phone: {}, error: {}", 
-                        maskPhoneNumber(req.getPhone()), e.getMessage());
-            }
+        // Check if phone already exists for this merchant
+        if (users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {
+            throw new RuntimeException("Phone number " + maskPhoneNumber(req.getPhone()) + " is already registered for this merchant. Please use a different phone number or login instead.");
         }
         
-        User user;
-        try {
-            user = createUser(req, merchant, userType);
-            user = users.save(user);
-            log.debug("User created successfully with ID: {}", user.getUserId());
-        } catch (Exception e) {
-            log.error("Failed to create user for phone: {}, error: {}", 
-                     maskPhoneNumber(req.getPhone()), e.getMessage(), e);
-            throw new RuntimeException("Failed to create user account: " + e.getMessage(), e);
-        }
+        // Get existing merchant (must exist)
+        Merchant merchant = merchants.findById(req.getMerchantId())
+                .orElseThrow(() -> new RuntimeException("Merchant with ID " + req.getMerchantId() + " not found. Please contact support."));
         
-        try {
-            assignUserRole(user, userType, merchant);
-            log.debug("User role assigned successfully for user: {}", user.getUserId());
-        } catch (Exception e) {
-            log.error("Failed to assign role to user: {}, error: {}", user.getUserId(), e.getMessage(), e);
-            throw new RuntimeException("Failed to assign user role: " + e.getMessage(), e);
-        }
+        // Create customer user
+        User user = createUser(req, merchant, "customer");
+        user = users.save(user);
+        log.debug("Customer created successfully with ID: {}", user.getUserId());
         
-        return buildTokens(user, merchant != null ? merchant.getMerchantId() : null);
+        // Assign customer role
+        assignUserRole(user, "customer", merchant);
+        log.debug("Customer role assigned successfully for user: {}", user.getUserId());
+        
+        return buildTokens(user, merchant.getMerchantId());
     }
     
     private void validateRegistrationRequest(RegisterRequest req) {
@@ -166,13 +113,7 @@ public class AuthServiceImpl implements AuthService {
         }
     }
     
-    private String determineUserType(Integer merchantId) {
-        if (merchantId == null || merchantId <= 0) {
-            return "super_admin";
-        } else {
-            return "customer";
-        }
-    }
+
     
     private User createUser(RegisterRequest req, Merchant merchant, String userType) {
         User user = new User();
@@ -602,10 +543,9 @@ public class AuthServiceImpl implements AuthService {
     }
     
     @Override
-    @Transactional
     public AuthResponse verifyOtp(OtpVerifyRequest req) {
         String maskedPhone = maskPhoneNumber(req.getPhone());
-        log.info("OTP verification attempt for phone: {}, purpose: {}", maskedPhone, req.getPurpose());
+        log.info("OTP verification attempt for phone: {}, otpType: {}", maskedPhone, req.getOtpType());
         
         try {
             User user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
@@ -648,8 +588,8 @@ public class AuthServiceImpl implements AuthService {
             otpAuditService.logOtpVerified(req.getPhone(), merchantId);
             clearOtpData(user);
             
-            // 6. Handle password reset purpose
-            if ("password_reset".equals(req.getPurpose())) {
+            // 6. Handle password reset otpType
+            if ("password_reset".equals(req.getOtpType())) {
                 String randomPassword = generateRandomPassword();
                 user.setPasswordHash(encoder.encode(randomPassword));
                 users.save(user);

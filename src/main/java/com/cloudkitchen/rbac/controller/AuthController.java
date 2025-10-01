@@ -201,7 +201,7 @@ public class AuthController {
     
     @PostMapping("/otp/verify")
     @Operation(summary = "Verify OTP", 
-               description = "Verify OTP by phone number. Use merchantId=0 for general verification, >0 for specific merchant")
+               description = "Verify OTP by phone number. Use merchantId=0 for phone-based verification (any user), merchantId>0 for merchant-specific customer verification. OTP types: login, password_reset, phone_verification, account_verification")
     public ResponseEntity<Map<String, Object>> verifyOtp(@Valid @RequestBody OtpVerifyRequest req) {
         try {
             // Validate merchantId is provided
@@ -212,7 +212,7 @@ public class AuthController {
             
             AuthResponse authResponse = auth.verifyOtp(req);
             if (authResponse != null) {
-                String message = "password_reset".equals(req.getPurpose()) ? 
+                String message = "password_reset".equals(req.getOtpType()) ? 
                     "OTP verified. Default password has been set. Please change it in your profile." : 
                     "OTP verified successfully";
                 return ResponseEntity.ok(ResponseBuilder.success(200, message, authResponse));
@@ -221,12 +221,22 @@ public class AuthController {
                         .body(ResponseBuilder.error(400, "Invalid or expired OTP"));
             }
         } catch (RuntimeException e) {
+            // Log the actual error for debugging
+            System.err.println("OTP verification error: " + e.getMessage());
+            e.printStackTrace();
+            
             if (e.getMessage().contains("User not found")) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(ResponseBuilder.error(404, "User not found"));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "OTP verification failed"));
+                    .body(ResponseBuilder.error(500, "OTP verification failed: " + e.getMessage()));
+        } catch (Exception e) {
+            // Catch any other exceptions
+            System.err.println("Unexpected OTP verification error: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(500, "OTP verification failed: " + e.getMessage()));
         }
     }
     
