@@ -19,6 +19,7 @@ logs/
 .settings/
 .project
 .classpath
+.history/
 
 # OS files
 .DS_Store

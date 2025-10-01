@@ -17,7 +17,6 @@ import com.cloudkitchen.rbac.dto.auth.AuthRequest;
 import com.cloudkitchen.rbac.dto.auth.AuthResponse;
 import com.cloudkitchen.rbac.dto.auth.OtpRequest;
 import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
-
 import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.enums.UserType;
