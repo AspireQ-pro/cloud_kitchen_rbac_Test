@@ -66,7 +66,7 @@ public class OtpAuditService {
             
             otpLog.setPhone(phone);
             otpLog.setOtpCode("****"); // Don't store actual OTP in verification log
-            otpLog.setOtpType("verification");
+            otpLog.setOtpType("login"); // Use valid otpType
             otpLog.setStatus("verified");
             otpLog.setVerifiedAt(LocalDateTime.now());
             
