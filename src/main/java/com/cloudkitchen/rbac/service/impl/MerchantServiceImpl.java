@@ -43,8 +43,6 @@ public class MerchantServiceImpl implements MerchantService {
         merchant.setPhone(request.getPhone());
         merchant.setEmail(request.getEmail());
         merchant.setAddress(request.getAddress());
-        merchant.setGstNumber(request.getGstNumber());
-        merchant.setFssaiLicense(request.getFssaiLicense());
         merchant.setActive(true);
         
         merchant = merchantRepository.save(merchant);
@@ -80,8 +78,6 @@ public class MerchantServiceImpl implements MerchantService {
         merchant.setPhone(request.getPhone());
         merchant.setEmail(request.getEmail());
         merchant.setAddress(request.getAddress());
-        merchant.setGstNumber(request.getGstNumber());
-        merchant.setFssaiLicense(request.getFssaiLicense());
         
         merchant = merchantRepository.save(merchant);
         return mapToResponse(merchant);
@@ -116,8 +112,6 @@ public class MerchantServiceImpl implements MerchantService {
         response.setPhone(merchant.getPhone());
         response.setEmail(merchant.getEmail());
         response.setAddress(merchant.getAddress());
-        response.setGstNumber(merchant.getGstNumber());
-        response.setFssaiLicense(merchant.getFssaiLicense());
         response.setActive(merchant.getActive());
         response.setCreatedAt(merchant.getCreatedOn());
         response.setUpdatedAt(merchant.getUpdatedOn());
