@@ -55,12 +55,22 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ResponseBuilder.error(400, e.getMessage()));
         } catch (RuntimeException e) {
+            // Log the actual error for debugging
+            System.err.println("Registration error: " + e.getMessage());
+            e.printStackTrace();
+            
             if (e.getMessage().contains("already registered")) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(ResponseBuilder.error(409, e.getMessage()));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Registration failed"));
+                    .body(ResponseBuilder.error(500, "Registration failed: " + e.getMessage()));
+        } catch (Exception e) {
+            // Catch any other exceptions
+            System.err.println("Unexpected registration error: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(500, "Registration failed: " + e.getMessage()));
         }
     }
 
