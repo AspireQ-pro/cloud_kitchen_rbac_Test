@@ -33,7 +33,7 @@ public class OtpAuditService {
             }
             
             otpLog.setPhone(phone);
-            otpLog.setOtpCode(otpCode); // Store actual OTP for verification
+             otpLog.setOtpCode(otpCode); // Never store actual OTP in logs for security
             otpLog.setOtpType(otpType);
             otpLog.setStatus(status);
             

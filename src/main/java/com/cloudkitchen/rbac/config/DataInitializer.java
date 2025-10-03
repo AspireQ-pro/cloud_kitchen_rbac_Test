@@ -1,10 +1,10 @@
 package com.cloudkitchen.rbac.config;
-
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
+
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.cloudkitchen.rbac.domain.entity.Merchant;
 import com.cloudkitchen.rbac.domain.entity.Permission;
 import com.cloudkitchen.rbac.domain.entity.Role;
@@ -17,9 +17,11 @@ import com.cloudkitchen.rbac.repository.RolePermissionRepository;
 import com.cloudkitchen.rbac.repository.RoleRepository;
 import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.repository.UserRoleRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
+    private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
     
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
@@ -28,6 +30,7 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AppConstants appConstants;
 
     public DataInitializer(RoleRepository roleRepository, 
                           PermissionRepository permissionRepository,
@@ -35,7 +38,8 @@ public class DataInitializer implements CommandLineRunner {
                           MerchantRepository merchantRepository,
                           UserRepository userRepository,
                           UserRoleRepository userRoleRepository,
-                          PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder,
+                          AppConstants appConstants) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.rolePermissionRepository = rolePermissionRepository;
@@ -43,16 +47,23 @@ public class DataInitializer implements CommandLineRunner {
         this.userRepository = userRepository;
         this.userRoleRepository = userRoleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.appConstants = appConstants;
     }
 
     @Override
     @Transactional
     public void run(String... args) {
-        initializeMerchants();
-        initializeRoles();
-        initializePermissions();
-        assignPermissions();
-        initializeUsers();
+        try {
+            initializeMerchants();
+            initializeRoles();
+            initializePermissions();
+            assignPermissions();
+            initializeUsers();
+            log.info("Database initialization completed successfully");
+        } catch (Exception e) {
+            log.error("Database initialization failed: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to initialize database", e);
+        }
     }
 
 
@@ -119,27 +130,27 @@ public class DataInitializer implements CommandLineRunner {
             
             // Assign all permissions to super_admin
             if (superAdmin != null) {
-                permissionRepository.findAll().forEach(permission -> {
+                for (Permission permission : permissionRepository.findAll()) {
                     RolePermission rp = new RolePermission();
                     rp.setRole(superAdmin);
                     rp.setPermission(permission);
-                    rp.setCreatedBy(1);
+                    rp.setCreatedBy(0); // System initialization
                     rolePermissionRepository.save(rp);
-                });
+                }
             }
             
             // Assign merchant permissions to merchant_admin (exclude merchant creation/deletion)
             if (merchantAdmin != null) {
-                permissionRepository.findAll().forEach(permission -> {
+                for (Permission permission : permissionRepository.findAll()) {
                     if (!permission.getPermissionName().equals("merchants.create") && 
                         !permission.getPermissionName().equals("merchants.delete")) {
                         RolePermission rp = new RolePermission();
                         rp.setRole(merchantAdmin);
                         rp.setPermission(permission);
-                        rp.setCreatedBy(1);
+                        rp.setCreatedBy(0); // System initialization
                         rolePermissionRepository.save(rp);
                     }
-                });
+                }
             }
             
             // Assign limited permissions to customer
@@ -151,7 +162,7 @@ public class DataInitializer implements CommandLineRunner {
                         RolePermission rp = new RolePermission();
                         rp.setRole(customer);
                         rp.setPermission(perm);
-                        rp.setCreatedBy(1);
+                        rp.setCreatedBy(0); // System initialization
                         rolePermissionRepository.save(rp);
                     }
                 }
@@ -163,13 +174,13 @@ public class DataInitializer implements CommandLineRunner {
         // Create test merchant for API testing
         if (merchantRepository.count() == 0) {
             Merchant testMerchant = createMerchant(
-                "Pizza Palace Mumbai", 
-                "admin@pizzapalace.com", 
-                "9876543210", 
-                "123 MG Road, Mumbai, Maharashtra 400001"
+                appConstants.getDefaultMerchantName(), 
+                appConstants.getDefaultMerchantEmail(), 
+                appConstants.getDefaultMerchantPhone(), 
+                appConstants.getDefaultMerchantAddress()
             );
             merchantRepository.save(testMerchant);
-            System.out.println("Created test merchant: Pizza Palace Mumbai (ID: " + testMerchant.getMerchantId() + ")");
+            log.info("Created test merchant: {} (ID: {})", testMerchant.getMerchantName(), testMerchant.getMerchantId());
         }
     }
     
@@ -189,7 +200,7 @@ public class DataInitializer implements CommandLineRunner {
         role.setRoleName(name);
         role.setDescription(description);
         role.setSystemRole(isSystem);
-        role.setCreatedBy(1);
+        role.setCreatedBy(0); // System initialization
         return role;
     }
 
@@ -199,11 +210,84 @@ public class DataInitializer implements CommandLineRunner {
         permission.setResource(resource);
         permission.setAction(action);
         permission.setDescription(description);
-        permission.setCreatedBy(1);
+        permission.setCreatedBy(0); // System initialization
         return permission;
+    }
+    
+    private User createUser(String phone, String firstName, String lastName, String email, String password, String userType, Merchant merchant, String username) {
+        User user = new User();
+        user.setPhone(phone);
+        user.setUsername(username != null ? username : phone);
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+        user.setEmail(email);
+        user.setPasswordHash(passwordEncoder.encode(password));
+        user.setUserType(userType);
+        user.setMerchant(merchant);
+        user.setActive(true);
+        user.setEmailVerified(true);
+        user.setPhoneVerified(true);
+        user.setCreatedBy(0);
+        return user;
     }
 
     private void initializeUsers() {
-        // No hardcoded users - will be created via frontend registration
+        // Create super admin user for testing
+        if (userRepository.count() == 0) {
+            // Super admin has no merchant (merchant = null)
+            User superAdmin = createUser(
+                "9999999999", 
+                "Super", 
+                "Admin", 
+                "superadmin@cloudkitchen.com", 
+                "Admin123!", 
+                "super_admin", 
+                null,  // Super admin has no merchant
+                "superadmin"  // Username for login
+            );
+            userRepository.save(superAdmin);
+            
+            // Assign super_admin role
+            Role superAdminRole = roleRepository.findByRoleName("super_admin").orElse(null);
+            if (superAdminRole != null) {
+                UserRole userRole = new UserRole();
+                userRole.setUser(superAdmin);
+                userRole.setRole(superAdminRole);
+                userRole.setMerchant(null); // Super admin role has no merchant
+                userRole.setCreatedBy(0);
+                userRoleRepository.save(userRole);
+            }
+            
+            log.info("Created super admin user: {} (ID: {})", superAdmin.getPhone(), superAdmin.getUserId());
+            
+            // Create merchant admin user for testing
+            Merchant testMerchant = merchantRepository.findAll().stream().findFirst().orElse(null);
+            if (testMerchant != null) {
+                User merchantAdmin = createUser(
+                    "9876543210", 
+                    "Merchant", 
+                    "Admin", 
+                    "merchant@testmerchant.com", 
+                    "Merchant123!", 
+                    "merchant", 
+                    null,  // Merchant admin has no specific merchant in user table
+                    "merchantadmin"  // Username for login
+                );
+                userRepository.save(merchantAdmin);
+                
+                // Assign merchant_admin role
+                Role merchantAdminRole = roleRepository.findByRoleName("merchant_admin").orElse(null);
+                if (merchantAdminRole != null) {
+                    UserRole userRole = new UserRole();
+                    userRole.setUser(merchantAdmin);
+                    userRole.setRole(merchantAdminRole);
+                    userRole.setMerchant(testMerchant); // Associate with test merchant
+                    userRole.setCreatedBy(0);
+                    userRoleRepository.save(userRole);
+                }
+                
+                log.info("Created merchant admin user: {} (ID: {})", merchantAdmin.getPhone(), merchantAdmin.getUserId());
+            }
+        }
     }
 }

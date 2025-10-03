@@ -9,7 +9,7 @@ public final class ValidationMessages {
     public static final String LAST_NAME_REQUIRED = "Last name is required";
     public static final String EMAIL_REQUIRED = "Email is required";
     
-    // Format Validation Messages
+    // Format Validation Messages  
     public static final String PHONE_FORMAT = "Phone must be 10 digits starting with 6-9";
     public static final String PASSWORD_FORMAT = "Password must be 8-128 chars with uppercase, lowercase, digit, special char";
     public static final String NAME_FORMAT = "Name must be 2-50 chars, letters only";

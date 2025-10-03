@@ -40,10 +40,14 @@ public class MerchantServiceImpl implements MerchantService {
         // Create merchant
         Merchant merchant = new Merchant();
         merchant.setMerchantName(request.getMerchantName());
+        merchant.setBusinessName(request.getMerchantName()); // Use merchantName as businessName
         merchant.setPhone(request.getPhone());
         merchant.setEmail(request.getEmail());
         merchant.setAddress(request.getAddress());
+        merchant.setGstin(request.getGstin());
+        merchant.setFssaiLicense(request.getFssaiLicense());
         merchant.setActive(true);
+        merchant.setCreatedBy(0); // System created
         
         merchant = merchantRepository.save(merchant);
         
@@ -53,9 +57,14 @@ public class MerchantServiceImpl implements MerchantService {
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setPhone(request.getPhone());
         user.setEmail(request.getEmail());
+        user.setFirstName(request.getMerchantName()); // Use merchant name as first name
+        user.setLastName("Admin"); // Default last name
         user.setUserType("merchant");
         user.setMerchant(merchant);
         user.setActive(true);
+        user.setEmailVerified(true);
+        user.setPhoneVerified(true);
+        user.setCreatedBy(0); // System created
         
         userRepository.save(user);
         
@@ -78,6 +87,8 @@ public class MerchantServiceImpl implements MerchantService {
         merchant.setPhone(request.getPhone());
         merchant.setEmail(request.getEmail());
         merchant.setAddress(request.getAddress());
+        merchant.setGstin(request.getGstin());
+        merchant.setFssaiLicense(request.getFssaiLicense());
         
         merchant = merchantRepository.save(merchant);
         return mapToResponse(merchant);

@@ -5,13 +5,13 @@
       "path": "C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.16.8-hotspot"
     },
     {
-      "name": "JavaSE-21",
-      "path": "C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.8.9-hotspot",
-      "default": true
+      "name": "JavaSE-22",  // Changed from JavaSE-21 to JavaSE-22
+      "path": "C:\\Program Files\\Java\\jdk-22",  // Point to JDK 22 path
+      "default": true       // Set as default
     }
   ],
 
-  "java.home": "C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.8.9-hotspot",
+  "java.home": "C:\\Program Files\\Java\\jdk-22",  // Set JDK 22 as the home
 
   "java.import.maven.enabled": true,
   "java.configuration.updateBuildConfiguration": "automatic",

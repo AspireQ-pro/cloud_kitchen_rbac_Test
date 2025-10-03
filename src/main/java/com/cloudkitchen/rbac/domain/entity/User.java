@@ -66,6 +66,21 @@ public class User {
     @Column(name = "address", length = 250)
     private String address;
     
+    @Column(name = "date_of_birth")
+    private java.time.LocalDate dateOfBirth;
+
+    @Column(name = "gender", length = 10)
+    @Check(constraints = "gender IN ('male', 'female', 'other')")
+    private String gender;
+
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
+    @Column(name = "password_reset_token", length = 255)
+    private String passwordResetToken;
+
+    @Column(name = "email_verification_token", length = 255)
+    private String emailVerificationToken;
 
     @Column(name = "user_type", length = 20)
     @Check(constraints = "user_type IN ('super_admin', 'merchant', 'customer')")
@@ -86,24 +101,12 @@ public class User {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
-    // Password reset
-    @Column(name = "password_reset_token", length = 255)
-    private String passwordResetToken;
-
     @Column(name = "password_reset_expires_at")
     private LocalDateTime passwordResetExpiresAt;
 
-    // Email verification
-    @Column(name = "email_verification_token", length = 255)
-    private String emailVerificationToken;
-
     @Column(name = "email_verified_at")
     private LocalDateTime emailVerifiedAt;
-
-    // OTP fields
-    // SECURITY NOTE: OTP is stored in plain text for development stage
-    // TODO: Implement OTP hashing for production environment
-    // Consider using BCrypt or Argon2 for OTP hashing with time-based expiration
+    
     @Column(name = "otp_code", length = 4)
     private String otpCode;
 
@@ -168,9 +171,20 @@ public class User {
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
     
+    public java.time.LocalDate getDateOfBirth() { return dateOfBirth; }
+    public void setDateOfBirth(java.time.LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
 
+    public String getGender() { return gender; }
+    public void setGender(String gender) { this.gender = gender; }
 
+    public String getProfileImageUrl() { return profileImageUrl; }
+    public void setProfileImageUrl(String profileImageUrl) { this.profileImageUrl = profileImageUrl; }
 
+    public String getPasswordResetToken() { return passwordResetToken; }
+    public void setPasswordResetToken(String passwordResetToken) { this.passwordResetToken = passwordResetToken; }
+
+    public String getEmailVerificationToken() { return emailVerificationToken; }
+    public void setEmailVerificationToken(String emailVerificationToken) { this.emailVerificationToken = emailVerificationToken; }
 
     public String getUserType() { return userType; }
     public void setUserType(String userType) { this.userType = userType; }
@@ -199,14 +213,9 @@ public class User {
     public LocalDateTime getEmailVerifiedAt() { return emailVerifiedAt; }
     public void setEmailVerifiedAt(LocalDateTime emailVerifiedAt) { this.emailVerifiedAt = emailVerifiedAt; }
 
-    // Public setters for service layer use
-    public void setPasswordResetToken(String passwordResetToken) { this.passwordResetToken = passwordResetToken; }
-    public void setEmailVerificationToken(String emailVerificationToken) { this.emailVerificationToken = emailVerificationToken; }
 
-    // Package-private getters for service layer validation only
-    String getPasswordResetTokenInternal() { return passwordResetToken; }
-    String getEmailVerificationTokenInternal() { return emailVerificationToken; }
-    String getOtpCodeInternal() { return otpCode; }
+
+
     
     public String getOtpCode() { return otpCode; }
     public void setOtpCode(String otpCode) { this.otpCode = otpCode; }

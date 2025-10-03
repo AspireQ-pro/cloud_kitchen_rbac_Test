@@ -30,7 +30,7 @@ public class CustomerController {
 
     @GetMapping
     @Operation(summary = "Get All Customers", description = "Get all customers")
-    @PreAuthorize("hasRole('super_admin') or hasPermission('customer.read')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('customer.read')")
     public ResponseEntity<Map<String, Object>> getAllCustomers() {
         try {
             List<CustomerResponse> response = customerService.getAllCustomers();
@@ -43,7 +43,7 @@ public class CustomerController {
 
     @GetMapping("/merchant/{merchantId}")
     @Operation(summary = "Get Customers by Merchant", description = "Get all customers for a specific merchant")
-    @PreAuthorize("hasRole('super_admin') or hasPermission('customer.read') or @securityService.canAccessMerchant(authentication.name, #merchantId)")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('customer.read')")
     public ResponseEntity<Map<String, Object>> getCustomersByMerchant(@PathVariable Integer merchantId) {
         try {
             List<CustomerResponse> response = customerService.getCustomersByMerchantId(merchantId);

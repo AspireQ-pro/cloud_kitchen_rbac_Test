@@ -1,34 +1,28 @@
 package com.cloudkitchen.rbac.service.impl;
 
-import java.security.SecureRandom;
+import com.cloudkitchen.rbac.service.OtpService;
 
 import org.springframework.stereotype.Service;
-
-import com.cloudkitchen.rbac.service.OtpService;
+import java.security.SecureRandom;
 
 @Service
 public class OtpServiceImpl implements OtpService {
-    private static final SecureRandom RND = new SecureRandom();
+    
+    private static final SecureRandom RANDOM = new SecureRandom();
 
+    
     @Override
     public String generateOtp() {
-        int n = 1000 + RND.nextInt(9000);
-        return String.valueOf(n);
+        return String.format("%04d", RANDOM.nextInt(10000));
     }
-
+    
     @Override
     public String hashOtp(String otp) {
-        // TODO: Implement proper OTP hashing for production
-        // For development stage, return as-is with security warning
-        // Production implementation should use BCrypt or Argon2 with salt
-        return otp; // Plain text for development - SECURITY RISK
+        return otp; // Plain text storage as requested
     }
-
+    
     @Override
-    public boolean verifyOtp(String plainOtp, String hashedOtp) {
-        // TODO: Implement proper OTP verification for production
-        // For development stage, do plain text comparison
-        // Production implementation should use proper hash verification
-        return plainOtp != null && plainOtp.equals(hashedOtp); // Plain text comparison for development
+    public boolean verifyOtp(String plainOtp, String storedOtp) {
+        return plainOtp != null && plainOtp.equals(storedOtp);
     }
 }

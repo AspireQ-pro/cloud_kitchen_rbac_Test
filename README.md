@@ -372,236 +372,30 @@ docker run -p 8081:8081 cloud-kitchen-rbac
 docker-compose up -d
 ```
 
-## Development Guide
+## Quick Start
 
 ### Prerequisites
-- **Java 17+**: Required for Spring Boot 3.x
-- **Maven 3.8+**: Build tool
-- **PostgreSQL 13+**: Primary database
-- **Redis 6+**: Optional, for production token blacklisting
-- **IDE**: IntelliJ IDEA or Eclipse with Spring Boot support
+- Java 17+
+- Maven 3.8+
+- PostgreSQL 13+
 
-### Quick Start
-1. **Clone Repository**
-   ```bash
-   git clone <repository-url>
-   cd cloud-kitchen-rbac-service
-   ```
-
-2. **Database Setup**
-   ```sql
-   CREATE DATABASE cloud_kitchen_rbac;
-   CREATE USER rbac_user WITH PASSWORD 'your_password';
-   GRANT ALL PRIVILEGES ON DATABASE cloud_kitchen_rbac TO rbac_user;
-   ```
-
-3. **Environment Configuration**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your database credentials
-   ```
-
-4. **Run Application**
-   ```bash
-   mvn spring-boot:run
-   ```
-
-5. **Access Application**
-   - API: `http://localhost:8081`
-   - Swagger UI: `http://localhost:8081/swagger-ui.html`
-   - Health Check: `http://localhost:8081/actuator/health`
-
-### Development Workflow
-
-#### Adding New Features
-1. **Create Entity** (if needed) in `domain/entity/`
-2. **Create Repository** in `repository/`
-3. **Create DTOs** in `dto/`
-4. **Create Service Interface** in `service/`
-5. **Implement Service** in `service/impl/`
-6. **Create Controller** in `controller/`
-7. **Add Tests** in `src/test/`
-
-#### Code Standards
-- **Validation**: All DTOs must have comprehensive validation
-- **Security**: All endpoints must have proper authorization
-- **Logging**: Use structured logging with security considerations
-- **Error Handling**: Use GlobalExceptionHandler for consistent responses
-- **Documentation**: Update Swagger annotations for new endpoints
+### Setup
+1. Configure database in `application.properties`
+2. Run: `mvn spring-boot:run`
+3. Access: `http://localhost:8081/swagger-ui.html`
 
 ### Testing
+Run tests: `mvn test`
 
-#### Running Tests
-```bash
-# Unit tests
-mvn test
-
-# Integration tests
-mvn test -Dspring.profiles.active=integration
-
-# Security tests
-mvn test -Dtest=SecurityTest
-```
-
-#### Test Structure
-- **Unit Tests**: Test individual components in isolation
-- **Integration Tests**: Test complete request/response cycles
-- **Security Tests**: Test authentication and authorization
-- **Validation Tests**: Test input validation rules
-
-### Code Quality Tools
-- **SpotBugs**: Static analysis for bug detection
-- **OWASP Dependency Check**: Security vulnerability scanning
-- **Maven Compiler**: Strict compilation with warnings
-- **Validation**: Comprehensive input validation
-
-#### Running Quality Checks
-```bash
-# Static analysis
-mvn spotbugs:check
-
-# Security scan
-mvn org.owasp:dependency-check-maven:check
-
-# Compile with warnings
-mvn clean compile
-```
-
-### Common Development Tasks
-
-#### Adding New Validation Rules
-1. Update DTO with new validation annotations
-2. Add custom validation in `ValidationUtils.java`
-3. Update `SecurityUtils.java` for sanitization
-4. Test validation in controller tests
-
-#### Adding New Endpoints
-1. Define endpoint in controller with proper annotations
-2. Add security annotations (`@PreAuthorize`)
-3. Implement service logic
-4. Add comprehensive error handling
-5. Update Swagger documentation
-6. Add integration tests
-
-#### Database Changes
-1. Update entity classes
-2. Create migration scripts
-3. Update repository interfaces
-4. Test with different profiles
-
-### Debugging Tips
-
-#### Common Issues
-- **JWT Token Issues**: Check token expiry and blacklist status
-- **Validation Errors**: Check DTO validation annotations
-- **Database Issues**: Verify connection and entity mappings
-- **Security Issues**: Check role assignments and permissions
-
-#### Logging Levels
-```properties
-# Development
-logging.level.com.cloudkitchen.rbac=DEBUG
-
-# Production
-logging.level.com.cloudkitchen.rbac=INFO
-```
-
-### Performance Considerations
-
-#### Database Optimization
-- Use connection pooling (HikariCP configured)
-- Implement proper indexing
-- Use batch operations for bulk updates
-- Monitor query performance
-
-#### Security Performance
-- JWT token validation is cached
-- Rate limiting prevents abuse
-- Input validation is optimized
-- Session management is efficient
-
-### Deployment Preparation
-
-#### Environment-Specific Configuration
-- **Development**: `application.properties`
-- **Production**: `application-prod.properties`
-- **Testing**: `application-test.properties`
-
-#### Security Checklist
-- [ ] JWT secrets are environment-specific
-- [ ] Database credentials are secure
-- [ ] CORS origins are properly configured
-- [ ] Rate limiting is enabled
-- [ ] Audit logging is configured
-- [ ] Error responses don't leak information
+### Security
+- JWT authentication with refresh tokens
+- Role-based access control
+- Input validation and sanitization
+- Rate limiting and audit logging
 
 ## Documentation
-
-### Available Documentation
-- **README.md**: This comprehensive guide
-- **PROJECT_STATUS.md**: Current project status and completed features
-- **API_TESTING_GUIDE.md**: Complete API testing guide with examples
-- **SECURITY_IMPROVEMENTS.md**: Detailed security implementation guide
-- **Swagger UI**: Interactive API documentation at `/swagger-ui.html`
-
-### API Documentation
-Access the interactive API documentation at:
-- **Development**: `http://localhost:8081/swagger-ui.html`
-- **Production**: `https://your-domain.com/swagger-ui.html`
-
-## Troubleshooting
-
-### Common Issues
-
-#### Application Won't Start
-- Check database connection
-- Verify Java version (17+)
-- Check port availability (8081)
-- Review application logs
-
-#### Authentication Issues
-- Verify JWT secret configuration
-- Check token expiry settings
-- Review user roles and permissions
-- Check rate limiting status
-
-#### Database Issues
-- Verify PostgreSQL is running
-- Check connection credentials
-- Review entity mappings
-- Check database schema
-
-### Getting Help
-1. Check existing documentation
-2. Review application logs
-3. Test with Swagger UI
-4. Check project status documentation
-5. Contact development team
-
-## Contributing
-
-### Code Contribution Guidelines
-1. Follow existing code structure
-2. Add comprehensive validation
-3. Include security considerations
-4. Write tests for new features
-5. Update documentation
-6. Follow security best practices
-
-### Pull Request Process
-1. Create feature branch
-2. Implement changes with tests
-3. Run quality checks
-4. Update documentation
-5. Submit pull request
-6. Address review feedback
+- **Swagger UI**: `http://localhost:8081/swagger-ui.html`
+- **Health Check**: `http://localhost:8081/actuator/health`
 
 ## License
 MIT License
-
-## Support
-For support and questions:
-- Check documentation first
-- Review troubleshooting section
-- Contact development team
-- Create GitHub issues for bugs

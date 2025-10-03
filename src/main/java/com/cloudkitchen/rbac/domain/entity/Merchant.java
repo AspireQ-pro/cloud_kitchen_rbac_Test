@@ -50,7 +50,11 @@ public class Merchant {
     @Column(name = "pincode", length = 10)
     private String pincode;
     
-
+    @Column(name = "gstin", length = 20)
+    private String gstin;
+    
+    @Column(name = "fssai_license", length = 50)
+    private String fssaiLicense;
 
     @Column(name = "is_active")
     private Boolean active = true;
@@ -109,6 +113,12 @@ public class Merchant {
 
     public String getPincode() { return pincode; }
     public void setPincode(String pincode) { this.pincode = pincode; }
+
+    public String getGstin() { return gstin; }
+    public void setGstin(String gstin) { this.gstin = gstin; }
+
+    public String getFssaiLicense() { return fssaiLicense; }
+    public void setFssaiLicense(String fssaiLicense) { this.fssaiLicense = fssaiLicense; }
 
     public Boolean getActive() { return active; }
     public void setActive(Boolean active) { this.active = active; }

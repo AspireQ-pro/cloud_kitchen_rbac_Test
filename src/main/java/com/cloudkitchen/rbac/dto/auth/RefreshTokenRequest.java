@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size;
 
 public class RefreshTokenRequest {
     @NotBlank(message = "Refresh token is required")
-    @Size(min = 10, message = "Invalid refresh token format")
+    @Size(min = 100, message = "Invalid refresh token format")
     private String refreshToken;
 
     public String getRefreshToken() { return refreshToken; }

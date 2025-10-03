@@ -9,70 +9,77 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import com.cloudkitchen.rbac.dto.auth.AuthRequest;
 import com.cloudkitchen.rbac.dto.auth.AuthResponse;
 import com.cloudkitchen.rbac.dto.auth.OtpRequest;
 import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
-
 import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.security.JwtTokenProvider;
 import com.cloudkitchen.rbac.service.AuthService;
+import com.cloudkitchen.rbac.service.ValidationService;
 import com.cloudkitchen.rbac.util.ResponseBuilder;
+import com.cloudkitchen.rbac.util.SecurityUtils;
+
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/auth")
 @Tag(name = "Authentication", description = "User authentication and registration endpoints")
 public class AuthController {
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     private final AuthService auth;
     private final JwtTokenProvider jwt;
+    private final ValidationService validationService;
 
-    public AuthController(AuthService auth, JwtTokenProvider jwt) {
+    public AuthController(AuthService auth, JwtTokenProvider jwt, ValidationService validationService) {
         this.auth = auth;
         this.jwt = jwt;
+        this.validationService = validationService;
     }
 
     @PostMapping("/signup")
-    @Operation(summary = "Customer Registration", 
-               description = "Register new customer only. MerchantId must be > 0 to specify which merchant the customer belongs to")
+    @Operation(summary = "Customer Registration",
+               description = "Register new customer. MerchantId must be > 0 to specify which merchant the customer belongs to")
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest req) {
         try {
-            // Only allow customer signup (merchantId > 0)
-            if (req.getMerchantId() == null || req.getMerchantId() <= 0) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "Only customer signup is allowed. Valid merchantId (>0) is required"));
-            }
+            log.info("Registration request received - firstName: {}, lastName: {}, phone: {}, merchantId: {}, email: {}",
+                    req.getFirstName(), req.getLastName(),
+                    req.getPhone() != null ? SecurityUtils.maskSensitiveData(req.getPhone()) : "null",
+                    req.getMerchantId(), req.getEmail());
+
+            // Additional security validation
+            validationService.validateRegistration(req);
             
             AuthResponse authResponse = auth.registerUser(req);
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ResponseBuilder.success(201, "Customer registration successful", authResponse));
         } catch (IllegalArgumentException e) {
+            log.warn("Registration validation error: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ResponseBuilder.error(400, e.getMessage()));
         } catch (RuntimeException e) {
-            // Log the actual error for debugging
-            System.err.println("Registration error: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Registration error: {}", e.getMessage(), e);
             
             if (e.getMessage().contains("already registered")) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(ResponseBuilder.error(409, e.getMessage()));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Registration failed: " + e.getMessage()));
+                    .body(ResponseBuilder.error(500, "Registration failed"));
         } catch (Exception e) {
-            // Catch any other exceptions
-            System.err.println("Unexpected registration error: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Unexpected registration error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Registration failed: " + e.getMessage()));
+                    .body(ResponseBuilder.error(500, "Registration failed"));
         }
     }
+    
+
 
 
 
@@ -97,12 +104,15 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> merchantAdminLogin(@Valid @RequestBody AuthRequest req) {
         try {
+            log.info("Login request received: username={}, merchantId={}", req.getUsername(), req.getMerchantId());
             AuthResponse authResponse = auth.login(req);
             return ResponseEntity.ok(ResponseBuilder.success(200, "Login successful", authResponse));
         } catch (IllegalArgumentException e) {
+            log.error("Login validation error: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ResponseBuilder.error(400, e.getMessage()));
         } catch (RuntimeException e) {
+            log.error("Login runtime error: {}", e.getMessage(), e);
             if (e.getMessage().contains("Invalid credentials") || e.getMessage().contains("Access denied")) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(ResponseBuilder.error(401, "Invalid credentials"));
@@ -111,10 +121,6 @@ public class AuthController {
                     .body(ResponseBuilder.error(500, "Login failed"));
         }
     }
-
-
-
-
 
     @PostMapping("/refresh")
     public ResponseEntity<Map<String, Object>> refresh(@Valid @RequestBody RefreshTokenRequest req) {
@@ -154,6 +160,7 @@ public class AuthController {
     @Operation(summary = "Request OTP", 
                description = "Send OTP by phone number. Use merchantId=0 for general OTP (any user), >0 for specific merchant customers")
     public ResponseEntity<Map<String, Object>> requestOtp(@Valid @RequestBody OtpRequest req) {
+
         try {
             // Validate merchantId is provided
             if (req.getMerchantId() == null) {
@@ -221,9 +228,7 @@ public class AuthController {
                         .body(ResponseBuilder.error(400, "Invalid or expired OTP"));
             }
         } catch (RuntimeException e) {
-            // Log the actual error for debugging
-            System.err.println("OTP verification error: " + e.getMessage());
-            e.printStackTrace();
+            log.error("OTP verification error: {}", e.getMessage(), e);
             
             if (e.getMessage().contains("User not found")) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -232,9 +237,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ResponseBuilder.error(500, "OTP verification failed: " + e.getMessage()));
         } catch (Exception e) {
-            // Catch any other exceptions
-            System.err.println("Unexpected OTP verification error: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Unexpected OTP verification error: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ResponseBuilder.error(500, "OTP verification failed: " + e.getMessage()));
         }
@@ -249,15 +252,11 @@ public class AuthController {
 
     
     private String getSuccessMessageByType(String otpType) {
-        switch (otpType) {
-            case "password_reset":
-                return "Password reset OTP sent to your phone. Valid for 5 minutes.";
-            case "phone_verification":
-                return "Phone verification OTP sent. Valid for 10 minutes.";
-            case "account_verification":
-                return "Account verification OTP sent. Valid for 15 minutes.";
-            default:
-                return "OTP sent to your phone successfully.";
-        }
+        return switch (otpType) {
+            case "password_reset" -> "Password reset OTP sent to your phone. Valid for 5 minutes.";
+            case "phone_verification" -> "Phone verification OTP sent. Valid for 10 minutes.";
+            case "account_verification" -> "Account verification OTP sent. Valid for 15 minutes.";
+            default -> "OTP sent to your phone successfully.";
+        };
     }
 }

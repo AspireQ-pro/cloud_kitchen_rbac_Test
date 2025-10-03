@@ -25,7 +25,7 @@ public class RateLimitConfig implements WebMvcConfigurer {
         private final ConcurrentHashMap<String, RequestWindow> requestWindows = new ConcurrentHashMap<>();
         private final int maxRequests = 10;
         private final long windowSizeMs = 60000;
-        private long lastCleanup = System.currentTimeMillis();
+        private volatile long lastCleanup = System.currentTimeMillis();
         private final long cleanupIntervalMs = 300000; // 5 minutes
 
         @Override

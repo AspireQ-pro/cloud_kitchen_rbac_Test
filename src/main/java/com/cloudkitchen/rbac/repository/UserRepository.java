@@ -18,10 +18,14 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     Optional<User> findByEmailAndMerchantIsNull(String email);
     Optional<User> findByEmailAndMerchant_MerchantId(String email, Integer merchantId);
     Optional<User> findByUsername(String username);
+    Optional<User> findByUsernameAndMerchantIsNull(String username);
+    Optional<User> findByUsernameAndMerchant_MerchantId(String username, Integer merchantId);
     Optional<User> findByMerchantAndUserType(Merchant merchant, String userType);
     boolean existsByPhone(String phone);
     boolean existsByEmail(String email);
     boolean existsByUsername(String username);
+    boolean existsByUsernameAndMerchantIsNull(String username);
+    boolean existsByUsernameAndMerchant_MerchantId(String username, Integer merchantId);
     
     // Merchant-aware existence checks
     boolean existsByPhoneAndMerchant_MerchantId(String phone, Integer merchantId);

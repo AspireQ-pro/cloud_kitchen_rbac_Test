@@ -17,11 +17,12 @@ public class OtpRequest {
     private Integer merchantId;
     
     @NotBlank(message = "Phone number is required")
-    @Pattern(regexp = "^(\\+91)?[6-9]\\d{9}$", message = "Invalid phone number format")
+    @Pattern(regexp = "^[6-9]\\d{9}$", message = "Invalid phone number format")
     @Length(min = 10, max = 13, message = "Phone number must be 10-13 characters")
     @Schema(description = "User's phone number", example = "9876543210")
     private String phone;
     
+    @NotBlank(message = "OTP type is required")
     @Pattern(regexp = "^(login|password_reset|registration|phone_verification|account_verification)$", 
              message = "OTP type must be one of: login, password_reset, registration, phone_verification, account_verification")
     @Schema(description = "Type of OTP request", 

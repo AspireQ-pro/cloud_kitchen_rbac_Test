@@ -36,7 +36,7 @@ public class MerchantController {
 
     @PostMapping
     @Operation(summary = "Create Merchant", description = "Create a new merchant with user account")
-    @PreAuthorize("hasRole('super_admin') or hasPermission('merchant.create')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.create')")
     public ResponseEntity<Map<String, Object>> createMerchant(@Valid @RequestBody MerchantRequest request) {
         try {
             MerchantResponse response = merchantService.createMerchant(request);
@@ -54,7 +54,7 @@ public class MerchantController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update Merchant", description = "Update merchant details")
-    @PreAuthorize("hasRole('super_admin') or hasPermission('merchant.update')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.update')")
     public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @Valid @RequestBody MerchantRequest request) {
         try {
             MerchantResponse response = merchantService.updateMerchant(id, request);
@@ -75,7 +75,7 @@ public class MerchantController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get Merchant", description = "Get merchant by ID")
-    @PreAuthorize("hasRole('super_admin') or hasPermission('merchant.read') or @securityService.canAccessMerchant(authentication.name, #id)")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.read')")
     public ResponseEntity<Map<String, Object>> getMerchant(@PathVariable Integer id) {
         try {
             MerchantResponse response = merchantService.getMerchantById(id);
@@ -88,7 +88,7 @@ public class MerchantController {
 
     @GetMapping
     @Operation(summary = "Get All Merchants", description = "Get all merchants")
-    @PreAuthorize("hasRole('super_admin') or hasPermission('merchant.read')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.read')")
     public ResponseEntity<Map<String, Object>> getAllMerchants() {
         try {
             List<MerchantResponse> response = merchantService.getAllMerchants();
@@ -101,7 +101,7 @@ public class MerchantController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete Merchant", description = "Delete merchant by ID")
-    @PreAuthorize("hasRole('super_admin') or hasPermission('merchant.delete')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.delete')")
     public ResponseEntity<Map<String, Object>> deleteMerchant(@PathVariable Integer id) {
         try {
             merchantService.deleteMerchant(id);

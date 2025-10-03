@@ -15,16 +15,17 @@ public class MerchantRequest {
     @Size(max = 100, message = "Email must not exceed 100 characters")
     private String email;
 
-    @NotBlank(message = "GST number is required")
-    @Size(max = 50, message = "GST number must not exceed 50 characters")
-    private String gstNumber;
+    @Size(max = 20, message = "GSTIN must not exceed 20 characters")
+    private String gstin;
 
     @NotBlank(message = "Username is required")
     @Size(max = 50, message = "Username must not exceed 50 characters")
     private String username;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
+    @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
+    @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$", 
+             message = "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character")
     private String password;
 
     @NotBlank(message = "Phone number is required")
@@ -34,7 +35,6 @@ public class MerchantRequest {
     @Size(max = 255, message = "Address must not exceed 255 characters")
     private String address;
 
-    @NotBlank(message = "FSSAI license number is required")
     @Size(max = 50, message = "FSSAI license number must not exceed 50 characters")
     private String fssaiLicense;
 
@@ -45,8 +45,8 @@ public class MerchantRequest {
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
-    public String getGstNumber() { return gstNumber; }
-    public void setGstNumber(String gstNumber) { this.gstNumber = gstNumber; }
+    public String getGstin() { return gstin; }
+    public void setGstin(String gstin) { this.gstin = gstin; }
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }

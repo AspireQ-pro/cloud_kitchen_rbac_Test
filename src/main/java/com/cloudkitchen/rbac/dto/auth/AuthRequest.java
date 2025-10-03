@@ -7,10 +7,10 @@ public class AuthRequest {
     @Min(value = 0, message = "Merchant ID must be 0 or positive")
     private Integer merchantId;
     
-    @NotBlank(message = "Phone number is required")
-    @Pattern(regexp = "^(\\+91)?[6-9]\\d{9}$", message = "Invalid phone number format")
-    @Length(min = 10, max = 13, message = "Phone number must be 10-13 characters")
-    private String phone;
+    // For merchantId=0: username (merchant/super admin)
+    // For merchantId>0: phone (customer)
+    @NotBlank(message = "Username is required")
+    private String username;
     
     @NotBlank(message = "Password is required")
     @Length(min = 8, max = 128, message = "Password must be 8-128 characters")
@@ -20,9 +20,9 @@ public class AuthRequest {
     public Integer getMerchantId() { return merchantId; }
     public void setMerchantId(Integer merchantId) { this.merchantId = merchantId; }
 
-    public String getPhone() { return phone; }
-    public void setPhone(String phone) { 
-        this.phone = phone != null ? phone.trim().replaceAll("\\s+", "") : null; 
+    public String getUsername() { return username; }
+    public void setUsername(String username) { 
+        this.username = username != null ? username.trim() : null; 
     }
 
     public String getPassword() { return password; }

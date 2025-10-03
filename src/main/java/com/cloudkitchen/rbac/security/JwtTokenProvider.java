@@ -8,11 +8,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
+import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.security.Key;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -33,7 +34,7 @@ public class JwtTokenProvider {
     @Value("${app.jwt.issuer:cloud-kitchen-rbac}")
     private String issuer;
 
-    private Key key;
+    private SecretKey key;
     // In-memory token blacklist (suitable for single-instance deployments)
     private final Set<String> blacklistedTokens = ConcurrentHashMap.newKeySet();
 
@@ -64,18 +65,18 @@ public class JwtTokenProvider {
         String jti = generateJti();
 
         return Jwts.builder()
-                .setId(jti)
-                .setIssuer(issuer)
-                .setSubject(String.valueOf(userId))
-                .setAudience("cloud-kitchen-app")
+                .id(jti)
+                .issuer(issuer)
+                .subject(String.valueOf(userId))
+                .audience().add("cloud-kitchen-app").and()
                 .claim("type", TOKEN_TYPE_ACCESS)
                 .claim("merchantId", merchantId)
                 .claim("roles", roles != null ? roles : List.of())
                 .claim("permissions", permissions != null ? permissions : List.of())
-                .setIssuedAt(now)
-                .setNotBefore(now)
-                .setExpiration(expiry)
-                .signWith(key, SignatureAlgorithm.HS256)
+                .issuedAt(now)
+                .notBefore(now)
+                .expiration(expiry)
+                .signWith(key)
                 .compact();
     }
 
@@ -89,16 +90,16 @@ public class JwtTokenProvider {
         String jti = generateJti();
 
         return Jwts.builder()
-                .setId(jti)
-                .setIssuer(issuer)
-                .setSubject(String.valueOf(userId))
-                .setAudience("cloud-kitchen-app")
+                .id(jti)
+                .issuer(issuer)
+                .subject(String.valueOf(userId))
+                .audience().add("cloud-kitchen-app").and()
                 .claim("type", TOKEN_TYPE_REFRESH)
                 .claim("merchantId", merchantId)
-                .setIssuedAt(now)
-                .setNotBefore(now)
-                .setExpiration(expiry)
-                .signWith(key, SignatureAlgorithm.HS256)
+                .issuedAt(now)
+                .notBefore(now)
+                .expiration(expiry)
+                .signWith(key)
                 .compact();
     }
 
@@ -108,13 +109,13 @@ public class JwtTokenProvider {
         }
         
         try {
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(key)
+            Claims claims = Jwts.parser()
+                    .verifyWith(key)
                     .requireIssuer(issuer)
-                    .setAllowedClockSkewSeconds(60)
+                    .clockSkewSeconds(60)
                     .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+                    .parseSignedClaims(token)
+                    .getPayload();
                     
             // Validate token type for access tokens
             String tokenType = claims.get("type", String.class);
@@ -225,11 +226,11 @@ public class JwtTokenProvider {
     
     public boolean isTokenBlacklisted(String token) {
         try {
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(key)
+            Claims claims = Jwts.parser()
+                    .verifyWith(key)
                     .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+                    .parseSignedClaims(token)
+                    .getPayload();
             String jti = claims.getId();
             return jti != null && blacklistedTokens.contains(jti);
         } catch (Exception e) {
@@ -242,6 +243,6 @@ public class JwtTokenProvider {
     }
     
     private String generateJti() {
-        return java.util.UUID.randomUUID().toString();
+        return UUID.randomUUID().toString();
     }
 }
