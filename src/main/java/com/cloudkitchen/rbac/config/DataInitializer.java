@@ -260,34 +260,7 @@ public class DataInitializer implements CommandLineRunner {
             
             log.info("Created super admin user: {} (ID: {})", superAdmin.getPhone(), superAdmin.getUserId());
             
-            // Create merchant admin user for testing
-            Merchant testMerchant = merchantRepository.findAll().stream().findFirst().orElse(null);
-            if (testMerchant != null) {
-                User merchantAdmin = createUser(
-                    "9876543210", 
-                    "Merchant", 
-                    "Admin", 
-                    "merchant@testmerchant.com", 
-                    "Merchant123!", 
-                    "merchant", 
-                    null,  // Merchant admin has no specific merchant in user table
-                    "merchantadmin"  // Username for login
-                );
-                userRepository.save(merchantAdmin);
-                
-                // Assign merchant_admin role
-                Role merchantAdminRole = roleRepository.findByRoleName("merchant_admin").orElse(null);
-                if (merchantAdminRole != null) {
-                    UserRole userRole = new UserRole();
-                    userRole.setUser(merchantAdmin);
-                    userRole.setRole(merchantAdminRole);
-                    userRole.setMerchant(testMerchant); // Associate with test merchant
-                    userRole.setCreatedBy(0);
-                    userRoleRepository.save(userRole);
-                }
-                
-                log.info("Created merchant admin user: {} (ID: {})", merchantAdmin.getPhone(), merchantAdmin.getUserId());
-            }
+
         }
     }
 }

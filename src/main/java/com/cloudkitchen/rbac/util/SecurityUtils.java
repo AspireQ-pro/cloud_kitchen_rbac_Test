@@ -13,11 +13,7 @@ public final class SecurityUtils {
         "(?i)(union\\s+select|insert\\s+into|update\\s+set|delete\\s+from|drop\\s+table|create\\s+table|alter\\s+table|exec\\s*\\(|execute\\s*\\(|--|;|'|\"|\\*|%|\\+|or\\s+1\\s*=\\s*1|and\\s+1\\s*=\\s*1|\\bor\\b.*\\b1\\b.*=.*\\b1\\b)", 
         Pattern.CASE_INSENSITIVE);
     
-    private static final Pattern EMOJI_PATTERN = Pattern.compile(
-        "[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u27FF\\u2B00-\\u2BFF\\u3000-\\u303F\\uFE00-\\uFE0F]");
-    
-    private static final Pattern CONTROL_CHARS_PATTERN = Pattern.compile(
-        "[\\x00-\\x1F\\x7F-\\x9F]");
+
     
     private SecurityUtils() {}
     
