@@ -143,42 +143,81 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse login(AuthRequest req) {
         log.info("Login attempt: username={}, merchantId={}", req.getUsername(), req.getMerchantId());
+        
+        // Validate input
+        if (req.getUsername() == null || req.getUsername().trim().isEmpty()) {
+            throw new IllegalArgumentException("Username is required");
+        }
+        if (req.getPassword() == null || req.getPassword().trim().isEmpty()) {
+            throw new IllegalArgumentException("Password is required");
+        }
+        if (req.getMerchantId() == null) {
+            throw new IllegalArgumentException("MerchantId is required: use 0 for admin/merchant, >0 for customers");
+        }
+        
         User user;
         
-        if (req.getMerchantId() != null && Integer.valueOf(0).equals(req.getMerchantId())) {
+        if (Integer.valueOf(0).equals(req.getMerchantId())) {
             log.debug("Looking for admin/merchant user with username: {}", req.getUsername());
+            
+            // Check database connection
+            long userCount = users.count();
+            log.debug("Total users in database: {}", userCount);
+            
             user = users.findByUsernameAndMerchantIsNull(req.getUsername())
                 .or(() -> {
                     log.debug("Username not found, trying email: {}", req.getUsername());
                     return users.findByEmailAndMerchantIsNull(req.getUsername());
                 })
+                .or(() -> {
+                    log.debug("Email not found, trying phone: {}", req.getUsername());
+                    return users.findByPhoneAndMerchantIsNull(req.getUsername());
+                })
                 .orElseThrow(() -> {
-                    log.warn("No user found with username/email: {} and merchantId=null", req.getUsername());
-                    return new RuntimeException("Invalid credentials");
+                    log.warn("No admin user found with username/email/phone: {} and merchantId=null", req.getUsername());
+                    return new RuntimeException("User not found. Please check your credentials.");
                 });
             
-            log.debug("Found user: id={}, userType={}, username={}", user.getUserId(), user.getUserType(), user.getUsername());
+            log.debug("Found user: id={}, userType={}, username={}, active={}", 
+                     user.getUserId(), user.getUserType(), user.getUsername(), user.getActive());
             
+            // Check if user is active
+            if (!Boolean.TRUE.equals(user.getActive())) {
+                log.warn("Inactive user login attempt: {}", user.getUserId());
+                throw new RuntimeException("Account is inactive. Please contact support.");
+            }
+            
+            // Validate user type
             if (!List.of(UserType.SUPER_ADMIN.getValue(), UserType.MERCHANT.getValue()).contains(user.getUserType())) {
                 log.warn("Access denied for userType: {}", user.getUserType());
-                throw new RuntimeException("Access denied");
+                throw new RuntimeException("Access denied. Invalid user type for admin login.");
             }
         }
-        else if (req.getMerchantId() != null && req.getMerchantId() > 0) {
+        else if (req.getMerchantId() > 0) {
+            log.debug("Looking for customer user with phone: {} for merchant: {}", req.getUsername(), req.getMerchantId());
             user = users.findByPhoneAndMerchant_MerchantId(req.getUsername(), req.getMerchantId())
-                    .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+                    .orElseThrow(() -> {
+                        log.warn("No customer found with phone: {} for merchant: {}", req.getUsername(), req.getMerchantId());
+                        return new RuntimeException("Customer not found for this merchant.");
+                    });
         }
         else {
-            throw new IllegalArgumentException("MerchantId required: use 0 for merchants, >0 for customers");
+            throw new IllegalArgumentException("Invalid merchantId. Use 0 for admin/merchant, >0 for customers");
         }
         
+        // Verify password
         log.debug("Verifying password for user: {}", user.getUserId());
+        if (user.getPasswordHash() == null || user.getPasswordHash().trim().isEmpty()) {
+            log.warn("User {} has no password set", user.getUserId());
+            throw new RuntimeException("Account setup incomplete. Please contact support.");
+        }
+        
         if (!encoder.matches(req.getPassword(), user.getPasswordHash())) {
             log.warn("Password verification failed for user: {}", user.getUserId());
-            throw new RuntimeException("Invalid credentials");
+            throw new RuntimeException("Invalid password.");
         }
         
-        log.info("Login successful for user: {}", user.getUserId());
+        log.info("Login successful for user: {} (type: {})", user.getUserId(), user.getUserType());
         return buildTokens(user, req.getMerchantId());
     }
     

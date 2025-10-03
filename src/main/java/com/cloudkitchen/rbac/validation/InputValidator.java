@@ -2,7 +2,6 @@ package com.cloudkitchen.rbac.validation;
 
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.service.ValidationService;
-import com.cloudkitchen.rbac.util.SecurityUtils;
 import org.springframework.stereotype.Component;
 
 @Component
