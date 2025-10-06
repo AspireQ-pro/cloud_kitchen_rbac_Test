@@ -7,4 +7,5 @@ import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
 public interface CustomerService {
     List<CustomerResponse> getAllCustomers();
     List<CustomerResponse> getCustomersByMerchantId(Integer merchantId);
+    CustomerResponse getCustomerById(Integer id);
 }

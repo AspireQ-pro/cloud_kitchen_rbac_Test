@@ -61,7 +61,8 @@ public class JwtTokenProvider {
         }
         
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + (long)accessTokenValiditySeconds * 1000L);
+        long expiryTime = Math.addExact(now.getTime(), Math.multiplyExact((long)accessTokenValiditySeconds, 1000L));
+        Date expiry = new Date(expiryTime);
         String jti = generateJti();
 
         return Jwts.builder()
@@ -86,7 +87,8 @@ public class JwtTokenProvider {
         }
         
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + (long)refreshTokenValiditySeconds * 1000L);
+        long expiryTime = Math.addExact(now.getTime(), Math.multiplyExact((long)refreshTokenValiditySeconds, 1000L));
+        Date expiry = new Date(expiryTime);
         String jti = generateJti();
 
         return Jwts.builder()

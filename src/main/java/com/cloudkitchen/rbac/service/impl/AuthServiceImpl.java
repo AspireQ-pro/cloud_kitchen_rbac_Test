@@ -1,5 +1,6 @@
 package com.cloudkitchen.rbac.service.impl;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -78,7 +79,7 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("Valid merchantId (>0) is required for customer registration");
         }
         
-        log.info("Customer registration attempt: merchantId={}", req.getMerchantId());
+        log.info("Customer registration attempt: merchantId={}", sanitizeForLogging(String.valueOf(req.getMerchantId())));
         validationService.validateRegistration(req);
         
         if (users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {
@@ -142,7 +143,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse login(AuthRequest req) {
-        log.info("Login attempt: username={}, merchantId={}", req.getUsername(), req.getMerchantId());
+        log.info("Login attempt: username={}, merchantId={}", sanitizeForLogging(req.getUsername()), sanitizeForLogging(String.valueOf(req.getMerchantId())));
         
         // Validate input
         if (req.getUsername() == null || req.getUsername().trim().isEmpty()) {
@@ -158,7 +159,7 @@ public class AuthServiceImpl implements AuthService {
         User user;
         
         if (Integer.valueOf(0).equals(req.getMerchantId())) {
-            log.debug("Looking for admin/merchant user with username: {}", req.getUsername());
+            log.debug("Looking for admin/merchant user with username: {}", sanitizeForLogging(req.getUsername()));
             
             // Check database connection
             long userCount = users.count();
@@ -166,15 +167,15 @@ public class AuthServiceImpl implements AuthService {
             
             user = users.findByUsernameAndMerchantIsNull(req.getUsername())
                 .or(() -> {
-                    log.debug("Username not found, trying email: {}", req.getUsername());
+                    log.debug("Username not found, trying email: {}", sanitizeForLogging(req.getUsername()));
                     return users.findByEmailAndMerchantIsNull(req.getUsername());
                 })
                 .or(() -> {
-                    log.debug("Email not found, trying phone: {}", req.getUsername());
+                    log.debug("Email not found, trying phone: {}", sanitizeForLogging(req.getUsername()));
                     return users.findByPhoneAndMerchantIsNull(req.getUsername());
                 })
                 .orElseThrow(() -> {
-                    log.warn("No admin user found with username/email/phone: {} and merchantId=null", req.getUsername());
+                    log.warn("No admin user found with username/email/phone: {} and merchantId=null", sanitizeForLogging(req.getUsername()));
                     return new RuntimeException("User not found. Please check your credentials.");
                 });
             
@@ -333,14 +334,18 @@ public class AuthServiceImpl implements AuthService {
     
     private void validateOtpRateLimit(String phone, String otpType) {
         LocalDateTime timeLimit = LocalDateTime.now().minusMinutes(AppConstants.OTP_RATE_LIMIT_WINDOW_MINUTES);
-        int maxRequests = AppConstants.OTP_RATE_LIMIT_REQUESTS;
         int recentRequests = otpLogRepository.countByPhoneAndCreatedOnAfter(phone, timeLimit);
         
-        if (recentRequests >= maxRequests) {
+        if (recentRequests >= AppConstants.OTP_RATE_LIMIT_REQUESTS) {
             log.warn("Rate limit exceeded for phone: {}, type: {}, requests: {} in last {} minutes", 
                     maskPhone(phone), otpType, recentRequests, AppConstants.OTP_RATE_LIMIT_WINDOW_MINUTES);
-            throw new RuntimeException(String.format("Too many OTP requests. You have exceeded the limit of %d OTP requests. Please try again after %d minutes.", 
-                AppConstants.OTP_RATE_LIMIT_REQUESTS, AppConstants.OTP_RATE_LIMIT_WINDOW_MINUTES));
+            
+            String errorMessage = String.format(
+                "Too many OTP requests. You have exceeded the limit of %d OTP requests. Please try again after %d minutes.", 
+                AppConstants.OTP_RATE_LIMIT_REQUESTS, 
+                AppConstants.OTP_RATE_LIMIT_WINDOW_MINUTES
+            );
+            throw new RuntimeException(errorMessage);
         }
     }
     
@@ -352,8 +357,7 @@ public class AuthServiceImpl implements AuthService {
     }
     
     private String generateOtp() {
-        String otp = otpService.generateOtp();
-        return otp;
+        return otpService.generateOtp();
     }
     
     private LocalDateTime getExpiryByType(String otpType) {
@@ -375,33 +379,48 @@ public class AuthServiceImpl implements AuthService {
     }
     
     private String generateRandomPassword() {
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$!%*?&";
-        java.security.SecureRandom random = new java.security.SecureRandom();
+        final String upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        final String lowerCase = "abcdefghijklmnopqrstuvwxyz";
+        final String digits = "0123456789";
+        final String specialChars = "@$!%*?&";
+        final String allChars = upperCase + lowerCase + digits + specialChars;
+        
+        SecureRandom random = new SecureRandom();
         StringBuilder password = new StringBuilder(10);
         
-        password.append(chars.charAt(random.nextInt(26)));
-        password.append(chars.charAt(26 + random.nextInt(26)));
-        password.append(chars.charAt(52 + random.nextInt(10)));
-        password.append(chars.charAt(62 + random.nextInt(7)));
+        // Ensure at least one character from each category
+        password.append(upperCase.charAt(random.nextInt(upperCase.length())));
+        password.append(lowerCase.charAt(random.nextInt(lowerCase.length())));
+        password.append(digits.charAt(random.nextInt(digits.length())));
+        password.append(specialChars.charAt(random.nextInt(specialChars.length())));
         
+        // Fill remaining positions with random characters
         for (int i = 4; i < 10; i++) {
-            password.append(chars.charAt(random.nextInt(chars.length())));
+            password.append(allChars.charAt(random.nextInt(allChars.length())));
         }
         
-        char[] array = password.toString().toCharArray();
+        // Shuffle the password to randomize character positions
+        return shuffleString(password.toString(), random);
+    }
+    
+    private String shuffleString(String input, SecureRandom random) {
+        char[] array = input.toCharArray();
         for (int i = array.length - 1; i > 0; i--) {
             int j = random.nextInt(i + 1);
             char temp = array[i];
             array[i] = array[j];
             array[j] = temp;
         }
-        
         return new String(array);
     }
     
     private String sanitizeForLogging(String input) {
-        if (input == null) return null;
-        return input.replaceAll("[\\r\\n\\t]", "_").replaceAll("[^\\w\\s*-]", "");
+        if (input == null) {
+            return null;
+        }
+        String sanitized = input.replaceAll("[\\r\\n\\t\\f\\u0008]", "_")
+                               .replaceAll("[^\\w\\s.-]", "");
+        return sanitized.length() > 100 ? sanitized.substring(0, 100) + "..." : sanitized;
     }
 
     @Override

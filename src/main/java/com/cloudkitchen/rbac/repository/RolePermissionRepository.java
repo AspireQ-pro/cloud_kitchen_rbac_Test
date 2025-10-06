@@ -18,4 +18,6 @@ public interface RolePermissionRepository extends JpaRepository<RolePermission, 
     
     @Query("SELECT COUNT(rp) > 0 FROM RolePermission rp WHERE rp.role.roleId = :roleId AND rp.permission.permissionId = :permissionId")
     boolean existsByRoleIdAndPermissionId(@Param("roleId") Integer roleId, @Param("permissionId") Integer permissionId);
+    
+    boolean existsByRoleAndPermission(com.cloudkitchen.rbac.domain.entity.Role role, com.cloudkitchen.rbac.domain.entity.Permission permission);
 }

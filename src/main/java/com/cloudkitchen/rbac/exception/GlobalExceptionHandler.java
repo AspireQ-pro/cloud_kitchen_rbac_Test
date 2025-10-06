@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -190,16 +191,19 @@ public class GlobalExceptionHandler {
 
     private String sanitizeErrorMessage(String message) {
         if (message == null) return "Invalid request";
-        return message.replaceAll("[\\r\\n\\t]", "").trim();
+        return message.replaceAll("[\r\n\t\f\u0008]", "")
+                     .replaceAll("[^\\w\\s._-]", "")
+                     .trim();
     }
     
     private String sanitizeLogMessage(String message) {
         if (message == null) return "[NULL]";
         // Prevent log injection by removing CRLF and control characters
-        String sanitized = message.replaceAll("[\\r\\n\\t\\x00-\\x1F\\x7F<>\"'&;%${}\\[\\]()]", "_")
-                                 .replaceAll("(?i)(script|javascript|vbscript|onload|onerror)", "[FILTERED]")
+        String sanitized = message.replaceAll("[\\r\\n\\t\\f\\u0008\\u0000-\\u001F\\u007F<>\"'&;%${}\\[\\]()]", "_")
+                                 .replaceAll("(?i)(script|javascript|vbscript|onload|onerror|eval|exec)", "[FILTERED]")
+                                 .replaceAll("[^\\w\\s._-]", "")
                                  .trim();
-        return sanitized.length() > 200 ? sanitized.substring(0, 200) + "..." : sanitized;
+        return sanitized.length() > 100 ? sanitized.substring(0, 100) + "..." : sanitized;
     }
     
     private Object sanitizeRejectedValue(Object value) {

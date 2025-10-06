@@ -24,12 +24,7 @@ import jakarta.persistence.UniqueConstraint;
         @Index(name = "idx_users_email", columnList = "email"),
         @Index(name = "idx_users_username", columnList = "username"),
         @Index(name = "idx_users_active", columnList = "is_active"),
-        @Index(name = "idx_users_merchant_phone", columnList = "merchant_id, phone"),
-        @Index(name = "idx_users_merchant_email", columnList = "merchant_id, email"),
-        @Index(name = "idx_users_user_type", columnList = "user_type"),
-        @Index(name = "idx_users_is_guest", columnList = "is_guest"),
-        @Index(name = "idx_users_otp_expires", columnList = "otp_expires_at"),
-        @Index(name = "idx_users_phone_verified", columnList = "phone_verified")
+        @Index(name = "idx_users_user_type", columnList = "user_type")
     },
     uniqueConstraints = {
         @UniqueConstraint(name = "uk_users_merchant_phone", columnNames = {"merchant_id", "phone"})
@@ -65,6 +60,12 @@ public class User {
 
     @Column(name = "address", length = 250)
     private String address;
+    
+    @Column(name = "favorite_food", length = 100)
+    private String favoriteFood;
+    
+    @Column(name = "dietary_preferences", length = 200)
+    private String dietaryPreferences;
     
     @Column(name = "date_of_birth")
     private java.time.LocalDate dateOfBirth;
@@ -170,6 +171,12 @@ public class User {
 
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
+    
+    public String getFavoriteFood() { return favoriteFood; }
+    public void setFavoriteFood(String favoriteFood) { this.favoriteFood = favoriteFood; }
+    
+    public String getDietaryPreferences() { return dietaryPreferences; }
+    public void setDietaryPreferences(String dietaryPreferences) { this.dietaryPreferences = dietaryPreferences; }
     
     public java.time.LocalDate getDateOfBirth() { return dateOfBirth; }
     public void setDateOfBirth(java.time.LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }

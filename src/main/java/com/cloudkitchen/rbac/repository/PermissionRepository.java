@@ -6,4 +6,5 @@ import java.util.Optional;
 
 public interface PermissionRepository extends JpaRepository<Permission, Integer> {
     Optional<Permission> findByPermissionName(String permissionName);
+    boolean existsByPermissionName(String permissionName);
 }

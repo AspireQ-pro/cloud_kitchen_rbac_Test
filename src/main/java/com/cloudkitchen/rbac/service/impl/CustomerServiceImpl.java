@@ -34,6 +34,18 @@ public class CustomerServiceImpl implements CustomerService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public CustomerResponse getCustomerById(Integer id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Customer not found"));
+        
+        if (!"customer".equals(user.getUserType())) {
+            throw new RuntimeException("User is not a customer");
+        }
+        
+        return mapToResponse(user);
+    }
+
     private CustomerResponse mapToResponse(User user) {
         CustomerResponse response = new CustomerResponse();
         response.setId(user.getUserId());

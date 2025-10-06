@@ -2,66 +2,84 @@ package com.cloudkitchen.rbac.util;
 
 import java.util.regex.Pattern;
 
+/**
+ * Utility class for input validation and sanitization.
+ * <p>
+ * This class provides static methods for validating phone numbers, emails,
+ * and sanitizing user input to prevent security vulnerabilities.
+ * </p>
+ *
+ * @author Cloud Kitchen RBAC Team
+ * @version 1.0
+ * @since 1.0
+ */
 public final class ValidationUtils {
     
-    // Compiled patterns for performance
+    // Indian mobile number pattern: starts with 6-9, followed by 9 digits
     private static final Pattern PHONE_PATTERN = Pattern.compile("^[6-9]\\d{9}$");
-    private static final Pattern PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,128}$");
-    private static final Pattern NAME_PATTERN = Pattern.compile("^[a-zA-Z\\s\\-']{2,50}$");
-    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
-    private static final Pattern OTP_PATTERN = Pattern.compile("^\\d{4}$");
     
-    // Validation methods
+    // Standard email pattern with basic validation
+    private static final Pattern EMAIL_PATTERN = Pattern.compile(
+        "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+    );
+    
+    // Password strength pattern: min 8 chars, uppercase, lowercase, digit, special char
+    private static final Pattern PASSWORD_PATTERN = Pattern.compile(
+        "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$"
+    );
+    
+    private ValidationUtils() {
+        // Utility class - prevent instantiation
+    }
+    
+    /**
+     * Validates Indian mobile phone number format.
+     * @param phone the phone number to validate
+     * @return true if valid, false otherwise
+     */
     public static boolean isValidPhone(String phone) {
-        return phone != null && PHONE_PATTERN.matcher(phone).matches();
-    }
-    
-    public static boolean isValidPassword(String password) {
-        return password != null && PASSWORD_PATTERN.matcher(password).matches();
-    }
-    
-    public static boolean isValidName(String name) {
-        return name != null && NAME_PATTERN.matcher(name).matches();
-    }
-    
-    public static boolean isValidEmail(String email) {
-        return email != null && EMAIL_PATTERN.matcher(email).matches();
-    }
-    
-    public static boolean isValidOtp(String otp) {
-        return otp != null && OTP_PATTERN.matcher(otp).matches();
-    }
-    
-    public static boolean isBlank(String str) {
-        return str == null || str.trim().isEmpty();
-    }
-    
-    // Validation with error messages
-    public static void validatePhone(String phone) {
-        if (isBlank(phone)) throw new IllegalArgumentException("Phone number is required");
-        if (!isValidPhone(phone)) throw new IllegalArgumentException("Phone must be 10 digits starting with 6-9");
-    }
-    
-    public static void validatePassword(String password) {
-        if (isBlank(password)) throw new IllegalArgumentException("Password is required");
-        if (!isValidPassword(password)) throw new IllegalArgumentException("Password must be 8-128 chars with uppercase, lowercase, digit, special char");
-    }
-    
-    public static void validateName(String name, String fieldName) {
-        if (isBlank(name)) throw new IllegalArgumentException(fieldName + " is required");
-        if (!isValidName(name)) throw new IllegalArgumentException("Name must be 2-50 chars, letters only");
-    }
-    
-    public static void validateEmail(String email) {
-        if (!isBlank(email) && !isValidEmail(email)) {
-            throw new IllegalArgumentException("Invalid email format");
+        if (phone == null || phone.trim().isEmpty()) {
+            return false;
         }
+        String cleanPhone = phone.replaceAll("[^0-9]", "");
+        return PHONE_PATTERN.matcher(cleanPhone).matches();
     }
     
-    public static void validateOtp(String otp) {
-        if (isBlank(otp)) throw new IllegalArgumentException("OTP is required");
-        if (!isValidOtp(otp)) throw new IllegalArgumentException("OTP must be 4 digits");
+    /**
+     * Validates email address format.
+     * @param email the email address to validate
+     * @return true if valid, false otherwise
+     */
+    public static boolean isValidEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return false;
+        }
+        return EMAIL_PATTERN.matcher(email.trim()).matches();
     }
     
-    private ValidationUtils() {} // Prevent instantiation
+    /**
+     * Validates password strength requirements.
+     * @param password the password to validate
+     * @return true if password meets strength requirements, false otherwise
+     */
+    public static boolean isValidPassword(String password) {
+        if (password == null || password.length() < 8) {
+            return false;
+        }
+        return PASSWORD_PATTERN.matcher(password).matches();
+    }
+    
+    /**
+     * Sanitizes user input by removing potentially harmful characters.
+     * @param input the input string to sanitize
+     * @return sanitized string or null if input is null
+     */
+    public static String sanitizeInput(String input) {
+        if (input == null) {
+            return null;
+        }
+        return input.replaceAll("[\\r\\n\\t\\f\\u0008]", "")
+                   .replaceAll("[<>\"'&;%${}\\[\\]()]", "")
+                   .trim();
+    }
 }

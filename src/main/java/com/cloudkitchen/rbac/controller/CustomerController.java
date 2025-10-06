@@ -41,6 +41,19 @@ public class CustomerController {
         }
     }
 
+    @GetMapping("/{id}")
+    @Operation(summary = "Get Customer by ID", description = "Get a specific customer by their ID")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('customer.read') or (hasAuthority('profile:read') and #id == authentication.name)")
+    public ResponseEntity<Map<String, Object>> getCustomerById(@PathVariable Integer id) {
+        try {
+            CustomerResponse response = customerService.getCustomerById(id);
+            return ResponseEntity.ok(ResponseBuilder.success(200, "Customer retrieved successfully", response));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(500, "Failed to retrieve customer"));
+        }
+    }
+
     @GetMapping("/merchant/{merchantId}")
     @Operation(summary = "Get Customers by Merchant", description = "Get all customers for a specific merchant")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('customer.read')")
