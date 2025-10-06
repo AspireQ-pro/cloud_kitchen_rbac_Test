@@ -20,6 +20,7 @@ import com.cloudkitchen.rbac.service.AuthService;
 import com.cloudkitchen.rbac.service.ValidationService;
 import com.cloudkitchen.rbac.util.ResponseBuilder;
 import com.cloudkitchen.rbac.util.SecurityUtils;
+import com.cloudkitchen.rbac.util.HttpResponseUtil;
 
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -58,7 +59,7 @@ public class AuthController {
             
             AuthResponse authResponse = auth.registerUser(req);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ResponseBuilder.success(201, "Customer registration successful", authResponse));
+                    .body(ResponseBuilder.success(HttpResponseUtil.CREATED, "Customer registration successful", authResponse));
         } catch (IllegalArgumentException e) {
             log.warn("Registration validation error: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -87,7 +88,7 @@ public class AuthController {
     public ResponseEntity<Map<String, Object>> customerLogin(@Valid @RequestBody AuthRequest req) {
         try {
             AuthResponse authResponse = auth.login(req);
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Customer login successful", authResponse));
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, "Customer login successful", authResponse));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ResponseBuilder.error(400, e.getMessage()));
@@ -106,7 +107,7 @@ public class AuthController {
         try {
             log.info("Login request received: username={}, merchantId={}", req.getUsername(), req.getMerchantId());
             AuthResponse authResponse = auth.login(req);
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Login successful", authResponse));
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, "Login successful", authResponse));
         } catch (IllegalArgumentException e) {
             log.error("Login validation error: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)

@@ -34,23 +34,33 @@ public class CustomerController {
     public ResponseEntity<Map<String, Object>> getAllCustomers() {
         try {
             List<CustomerResponse> response = customerService.getAllCustomers();
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Customers retrieved successfully", response));
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ResponseBuilder.success(200, "All customers retrieved successfully. Total: " + response.size(), response));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Failed to retrieve customers"));
+                    .body(ResponseBuilder.error(500, "Internal server error while retrieving customers"));
         }
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get Customer by ID", description = "Get a specific customer by their ID")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('customer.read') or (hasAuthority('profile:read') and #id == authentication.name)")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('customer.read') or (#id.toString() == authentication.name)")
     public ResponseEntity<Map<String, Object>> getCustomerById(@PathVariable Integer id) {
         try {
             CustomerResponse response = customerService.getCustomerById(id);
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Customer retrieved successfully", response));
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ResponseBuilder.success(200, "Customer profile retrieved successfully", response));
         } catch (RuntimeException e) {
+            if (e.getMessage().contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(404, "Customer not found with ID: " + id));
+            }
+            if (e.getMessage().contains("not a customer")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(400, "User is not a customer"));
+            }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Failed to retrieve customer"));
+                    .body(ResponseBuilder.error(500, "Internal server error while retrieving customer"));
         }
     }
 
@@ -60,10 +70,15 @@ public class CustomerController {
     public ResponseEntity<Map<String, Object>> getCustomersByMerchant(@PathVariable Integer merchantId) {
         try {
             List<CustomerResponse> response = customerService.getCustomersByMerchantId(merchantId);
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Customers retrieved successfully", response));
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ResponseBuilder.success(200, "Customers for merchant ID " + merchantId + " retrieved successfully. Total: " + response.size(), response));
         } catch (RuntimeException e) {
+            if (e.getMessage().contains("Merchant not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(404, "Merchant not found with ID: " + merchantId));
+            }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Failed to retrieve customers"));
+                    .body(ResponseBuilder.error(500, "Internal server error while retrieving customers for merchant"));
         }
     }
 }

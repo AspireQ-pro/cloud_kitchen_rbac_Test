@@ -41,14 +41,18 @@ public class MerchantController {
         try {
             MerchantResponse response = merchantService.createMerchant(request);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ResponseBuilder.success(201, "Merchant created successfully", response));
+                    .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getId(), response));
         } catch (RuntimeException e) {
             if (e.getMessage().contains("already exists")) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
-                        .body(ResponseBuilder.error(409, e.getMessage()));
+                        .body(ResponseBuilder.error(409, "Merchant already exists: " + e.getMessage()));
+            }
+            if (e.getMessage().contains("validation")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(400, "Validation failed: " + e.getMessage()));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Failed to create merchant"));
+                    .body(ResponseBuilder.error(500, "Internal server error while creating merchant"));
         }
     }
 
@@ -58,31 +62,41 @@ public class MerchantController {
     public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @Valid @RequestBody MerchantRequest request) {
         try {
             MerchantResponse response = merchantService.updateMerchant(id, request);
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Merchant updated successfully", response));
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ResponseBuilder.success(200, "Merchant ID " + id + " updated successfully", response));
         } catch (RuntimeException e) {
             if (e.getMessage().contains("not found")) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ResponseBuilder.error(404, e.getMessage()));
+                        .body(ResponseBuilder.error(404, "Merchant not found with ID: " + id));
             }
             if (e.getMessage().contains("already exists")) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
-                        .body(ResponseBuilder.error(409, e.getMessage()));
+                        .body(ResponseBuilder.error(409, "Merchant data conflict: " + e.getMessage()));
+            }
+            if (e.getMessage().contains("validation")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(400, "Validation failed: " + e.getMessage()));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Failed to update merchant"));
+                    .body(ResponseBuilder.error(500, "Internal server error while updating merchant"));
         }
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get Merchant", description = "Get merchant by ID")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.read')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.read') or (#id.toString() == authentication.name)")
     public ResponseEntity<Map<String, Object>> getMerchant(@PathVariable Integer id) {
         try {
             MerchantResponse response = merchantService.getMerchantById(id);
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Merchant retrieved successfully", response));
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ResponseBuilder.success(200, "Merchant profile retrieved successfully", response));
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ResponseBuilder.error(404, "Merchant not found"));
+            if (e.getMessage().contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(404, "Merchant not found with ID: " + id));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(500, "Internal server error while retrieving merchant"));
         }
     }
 
@@ -92,10 +106,11 @@ public class MerchantController {
     public ResponseEntity<Map<String, Object>> getAllMerchants() {
         try {
             List<MerchantResponse> response = merchantService.getAllMerchants();
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Merchants retrieved successfully", response));
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ResponseBuilder.success(200, "All merchants retrieved successfully. Total: " + response.size(), response));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Failed to retrieve merchants"));
+                    .body(ResponseBuilder.error(500, "Internal server error while retrieving merchants"));
         }
     }
 
@@ -105,10 +120,19 @@ public class MerchantController {
     public ResponseEntity<Map<String, Object>> deleteMerchant(@PathVariable Integer id) {
         try {
             merchantService.deleteMerchant(id);
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Merchant deleted successfully"));
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ResponseBuilder.success(200, "Merchant ID " + id + " deleted successfully"));
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ResponseBuilder.error(404, "Merchant not found"));
+            if (e.getMessage().contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(404, "Merchant not found with ID: " + id));
+            }
+            if (e.getMessage().contains("cannot be deleted")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ResponseBuilder.error(409, "Merchant cannot be deleted: " + e.getMessage()));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(500, "Internal server error while deleting merchant"));
         }
     }
 }
