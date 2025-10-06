@@ -1,46 +1,50 @@
-# Git
-.git
-.gitignore
-
-# Maven
+# Build artifacts
 target/
-!target/rbac-service-1.0.0.jar
-.mvn/
-mvnw
-mvnw.cmd
+*.jar
+*.war
 
-# IDE
+# IDE files
 .idea/
 .vscode/
 *.iml
 *.ipr
 *.iws
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-logs/
-
-# Environment
-.env
-.env.local
-.env.example
+# Git
+.git/
+.gitignore
 
 # Documentation
 README.md
 *.md
 
-# Docker
-Dockerfile*
-docker-compose*
-.dockerignore
-
-# Scripts
-scripts/
-*.sh
+# Logs
+*.log
+logs/
 
 # Test files
 src/test/
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+
+# Environment
+.env
+.env.*
+
+# Temporary files
+*.tmp
+*.temp
+
+# IDE history
+.history/
