@@ -32,3 +32,8 @@ public class SwaggerConfig {
                                         .description("Enter JWT token")));
     }
 }
+                        .title("Cloud Kitchen RBAC API")
+                        .version("1.0.0")
+                        .description("API documentation for Cloud Kitchen RBAC Service"));
+    }
+}
