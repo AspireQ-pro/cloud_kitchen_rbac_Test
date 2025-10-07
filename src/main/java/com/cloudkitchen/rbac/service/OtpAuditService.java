@@ -1,26 +1,27 @@
 package com.cloudkitchen.rbac.service;
 
-import com.cloudkitchen.rbac.domain.entity.*;
-import com.cloudkitchen.rbac.repository.*;
+import java.time.LocalDateTime;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+
+import com.cloudkitchen.rbac.domain.entity.Merchant;
+import com.cloudkitchen.rbac.domain.entity.OtpLog;
+import com.cloudkitchen.rbac.repository.OtpLogRepository;
+
 import jakarta.servlet.http.HttpServletRequest;
-import java.time.LocalDateTime;
-import java.util.Optional;
 
 @Service
 public class OtpAuditService {
     
     private static final Logger logger = LoggerFactory.getLogger(OtpAuditService.class);
     private final OtpLogRepository otpLogRepository;
-    private final MerchantRepository merchantRepository;
     
-    public OtpAuditService(OtpLogRepository otpLogRepository, MerchantRepository merchantRepository) {
+    public OtpAuditService(OtpLogRepository otpLogRepository) {
         this.otpLogRepository = otpLogRepository;
-        this.merchantRepository = merchantRepository;
     }
     
     public void logOtp(Integer merchantId, String phone, String otpCode, String otpType, String status, LocalDateTime expiresAt) {
@@ -28,12 +29,13 @@ public class OtpAuditService {
             OtpLog otpLog = new OtpLog();
             
             if (merchantId != null) {
-                Optional<Merchant> merchant = merchantRepository.findById(merchantId);
-                merchant.ifPresent(otpLog::setMerchant);
+                Merchant merchant = new Merchant();
+                merchant.setMerchantId(merchantId);
+                otpLog.setMerchant(merchant);
             }
             
             otpLog.setPhone(phone);
-             otpLog.setOtpCode(otpCode); // Never store actual OTP in logs for security
+            otpLog.setOtpCode("****"); // Never store actual OTP in logs for security
             otpLog.setOtpType(otpType);
             otpLog.setStatus(status);
             
@@ -51,7 +53,8 @@ public class OtpAuditService {
             logger.info("OTP audit log created for phone: {} with type: {} and status: {}", maskedPhone, otpType, status);
 
         } catch (Exception e) {
-            logger.warn("OTP audit logging failed: {}", e.getMessage(), e);
+            String maskedPhone = maskPhoneNumber(phone);
+            logger.error("OTP audit logging failed for phone: {}, type: {}", maskedPhone, otpType, e);
         }
     }
     
@@ -60,8 +63,9 @@ public class OtpAuditService {
             OtpLog otpLog = new OtpLog();
             
             if (merchantId != null) {
-                Optional<Merchant> merchant = merchantRepository.findById(merchantId);
-                merchant.ifPresent(otpLog::setMerchant);
+                Merchant merchant = new Merchant();
+                merchant.setMerchantId(merchantId);
+                otpLog.setMerchant(merchant);
             }
             
             otpLog.setPhone(phone);
