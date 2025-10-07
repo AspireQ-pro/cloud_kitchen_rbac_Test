@@ -20,7 +20,6 @@ import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
 import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.service.ValidationService;
-import com.cloudkitchen.rbac.enums.UserType;
 import com.cloudkitchen.rbac.repository.MerchantRepository;
 import com.cloudkitchen.rbac.repository.OtpLogRepository;
 import com.cloudkitchen.rbac.repository.RoleRepository;
@@ -91,10 +90,8 @@ public class AuthServiceImpl implements AuthService {
         
         User user = createUser(req, merchant, "customer");
         user = users.save(user);
-        log.debug("Customer created successfully with ID: {}", user.getUserId());
         
         assignUserRole(user, "customer", merchant);
-        log.debug("Customer role assigned successfully for user: {}", user.getUserId());
         
         return buildTokens(user, merchant.getMerchantId());
     }
@@ -125,8 +122,6 @@ public class AuthServiceImpl implements AuthService {
             default -> "customer";
         };
 
-        log.debug("User role assignment: userType={}, roleName={}", userType, roleName);
-
         Role role = roles.findByRoleName(roleName)
                 .orElseThrow(() -> new IllegalStateException(roleName + " role not found. Please ensure roles are properly initialized."));
 
@@ -136,9 +131,6 @@ public class AuthServiceImpl implements AuthService {
         userRole.setMerchant(merchant);
         userRole.setAssignedAt(LocalDateTime.now());
         userRoles.save(userRole);
-
-        log.info("Successfully assigned role '{}' to user '{}' for merchant '{}'",
-                roleName, user.getUserId(), merchant != null ? merchant.getMerchantId() : "null");
     }
 
     @Override
@@ -159,62 +151,30 @@ public class AuthServiceImpl implements AuthService {
         User user;
         
         if (Integer.valueOf(0).equals(req.getMerchantId())) {
-            log.debug("Looking for admin/merchant user with username: {}", sanitizeForLogging(req.getUsername()));
-            
-            // Check database connection
-            long userCount = users.count();
-            log.debug("Total users in database: {}", userCount);
-            
-            user = users.findByUsernameAndMerchantIsNull(req.getUsername())
-                .or(() -> {
-                    log.debug("Username not found, trying email: {}", sanitizeForLogging(req.getUsername()));
-                    return users.findByEmailAndMerchantIsNull(req.getUsername());
-                })
-                .or(() -> {
-                    log.debug("Email not found, trying phone: {}", sanitizeForLogging(req.getUsername()));
-                    return users.findByPhoneAndMerchantIsNull(req.getUsername());
-                })
-                .orElseThrow(() -> {
-                    log.warn("No admin user found with username/email/phone: {} and merchantId=null", sanitizeForLogging(req.getUsername()));
-                    return new RuntimeException("User not found. Please check your credentials.");
-                });
-            
-            log.debug("Found user: id={}, userType={}, username={}, active={}", 
-                     user.getUserId(), user.getUserType(), user.getUsername(), user.getActive());
+            // Find user by username (admin or merchant)
+            user = users.findByUsername(req.getUsername())
+                .filter(u -> "merchant".equals(u.getUserType()) || "super_admin".equals(u.getUserType()))
+                .orElseThrow(() -> new RuntimeException("User not found. Please check your credentials."));
             
             // Check if user is active
             if (!Boolean.TRUE.equals(user.getActive())) {
-                log.warn("Inactive user login attempt: {}", user.getUserId());
                 throw new RuntimeException("Account is inactive. Please contact support.");
-            }
-            
-            // Validate user type
-            if (!List.of(UserType.SUPER_ADMIN.getValue(), UserType.MERCHANT.getValue()).contains(user.getUserType())) {
-                log.warn("Access denied for userType: {}", user.getUserType());
-                throw new RuntimeException("Access denied. Invalid user type for admin login.");
             }
         }
         else if (req.getMerchantId() > 0) {
-            log.debug("Looking for customer user with phone: {} for merchant: {}", req.getUsername(), req.getMerchantId());
             user = users.findByPhoneAndMerchant_MerchantId(req.getUsername(), req.getMerchantId())
-                    .orElseThrow(() -> {
-                        log.warn("No customer found with phone: {} for merchant: {}", req.getUsername(), req.getMerchantId());
-                        return new RuntimeException("Customer not found for this merchant.");
-                    });
+                    .orElseThrow(() -> new RuntimeException("Customer not found for this merchant."));
         }
         else {
             throw new IllegalArgumentException("Invalid merchantId. Use 0 for admin/merchant, >0 for customers");
         }
         
         // Verify password
-        log.debug("Verifying password for user: {}", user.getUserId());
         if (user.getPasswordHash() == null || user.getPasswordHash().trim().isEmpty()) {
-            log.warn("User {} has no password set", user.getUserId());
             throw new RuntimeException("Account setup incomplete. Please contact support.");
         }
         
         if (!encoder.matches(req.getPassword(), user.getPasswordHash())) {
-            log.warn("Password verification failed for user: {}", user.getUserId());
             throw new RuntimeException("Invalid password.");
         }
         
@@ -262,14 +222,33 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthResponse buildTokens(User user, Integer merchantId) {
-        Integer actualMerchantId = merchantId != null ? merchantId :
-                (user.getMerchant() != null ? user.getMerchant().getMerchantId() : null);
+        // For merchant/admin users (merchantId=0 in request), return their actual merchantId
+        Integer actualMerchantId;
+        if (merchantId != null && merchantId == 0) {
+            // Merchant/admin login - return their actual merchantId from user entity, or 0 if no merchant
+            actualMerchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : 0;
+        } else {
+            // Customer login - use provided merchantId or user's merchantId
+            actualMerchantId = merchantId != null ? merchantId :
+                    (user.getMerchant() != null ? user.getMerchant().getMerchantId() : null);
+        }
         
         // For superadmin users, use null instead of 0 for merchant queries
         Integer queryMerchantId = (actualMerchantId != null && actualMerchantId == 0) ? null : actualMerchantId;
         
         List<String> roleNames = userRoles.findRoleNames(user.getUserId(), queryMerchantId);
         List<String> permissionNames = userRoles.findPermissionNames(user.getUserId(), queryMerchantId);
+        
+        // Handle users without roles - assign default role based on userType
+        if (roleNames == null || roleNames.isEmpty()) {
+            String defaultRole = getDefaultRoleForUserType(user.getUserType());
+            roleNames = List.of(defaultRole);
+        }
+        
+        // Ensure permissions list is not null
+        if (permissionNames == null) {
+            permissionNames = List.of();
+        }
 
         String accessToken = jwt.createAccessToken(user.getUserId(), actualMerchantId, roleNames, permissionNames);
         String refreshToken = jwt.createRefreshToken(user.getUserId(), actualMerchantId);
@@ -412,6 +391,15 @@ public class AuthServiceImpl implements AuthService {
             array[j] = temp;
         }
         return new String(array);
+    }
+    
+    private String getDefaultRoleForUserType(String userType) {
+        return switch (userType) {
+            case "super_admin" -> "super_admin";
+            case "merchant" -> "merchant_admin";
+            case "customer" -> "customer";
+            default -> "customer";
+        };
     }
     
     private String sanitizeForLogging(String input) {

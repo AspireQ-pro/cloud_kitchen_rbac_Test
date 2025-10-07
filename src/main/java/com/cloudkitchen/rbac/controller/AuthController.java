@@ -119,7 +119,7 @@ public class AuthController {
                         .body(ResponseBuilder.error(401, "Invalid credentials"));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Login failed"));
+                    .body(ResponseBuilder.error(500, "Login failed: " + e.getMessage()));
         }
     }
 
