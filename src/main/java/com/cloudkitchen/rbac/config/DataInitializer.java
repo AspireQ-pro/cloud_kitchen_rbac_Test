@@ -28,6 +28,9 @@ import com.cloudkitchen.rbac.repository.UserRoleRepository;
 public class DataInitializer implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
     
+    @org.springframework.beans.factory.annotation.Value("${app.data.initialize:true}")
+    private boolean initializeData;
+    
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final RolePermissionRepository rolePermissionRepository;
@@ -55,6 +58,11 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        if (!initializeData) {
+            log.info("Data initialization disabled (app.data.initialize=false)");
+            return;
+        }
+        
         try {
             initializeRoles();
             initializePermissions();
