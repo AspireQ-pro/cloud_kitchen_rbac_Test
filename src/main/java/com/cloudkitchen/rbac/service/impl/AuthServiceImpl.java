@@ -67,14 +67,6 @@ public class AuthServiceImpl implements AuthService {
         this.validationService = validationService;
     }
 
-    private Integer getEffectiveMerchantId(User user, Integer requestMerchantId) {
-        if (requestMerchantId != null) {
-            return requestMerchantId;
-        }
-        return user.getMerchant() != null && user.getMerchant().getMerchantId() != null ?
-               user.getMerchant().getMerchantId() : null;
-    }
-
     private String maskPhone(String phone) {
         if (phone == null || phone.isEmpty()) {
             return "****";
