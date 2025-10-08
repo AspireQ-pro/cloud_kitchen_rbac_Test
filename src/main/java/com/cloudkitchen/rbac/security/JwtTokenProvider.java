@@ -41,17 +41,17 @@ public class JwtTokenProvider {
     @PostConstruct
     public void init() {
         if (secret == null || secret.trim().isEmpty()) {
-            throw new IllegalStateException("JWT secret cannot be null or empty. Please configure app.jwt.secret property.");
+            throw new IllegalStateException("JWT secret cannot be null or empty. Set JWT_SECRET environment variable.");
         }
         if (secret.length() < 32) {
-            throw new IllegalStateException("JWT secret must be at least 32 characters long for security.");
+            throw new IllegalStateException("JWT secret must be at least 32 characters long. Current: " + secret.length());
         }
         try {
             this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-            logger.info("JWT token provider initialized successfully");
+            logger.info("JWT token provider initialized with HS256 algorithm");
         } catch (Exception e) {
             logger.error("Failed to initialize JWT signing key", e);
-            throw new IllegalStateException("Failed to initialize JWT signing key", e);
+            throw new IllegalStateException("Failed to initialize JWT signing key: " + e.getMessage());
         }
     }
 
@@ -77,7 +77,7 @@ public class JwtTokenProvider {
                 .issuedAt(now)
                 .notBefore(now)
                 .expiration(expiry)
-                .signWith(key, SignatureAlgorithm.HS512)
+                .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
@@ -101,7 +101,7 @@ public class JwtTokenProvider {
                 .issuedAt(now)
                 .notBefore(now)
                 .expiration(expiry)
-                .signWith(key, SignatureAlgorithm.HS512)
+                .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
