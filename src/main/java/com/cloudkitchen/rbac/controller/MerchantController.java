@@ -6,6 +6,7 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -84,9 +85,19 @@ public class MerchantController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get Merchant", description = "Get merchant by ID")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.read') or (#id.toString() == authentication.name)")
-    public ResponseEntity<Map<String, Object>> getMerchant(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, Object>> getMerchant(@PathVariable Integer id, Authentication authentication) {
         try {
+            // Check permissions
+            boolean hasAccess = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> "ROLE_SUPER_ADMIN".equals(auth.getAuthority()) || 
+                                    "merchants.read".equals(auth.getAuthority())) ||
+                    merchantService.canAccessMerchant(authentication, id);
+            
+            if (!hasAccess) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ResponseBuilder.error(403, "Access denied"));
+            }
+            
             MerchantResponse response = merchantService.getMerchantById(id);
             return ResponseEntity.status(HttpStatus.OK)
                     .body(ResponseBuilder.success(200, "Merchant profile retrieved successfully", response));

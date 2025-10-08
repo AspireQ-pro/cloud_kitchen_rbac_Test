@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.cloudkitchen.rbac.config.AppConstants;
 import com.cloudkitchen.rbac.domain.entity.Merchant;
 import com.cloudkitchen.rbac.domain.entity.Role;
 import com.cloudkitchen.rbac.domain.entity.User;
@@ -19,7 +21,6 @@ import com.cloudkitchen.rbac.dto.auth.OtpRequest;
 import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
 import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
-import com.cloudkitchen.rbac.service.ValidationService;
 import com.cloudkitchen.rbac.repository.MerchantRepository;
 import com.cloudkitchen.rbac.repository.OtpLogRepository;
 import com.cloudkitchen.rbac.repository.RoleRepository;
@@ -30,9 +31,9 @@ import com.cloudkitchen.rbac.service.AuthService;
 import com.cloudkitchen.rbac.service.OtpAuditService;
 import com.cloudkitchen.rbac.service.OtpService;
 import com.cloudkitchen.rbac.service.SmsService;
+import com.cloudkitchen.rbac.service.ValidationService;
 
 import io.jsonwebtoken.Claims;
-import com.cloudkitchen.rbac.config.AppConstants;
 
 @Service
 public class AuthServiceImpl implements AuthService {
@@ -118,7 +119,7 @@ public class AuthServiceImpl implements AuthService {
     private void assignUserRole(User user, String userType, Merchant merchant) {
         String roleName = switch (userType) {
             case "super_admin" -> "super_admin";
-            case "merchant" -> "merchant_admin";
+            case "merchant" -> "merchant";
             default -> "customer";
         };
 
@@ -396,7 +397,7 @@ public class AuthServiceImpl implements AuthService {
     private String getDefaultRoleForUserType(String userType) {
         return switch (userType) {
             case "super_admin" -> "super_admin";
-            case "merchant" -> "merchant_admin";
+            case "merchant" -> "merchant";
             case "customer" -> "customer";
             default -> "customer";
         };

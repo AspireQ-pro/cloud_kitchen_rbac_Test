@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
 
 import com.cloudkitchen.rbac.domain.entity.Merchant;
 import com.cloudkitchen.rbac.domain.entity.User;
@@ -116,6 +117,29 @@ public class MerchantServiceImpl implements MerchantService {
         merchantRepository.deleteById(id);
     }
 
+    @Override
+    public boolean canAccessMerchant(Authentication authentication, Integer merchantId) {
+        if (authentication == null || merchantId == null) {
+            return false;
+        }
+        
+        try {
+            Integer userId = Integer.valueOf(authentication.getName());
+            User user = userRepository.findById(userId).orElse(null);
+            
+            if (user == null) {
+                return false;
+            }
+            
+            // Check if user is a merchant admin and belongs to the requested merchant
+            return "merchant".equals(user.getUserType()) && 
+                   user.getMerchant() != null &&
+                   merchantId.equals(user.getMerchant().getMerchantId());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private MerchantResponse mapToResponse(Merchant merchant) {
         MerchantResponse response = new MerchantResponse();
         response.setId(merchant.getMerchantId());
@@ -126,6 +150,11 @@ public class MerchantServiceImpl implements MerchantService {
         response.setActive(merchant.getActive());
         response.setCreatedAt(merchant.getCreatedOn());
         response.setUpdatedAt(merchant.getUpdatedOn());
+        
+        // Find the merchant admin user to get username
+        userRepository.findByMerchantAndUserType(merchant, "merchant")
+                .ifPresent(user -> response.setUsername(user.getUsername()));
+        
         return response;
     }
 }
