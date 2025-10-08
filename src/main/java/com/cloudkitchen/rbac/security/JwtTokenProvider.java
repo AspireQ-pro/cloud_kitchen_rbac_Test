@@ -77,7 +77,7 @@ public class JwtTokenProvider {
                 .issuedAt(now)
                 .notBefore(now)
                 .expiration(expiry)
-                .signWith(key)
+                .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
     }
 
@@ -101,7 +101,7 @@ public class JwtTokenProvider {
                 .issuedAt(now)
                 .notBefore(now)
                 .expiration(expiry)
-                .signWith(key)
+                .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
     }
 
