@@ -69,7 +69,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void initializeRoles() {
-        String[] roleNames = {"super_admin", "merchant_admin", "merchant_manager", "merchant_staff", "customer"};
+        String[] roleNames = {"super_admin", "merchant", "merchant_manager", "merchant_staff", "customer"};
         
         long existingRoles = roleRepository.count();
         if (existingRoles == 0) {
@@ -128,7 +128,7 @@ public class DataInitializer implements CommandLineRunner {
             "profile:read", "profile:write"
         ));
         
-        assignRolePermissions("merchant_admin", Arrays.asList(
+        assignRolePermissions("merchant", Arrays.asList(
             "user:read", "user:write", "customer:read", "customer:write",
             "order:read", "order:write", "menu:read", "menu:write", "profile:read", "profile:write"
         ));
@@ -215,7 +215,7 @@ public class DataInitializer implements CommandLineRunner {
     private String getRoleDescription(String roleName) {
         return switch (roleName) {
             case "super_admin" -> "Super administrator with full system access";
-            case "merchant_admin" -> "Merchant administrator with full merchant access";
+            case "merchant" -> "Merchant administrator with full merchant access";
             case "merchant_manager" -> "Merchant manager with limited administrative access";
             case "merchant_staff" -> "Merchant staff with basic operational access";
             case "customer" -> "Customer with order and profile access";
