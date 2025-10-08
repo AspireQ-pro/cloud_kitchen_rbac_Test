@@ -239,16 +239,9 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthResponse buildTokens(User user, Integer merchantId) {
-        // For merchant/admin users (merchantId=0 in request), return their actual merchantId
-        Integer actualMerchantId;
-        if (merchantId != null && merchantId == 0) {
-            // Merchant/admin login - return their actual merchantId from user entity, or 0 if no merchant
-            actualMerchantId = user.getMerchant() != null && user.getMerchant().getMerchantId() != null ? user.getMerchant().getMerchantId() : 0;
-        } else {
-            // Customer login - use provided merchantId or user's merchantId
-            actualMerchantId = merchantId != null ? merchantId :
-                    (user.getMerchant() != null && user.getMerchant().getMerchantId() != null ? user.getMerchant().getMerchantId() : null);
-        }
+        // Always return the user's actual merchantId from their entity
+        Integer actualMerchantId = user.getMerchant() != null && user.getMerchant().getMerchantId() != null ? 
+                user.getMerchant().getMerchantId() : merchantId;
         
         // For superadmin users, use null instead of 0 for merchant queries
         Integer queryMerchantId = (actualMerchantId != null && actualMerchantId == 0) ? null : actualMerchantId;
