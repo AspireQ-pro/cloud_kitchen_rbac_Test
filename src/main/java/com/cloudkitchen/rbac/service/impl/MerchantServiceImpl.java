@@ -131,7 +131,7 @@ public class MerchantServiceImpl implements MerchantService {
                 return false;
             }
             
-            // Check if user is a merchant admin and belongs to the requested merchant
+            // Only merchant admins can access merchant data, not customers
             return "merchant".equals(user.getUserType()) && 
                    user.getMerchant() != null &&
                    merchantId.equals(user.getMerchant().getMerchantId());

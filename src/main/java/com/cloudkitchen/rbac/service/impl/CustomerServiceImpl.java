@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
 
 import com.cloudkitchen.rbac.domain.entity.User;
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
@@ -44,6 +45,97 @@ public class CustomerServiceImpl implements CustomerService {
         }
         
         return mapToResponse(user);
+    }
+
+    @Override
+    public List<CustomerResponse> getAllCustomers(Authentication authentication) {
+        try {
+            Integer userId = Integer.valueOf(authentication.getName());
+            User user = userRepository.findById(userId).orElse(null);
+            
+            if (user != null && "merchant".equals(user.getUserType()) && user.getMerchant() != null) {
+                // Merchant can only see their own customers
+                return getCustomersByMerchantId(user.getMerchant().getMerchantId());
+            }
+            
+            // Super admin or users with customer.read permission see all
+            return getAllCustomers();
+        } catch (Exception e) {
+            return getAllCustomers();
+        }
+    }
+    
+    @Override
+    public boolean canAccessCustomers(Authentication authentication) {
+        try {
+            Integer userId = Integer.valueOf(authentication.getName());
+            User user = userRepository.findById(userId).orElse(null);
+            
+            // Merchants can access their own customers
+            return user != null && "merchant".equals(user.getUserType());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    @Override
+    public boolean canAccessCustomer(Authentication authentication, Integer customerId) {
+        try {
+            Integer userId = Integer.valueOf(authentication.getName());
+            User user = userRepository.findById(userId).orElse(null);
+            User customer = userRepository.findById(customerId).orElse(null);
+            
+            System.out.println("DEBUG - canAccessCustomer: userId=" + userId + ", customerId=" + customerId);
+            
+            if (user == null) {
+                System.out.println("DEBUG - User not found: " + userId);
+                return false;
+            }
+            
+            if (customer == null) {
+                System.out.println("DEBUG - Customer not found: " + customerId);
+                return false;
+            }
+            
+            System.out.println("DEBUG - User type: " + user.getUserType() + ", merchantId: " + 
+                             (user.getMerchant() != null ? user.getMerchant().getMerchantId() : "null"));
+            System.out.println("DEBUG - Customer type: " + customer.getUserType() + ", merchantId: " + 
+                             (customer.getMerchant() != null ? customer.getMerchant().getMerchantId() : "null"));
+            
+            // Customer can access their own data
+            if (userId.equals(customerId)) {
+                System.out.println("DEBUG - Customer accessing own data");
+                return true;
+            }
+            
+            // Merchant can access their own customers
+            boolean canAccess = "merchant".equals(user.getUserType()) && 
+                               user.getMerchant() != null && 
+                               customer.getMerchant() != null &&
+                               user.getMerchant().getMerchantId().equals(customer.getMerchant().getMerchantId());
+            
+            System.out.println("DEBUG - Merchant access result: " + canAccess);
+            return canAccess;
+        } catch (Exception e) {
+            System.out.println("DEBUG - Exception in canAccessCustomer: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    @Override
+    public boolean canAccessMerchantCustomers(Authentication authentication, Integer merchantId) {
+        try {
+            Integer userId = Integer.valueOf(authentication.getName());
+            User user = userRepository.findById(userId).orElse(null);
+            
+            // Merchant can access their own customers
+            return user != null && 
+                   "merchant".equals(user.getUserType()) && 
+                   user.getMerchant() != null &&
+                   merchantId.equals(user.getMerchant().getMerchantId());
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private CustomerResponse mapToResponse(User user) {

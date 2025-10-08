@@ -5,7 +5,7 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,12 +30,22 @@ public class CustomerController {
 
     @GetMapping
     @Operation(summary = "Get All Customers", description = "Get all customers")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('customer.read')")
-    public ResponseEntity<Map<String, Object>> getAllCustomers() {
+    public ResponseEntity<Map<String, Object>> getAllCustomers(Authentication authentication) {
         try {
-            List<CustomerResponse> response = customerService.getAllCustomers();
+            // Check permissions
+            boolean hasAccess = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> "ROLE_SUPER_ADMIN".equals(auth.getAuthority()) || 
+                                    "customer.read".equals(auth.getAuthority())) ||
+                    customerService.canAccessCustomers(authentication);
+            
+            if (!hasAccess) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ResponseBuilder.error(403, "Access denied"));
+            }
+            
+            List<CustomerResponse> response = customerService.getAllCustomers(authentication);
             return ResponseEntity.status(HttpStatus.OK)
-                    .body(ResponseBuilder.success(200, "All customers retrieved successfully. Total: " + response.size(), response));
+                    .body(ResponseBuilder.success(200, "Customers retrieved successfully. Total: " + response.size(), response));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ResponseBuilder.error(500, "Internal server error while retrieving customers"));
@@ -44,9 +54,19 @@ public class CustomerController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get Customer by ID", description = "Get a specific customer by their ID")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('customer.read') or (#id.toString() == authentication.name)")
-    public ResponseEntity<Map<String, Object>> getCustomerById(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, Object>> getCustomerById(@PathVariable Integer id, Authentication authentication) {
         try {
+            // Check permissions
+            boolean hasAccess = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> "ROLE_SUPER_ADMIN".equals(auth.getAuthority()) || 
+                                    "customer.read".equals(auth.getAuthority())) ||
+                    customerService.canAccessCustomer(authentication, id);
+            
+            if (!hasAccess) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ResponseBuilder.error(403, "Access denied"));
+            }
+            
             CustomerResponse response = customerService.getCustomerById(id);
             return ResponseEntity.status(HttpStatus.OK)
                     .body(ResponseBuilder.success(200, "Customer profile retrieved successfully", response));
@@ -66,9 +86,19 @@ public class CustomerController {
 
     @GetMapping("/merchant/{merchantId}")
     @Operation(summary = "Get Customers by Merchant", description = "Get all customers for a specific merchant")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('customer.read')")
-    public ResponseEntity<Map<String, Object>> getCustomersByMerchant(@PathVariable Integer merchantId) {
+    public ResponseEntity<Map<String, Object>> getCustomersByMerchant(@PathVariable Integer merchantId, Authentication authentication) {
         try {
+            // Check permissions
+            boolean hasAccess = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> "ROLE_SUPER_ADMIN".equals(auth.getAuthority()) || 
+                                    "customer.read".equals(auth.getAuthority())) ||
+                    customerService.canAccessMerchantCustomers(authentication, merchantId);
+            
+            if (!hasAccess) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ResponseBuilder.error(403, "Access denied"));
+            }
+            
             List<CustomerResponse> response = customerService.getCustomersByMerchantId(merchantId);
             return ResponseEntity.status(HttpStatus.OK)
                     .body(ResponseBuilder.success(200, "Customers for merchant ID " + merchantId + " retrieved successfully. Total: " + response.size(), response));
