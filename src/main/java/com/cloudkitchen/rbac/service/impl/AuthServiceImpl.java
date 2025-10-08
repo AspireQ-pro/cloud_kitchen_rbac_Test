@@ -68,7 +68,12 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private String maskPhone(String phone) {
-        if (phone == null || phone.length() < 4) return "****";
+        if (phone == null || phone.isEmpty()) {
+            return "****";
+        }
+        if (phone.length() < 4) {
+            return "*".repeat(phone.length());
+        }
         return "****" + phone.substring(phone.length() - 4);
     }
 
@@ -79,7 +84,7 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("Valid merchantId (>0) is required for customer registration");
         }
         
-        log.info("Customer registration attempt: merchantId={}", sanitizeForLogging(String.valueOf(req.getMerchantId())));
+        log.info("Customer registration attempt: merchantId={}", req.getMerchantId());
         validationService.validateRegistration(req);
         
         if (users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {
@@ -136,7 +141,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse login(AuthRequest req) {
-        log.info("Login attempt: username={}, merchantId={}", sanitizeForLogging(req.getUsername()), sanitizeForLogging(String.valueOf(req.getMerchantId())));
+        log.info("Login attempt: username={}, merchantId={}", sanitizeForLogging(req.getUsername()), req.getMerchantId());
         
         // Validate input
         if (req.getUsername() == null || req.getUsername().trim().isEmpty()) {
@@ -151,7 +156,7 @@ public class AuthServiceImpl implements AuthService {
         
         User user;
         
-        if (Integer.valueOf(0).equals(req.getMerchantId())) {
+        if (req.getMerchantId().equals(0)) {
             // Find user by username (admin or merchant)
             user = users.findByUsername(req.getUsername())
                 .filter(u -> "merchant".equals(u.getUserType()) || "super_admin".equals(u.getUserType()))
@@ -197,14 +202,17 @@ public class AuthServiceImpl implements AuthService {
                         .orElseThrow(() -> new RuntimeException("No customer found with phone: " + maskPhone(phone) + " for merchant: " + merchantId));
             }
         } catch (Exception e) {
-            log.error("Database error while finding user: phone={}, merchantId={}, error={}", 
-                     maskPhone(phone), merchantId, e.getMessage());
-            throw new RuntimeException("User lookup failed: " + e.getMessage(), e);
+            log.error("Database error while finding user: phone={}, merchantId={}", maskPhone(phone), merchantId, e);
+            throw new RuntimeException("User lookup failed", e);
         }
     }
 
     @Override
     public AuthResponse refresh(RefreshTokenRequest req) {
+        if (req == null || req.getRefreshToken() == null || req.getRefreshToken().trim().isEmpty()) {
+            throw new IllegalArgumentException("Refresh token is required");
+        }
+        
         try {
             if (jwt.isTokenBlacklisted(req.getRefreshToken())) {
                 throw new RuntimeException("Token has been revoked");
@@ -218,20 +226,18 @@ public class AuthServiceImpl implements AuthService {
             
             return buildTokens(user, merchantId);
         } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
-            throw new RuntimeException("Invalid refresh token: " + sanitizeForLogging(e.getMessage()), e);
+            throw new RuntimeException("Invalid refresh token", e);
         }
     }
 
     private AuthResponse buildTokens(User user, Integer merchantId) {
-        // For merchant/admin users (merchantId=0 in request), return their actual merchantId
+        // For merchant/admin users, return their actual merchantId; for customers, use provided merchantId
         Integer actualMerchantId;
-        if (merchantId != null && merchantId == 0) {
-            // Merchant/admin login - return their actual merchantId from user entity, or 0 if no merchant
-            actualMerchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : 0;
+        if ("merchant".equals(user.getUserType()) || "super_admin".equals(user.getUserType())) {
+            actualMerchantId = user.getMerchant() != null && user.getMerchant().getMerchantId() != null ? 
+                    user.getMerchant().getMerchantId() : null;
         } else {
-            // Customer login - use provided merchantId or user's merchantId
-            actualMerchantId = merchantId != null ? merchantId :
-                    (user.getMerchant() != null ? user.getMerchant().getMerchantId() : null);
+            actualMerchantId = merchantId;
         }
         
         // For superadmin users, use null instead of 0 for merchant queries
@@ -285,11 +291,14 @@ public class AuthServiceImpl implements AuthService {
     }
     
     private boolean isUserAssociatedWithMerchant(Integer userId, Integer merchantId) {
+        if (userId == null || merchantId == null) {
+            return false;
+        }
+        
         try {
             return userRoles.existsByUser_UserIdAndMerchant_MerchantId(userId, merchantId);
         } catch (Exception e) {
-            log.warn("Error checking user-merchant association: userId={}, merchantId={}, error={}", 
-                    userId, merchantId, e.getMessage());
+            log.warn("Error checking user-merchant association: userId={}, merchantId={}", userId, merchantId, e);
             return false;
         }
     }
@@ -306,24 +315,25 @@ public class AuthServiceImpl implements AuthService {
             
             return isBlocked;
         } catch (Exception e) {
-            log.warn("Error checking phone block status: phone={}, merchantId={}, error={}", 
-                    maskPhone(phone), merchantId, e.getMessage());
+            log.warn("Error checking phone block status: phone={}, merchantId={}", maskPhone(phone), merchantId, e);
             return false;
         }
     }
     
     private void validateOtpRateLimit(String phone, String otpType) {
-        LocalDateTime timeLimit = LocalDateTime.now().minusMinutes(AppConstants.OTP_RATE_LIMIT_WINDOW_MINUTES);
+        int windowMinutes = AppConstants.OTP_RATE_LIMIT_WINDOW_MINUTES;
+        LocalDateTime timeLimit = LocalDateTime.now().minusMinutes(windowMinutes);
         int recentRequests = otpLogRepository.countByPhoneAndCreatedOnAfter(phone, timeLimit);
         
-        if (recentRequests >= AppConstants.OTP_RATE_LIMIT_REQUESTS) {
+        int maxRequests = AppConstants.OTP_RATE_LIMIT_REQUESTS;
+        if (recentRequests >= maxRequests) {
             log.warn("Rate limit exceeded for phone: {}, type: {}, requests: {} in last {} minutes", 
-                    maskPhone(phone), otpType, recentRequests, AppConstants.OTP_RATE_LIMIT_WINDOW_MINUTES);
+                    maskPhone(phone), otpType, recentRequests, windowMinutes);
             
             String errorMessage = String.format(
                 "Too many OTP requests. You have exceeded the limit of %d OTP requests. Please try again after %d minutes.", 
-                AppConstants.OTP_RATE_LIMIT_REQUESTS, 
-                AppConstants.OTP_RATE_LIMIT_WINDOW_MINUTES
+                maxRequests, 
+                windowMinutes
             );
             throw new RuntimeException(errorMessage);
         }
@@ -341,9 +351,10 @@ public class AuthServiceImpl implements AuthService {
     }
     
     private LocalDateTime getExpiryByType(String otpType) {
+        int expiryMinutes = AppConstants.OTP_EXPIRY_MINUTES;
         return switch (otpType) {
-            case "password_reset", "phone_verification", "account_verification" -> LocalDateTime.now().plusMinutes(AppConstants.OTP_EXPIRY_MINUTES);
-            default -> LocalDateTime.now().plusMinutes(AppConstants.OTP_EXPIRY_MINUTES);
+            case "password_reset", "phone_verification", "account_verification" -> LocalDateTime.now().plusMinutes(expiryMinutes);
+            default -> LocalDateTime.now().plusMinutes(expiryMinutes);
         };
     }
     
@@ -352,6 +363,11 @@ public class AuthServiceImpl implements AuthService {
     }
     
     private void clearOtpData(User user) {
+        if (user == null) {
+            log.warn("Attempted to clear OTP data for null user");
+            return;
+        }
+        
         user.setOtpCode(null);
         user.setOtpExpiresAt(null);
         user.setOtpAttempts(0);
@@ -359,28 +375,29 @@ public class AuthServiceImpl implements AuthService {
     }
     
     private String generateRandomPassword() {
-        final String upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        final String lowerCase = "abcdefghijklmnopqrstuvwxyz";
-        final String digits = "0123456789";
-        final String specialChars = "@$!%*?&";
-        final String allChars = upperCase + lowerCase + digits + specialChars;
+        final char[] upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
+        final char[] lowerCase = "abcdefghijklmnopqrstuvwxyz".toCharArray();
+        final char[] digits = "0123456789".toCharArray();
+        final char[] specialChars = "@$!%*?&".toCharArray();
         
         SecureRandom random = new SecureRandom();
-        StringBuilder password = new StringBuilder(10);
+        char[] password = new char[10];
         
         // Ensure at least one character from each category
-        password.append(upperCase.charAt(random.nextInt(upperCase.length())));
-        password.append(lowerCase.charAt(random.nextInt(lowerCase.length())));
-        password.append(digits.charAt(random.nextInt(digits.length())));
-        password.append(specialChars.charAt(random.nextInt(specialChars.length())));
+        password[0] = upperCase[random.nextInt(upperCase.length)];
+        password[1] = lowerCase[random.nextInt(lowerCase.length)];
+        password[2] = digits[random.nextInt(digits.length)];
+        password[3] = specialChars[random.nextInt(specialChars.length)];
         
-        // Fill remaining positions with random characters
+        // Fill remaining positions with random characters from all categories
+        char[][] allCategories = {upperCase, lowerCase, digits, specialChars};
         for (int i = 4; i < 10; i++) {
-            password.append(allChars.charAt(random.nextInt(allChars.length())));
+            char[] category = allCategories[random.nextInt(allCategories.length)];
+            password[i] = category[random.nextInt(category.length)];
         }
         
         // Shuffle the password to randomize character positions
-        return shuffleString(password.toString(), random);
+        return shuffleString(new String(password), random);
     }
     
     private String shuffleString(String input, SecureRandom random) {
@@ -405,21 +422,28 @@ public class AuthServiceImpl implements AuthService {
     
     private String sanitizeForLogging(String input) {
         if (input == null) {
-            return null;
+            return "null";
         }
-        String sanitized = input.replaceAll("[\\r\\n\\t\\f\\u0008]", "_")
-                               .replaceAll("[^\\w\\s.-]", "");
+        // Prevent log injection by removing CRLF and control characters
+        String sanitized = input.replaceAll("[\r\n\t\f\u0008\u001B]", "_")
+                               .replaceAll("[\u0000-\u001F\u007F-\u009F]", "_")
+                               .replaceAll("[^\\w\\s@.-]", "");
         return sanitized.length() > 100 ? sanitized.substring(0, 100) + "..." : sanitized;
     }
+    
+
 
     @Override
     @Transactional
     public void logout(Integer userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
+        
         try {
             org.springframework.security.core.Authentication auth = 
                 org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.getCredentials() instanceof String) {
-                String token = (String) auth.getCredentials();
+            if (auth != null && auth.getCredentials() instanceof String token) {
                 jwt.blacklistToken(token);
                 log.debug("Token blacklisted for user: {}", userId);
             }
@@ -428,7 +452,7 @@ public class AuthServiceImpl implements AuthService {
             
             log.info("User {} logged out successfully with token invalidation", userId);
         } catch (Exception e) {
-            log.error("Error during logout for user {}: {}", userId, e.getMessage());
+            log.error("Error during logout for user {}: {}", userId, sanitizeForLogging(e.getMessage()));
             throw new RuntimeException("Logout failed");
         }
     }
@@ -448,8 +472,14 @@ public class AuthServiceImpl implements AuthService {
             String cleanPhone = req.getPhone().trim().replaceAll("[^0-9]", "");
             validationService.validatePhone(cleanPhone);
             
-            if (req.getOtpType() != null && !req.getOtpType().matches("^(login|password_reset|registration|phone_verification)$")) {
-                throw new IllegalArgumentException("Invalid OTP type. Must be one of: login, password_reset, registration, phone_verification");
+            if (req.getOtpType() != null) {
+                String otpTypeToValidate = req.getOtpType();
+                if (!"login".equals(otpTypeToValidate) && 
+                    !"password_reset".equals(otpTypeToValidate) && 
+                    !"registration".equals(otpTypeToValidate) && 
+                    !"phone_verification".equals(otpTypeToValidate)) {
+                    throw new IllegalArgumentException("Invalid OTP type. Must be one of: login, password_reset, registration, phone_verification");
+                }
             }
             
             User user;
@@ -521,7 +551,7 @@ public class AuthServiceImpl implements AuthService {
             log.debug("SMS send result for phone: {}, status: {}", maskedPhone, status);
             
             try {
-                Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
+                Integer merchantId = user.getMerchant() != null && user.getMerchant().getMerchantId() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
                 otpAuditService.logOtp(merchantId, req.getPhone(), otpCode, otpType, status, expiresAt);
                 log.debug("OTP audit log created for phone: {}", maskedPhone);
             } catch (Exception e) {
@@ -535,13 +565,11 @@ public class AuthServiceImpl implements AuthService {
             log.info("OTP sent successfully to phone: {}, type: {}", maskedPhone, otpType);
             
         } catch (RuntimeException e) {
-            log.error("OTP request failed for phone: {}, type: {}, error: {}", 
-                     maskedPhone, otpType, sanitizeForLogging(e.getMessage()), e);
+            log.error("OTP request failed for phone: {}, type: {}", maskedPhone, otpType, e);
             throw e;
         } catch (Exception e) {
-            log.error("OTP request failed for phone: {}, type: {}, error: {}", 
-                     maskedPhone, otpType, sanitizeForLogging(e.getMessage()), e);
-            throw new RuntimeException("Failed to process OTP request: " + e.getMessage(), e);
+            log.error("OTP request failed for phone: {}, type: {}", maskedPhone, otpType, e);
+            throw new RuntimeException("Failed to process OTP request", e);
         }
     }
     
@@ -558,7 +586,7 @@ public class AuthServiceImpl implements AuthService {
                 return null;
             }
             
-            if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
+            if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(LocalDateTime.now().minusSeconds(30))) {
                 otpAuditService.updateOtpExpired(req.getPhone());
                 clearOtpData(user);
                 log.warn("Expired OTP verification attempt for phone: {}", maskedPhone);
@@ -567,7 +595,8 @@ public class AuthServiceImpl implements AuthService {
             
             Integer otpAttempts = user.getOtpAttempts();
             int currentAttempts = otpAttempts != null ? otpAttempts : 0;
-            if (currentAttempts >= AppConstants.OTP_MAX_ATTEMPTS) {
+            int maxAttempts = AppConstants.OTP_MAX_ATTEMPTS;
+            if (currentAttempts >= maxAttempts) {
                 otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts);
                 clearOtpData(user);
                 log.warn("Max OTP attempts exceeded for phone: {}", maskedPhone);
@@ -582,7 +611,7 @@ public class AuthServiceImpl implements AuthService {
                 return null;
             }
             
-            Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
+            Integer merchantId = user.getMerchant() != null && user.getMerchant().getMerchantId() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
             otpAuditService.logOtpVerified(req.getPhone(), merchantId);
             clearOtpData(user);
             
@@ -598,7 +627,7 @@ public class AuthServiceImpl implements AuthService {
             return buildTokens(user, req.getMerchantId());
             
         } catch (RuntimeException e) {
-            log.error("OTP verification error for phone: {}, error: {}", maskedPhone, sanitizeForLogging(e.getMessage()), e);
+            log.error("OTP verification error for phone: {}", maskedPhone, e);
             return null;
         }
     }

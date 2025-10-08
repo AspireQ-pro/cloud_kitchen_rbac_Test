@@ -1,8 +1,9 @@
 package com.cloudkitchen.rbac.service.impl;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
@@ -15,6 +16,7 @@ import com.cloudkitchen.rbac.service.CustomerService;
 @Service
 @Transactional(readOnly = true)
 public class CustomerServiceImpl implements CustomerService {
+    private static final Logger log = LoggerFactory.getLogger(CustomerServiceImpl.class);
     private final UserRepository userRepository;
 
     public CustomerServiceImpl(UserRepository userRepository) {
@@ -23,28 +25,55 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<CustomerResponse> getAllCustomers() {
-        return userRepository.findByUserType("customer").stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        try {
+            List<User> customers = userRepository.findByUserType("customer");
+            return customers.stream()
+                    .map(this::mapToResponse)
+                    .toList();
+        } catch (Exception e) {
+            log.error("Error retrieving all customers", e);
+            throw new RuntimeException("Failed to retrieve customers", e);
+        }
     }
 
     @Override
     public List<CustomerResponse> getCustomersByMerchantId(Integer merchantId) {
-        return userRepository.findByUserTypeAndMerchant_MerchantId("customer", merchantId).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        if (merchantId == null) {
+            throw new IllegalArgumentException("Merchant ID cannot be null");
+        }
+        
+        try {
+            List<User> customers = userRepository.findByUserTypeAndMerchant_MerchantId("customer", merchantId);
+            return customers.stream()
+                    .map(this::mapToResponse)
+                    .toList();
+        } catch (Exception e) {
+            log.error("Error retrieving customers for merchant ID: {}", merchantId, e);
+            throw new RuntimeException("Failed to retrieve customers for merchant", e);
+        }
     }
 
     @Override
     public CustomerResponse getCustomerById(Integer id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Customer not found"));
-        
-        if (!"customer".equals(user.getUserType())) {
-            throw new RuntimeException("User is not a customer");
+        if (id == null) {
+            throw new IllegalArgumentException("Customer ID cannot be null");
         }
         
-        return mapToResponse(user);
+        try {
+            User user = userRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Customer not found with ID: " + id));
+            
+            if (!"customer".equals(user.getUserType())) {
+                throw new RuntimeException("User with ID " + id + " is not a customer");
+            }
+            
+            return mapToResponse(user);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error retrieving customer with ID: {}", id, e);
+            throw new RuntimeException("Failed to retrieve customer", e);
+        }
     }
 
     @Override

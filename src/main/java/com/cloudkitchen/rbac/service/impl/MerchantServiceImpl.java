@@ -1,8 +1,9 @@
 package com.cloudkitchen.rbac.service.impl;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
@@ -19,6 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @Service
 @Transactional
 public class MerchantServiceImpl implements MerchantService {
+    private static final Logger log = LoggerFactory.getLogger(MerchantServiceImpl.class);
     private final MerchantRepository merchantRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -31,12 +33,17 @@ public class MerchantServiceImpl implements MerchantService {
 
     @Override
     public MerchantResponse createMerchant(MerchantRequest request) {
-        if (merchantRepository.existsByPhone(request.getPhone())) {
-            throw new RuntimeException("Merchant with this phone number already exists");
+        if (request == null) {
+            throw new IllegalArgumentException("Merchant request cannot be null");
         }
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new RuntimeException("Username already exists");
-        }
+        
+        try {
+            if (merchantRepository.existsByPhone(request.getPhone())) {
+                throw new RuntimeException("Merchant with this phone number already exists");
+            }
+            if (userRepository.existsByUsername(request.getUsername())) {
+                throw new RuntimeException("Username already exists");
+            }
         
         // Create merchant
         Merchant merchant = new Merchant();
@@ -67,17 +74,32 @@ public class MerchantServiceImpl implements MerchantService {
         user.setPhoneVerified(true);
         user.setCreatedBy(0); // System created
         
-        userRepository.save(user);
-        
-        MerchantResponse response = mapToResponse(merchant);
-        response.setUsername(request.getUsername());
-        return response;
+            userRepository.save(user);
+            
+            log.info("Created merchant: {} with username: {}", merchant.getMerchantName(), request.getUsername());
+            MerchantResponse response = mapToResponse(merchant);
+            response.setUsername(request.getUsername());
+            return response;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error creating merchant: {}", request.getMerchantName(), e);
+            throw new RuntimeException("Failed to create merchant", e);
+        }
     }
 
     @Override
     public MerchantResponse updateMerchant(Integer id, MerchantRequest request) {
-        Merchant merchant = merchantRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Merchant not found"));
+        if (id == null) {
+            throw new IllegalArgumentException("Merchant ID cannot be null");
+        }
+        if (request == null) {
+            throw new IllegalArgumentException("Merchant request cannot be null");
+        }
+        
+        try {
+            Merchant merchant = merchantRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Merchant not found with ID: " + id));
         
         if (!merchant.getPhone().equals(request.getPhone()) && 
             merchantRepository.existsByPhone(request.getPhone())) {
@@ -91,30 +113,66 @@ public class MerchantServiceImpl implements MerchantService {
         merchant.setGstin(request.getGstin());
         merchant.setFssaiLicense(request.getFssaiLicense());
         
-        merchant = merchantRepository.save(merchant);
-        return mapToResponse(merchant);
+            merchant = merchantRepository.save(merchant);
+            log.info("Updated merchant: {} (ID: {})", merchant.getMerchantName(), id);
+            return mapToResponse(merchant);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error updating merchant with ID: {}", id, e);
+            throw new RuntimeException("Failed to update merchant", e);
+        }
     }
 
     @Override
     public MerchantResponse getMerchantById(Integer id) {
-        Merchant merchant = merchantRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Merchant not found"));
-        return mapToResponse(merchant);
+        if (id == null) {
+            throw new IllegalArgumentException("Merchant ID cannot be null");
+        }
+        
+        try {
+            Merchant merchant = merchantRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Merchant not found with ID: " + id));
+            return mapToResponse(merchant);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error retrieving merchant with ID: {}", id, e);
+            throw new RuntimeException("Failed to retrieve merchant", e);
+        }
     }
 
     @Override
     public List<MerchantResponse> getAllMerchants() {
-        return merchantRepository.findAll().stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        try {
+            List<Merchant> merchants = merchantRepository.findAll();
+            return merchants.stream()
+                    .map(this::mapToResponse)
+                    .toList();
+        } catch (Exception e) {
+            log.error("Error retrieving all merchants", e);
+            throw new RuntimeException("Failed to retrieve merchants", e);
+        }
     }
 
     @Override
     public void deleteMerchant(Integer id) {
-        if (!merchantRepository.existsById(id)) {
-            throw new RuntimeException("Merchant not found");
+        if (id == null) {
+            throw new IllegalArgumentException("Merchant ID cannot be null");
         }
-        merchantRepository.deleteById(id);
+        
+        try {
+            if (!merchantRepository.existsById(id)) {
+                throw new RuntimeException("Merchant not found with ID: " + id);
+            }
+            merchantRepository.deleteById(id);
+            log.info("Deleted merchant with ID: {}", id);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error deleting merchant with ID: {}", id, e);
+            throw new RuntimeException("Failed to delete merchant", e);
+        }
     }
 
     @Override

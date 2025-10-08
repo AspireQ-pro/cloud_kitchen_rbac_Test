@@ -28,6 +28,9 @@ import com.cloudkitchen.rbac.repository.UserRoleRepository;
 public class DataInitializer implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
     
+    @org.springframework.beans.factory.annotation.Value("${app.data.initialize:true}")
+    private boolean initializeData;
+    
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final RolePermissionRepository rolePermissionRepository;
@@ -55,6 +58,11 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        if (!initializeData) {
+            log.info("Data initialization disabled (app.data.initialize=false)");
+            return;
+        }
+        
         try {
             initializeRoles();
             initializePermissions();
@@ -224,31 +232,33 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private String getPermissionDescription(String permissionName) {
-        return switch (permissionName) {
-            case "user:read" -> "Read user information";
-            case "user:write" -> "Create and update users";
-            case "user:delete" -> "Delete users";
-            case "merchant:read" -> "Read merchant information";
-            case "merchant:write" -> "Create and update merchants";
-            case "merchant:delete" -> "Delete merchants";
-            case "customer:read" -> "Read customer information";
-            case "customer:write" -> "Create and update customers";
-            case "customer:delete" -> "Delete customers";
-            case "role:read" -> "Read role information";
-            case "role:write" -> "Create and update roles";
-            case "role:delete" -> "Delete roles";
-            case "permission:read" -> "Read permission information";
-            case "permission:write" -> "Create and update permissions";
-            case "permission:delete" -> "Delete permissions";
-            case "order:read" -> "Read order information";
-            case "order:write" -> "Create and update orders";
-            case "order:delete" -> "Delete orders";
-            case "menu:read" -> "Read menu information";
-            case "menu:write" -> "Create and update menu items";
-            case "menu:delete" -> "Delete menu items";
-            case "profile:read" -> "Read profile information";
-            case "profile:write" -> "Update profile information";
-            default -> "Permission description not available";
+        if (permissionName == null || !permissionName.contains(":")) {
+            return "Permission description not available";
+        }
+        
+        String[] parts = permissionName.split(":");
+        String resource = parts[0];
+        String action = parts[1];
+        
+        String actionDesc = switch (action) {
+            case "read" -> "Read";
+            case "write" -> "Create and update";
+            case "delete" -> "Delete";
+            default -> "Manage";
         };
+        
+        String resourceDesc = switch (resource) {
+            case "user" -> "user information";
+            case "merchant" -> "merchant information";
+            case "customer" -> "customer information";
+            case "role" -> "role information";
+            case "permission" -> "permission information";
+            case "order" -> "order information";
+            case "menu" -> "menu items";
+            case "profile" -> "profile information";
+            default -> resource + " information";
+        };
+        
+        return actionDesc + " " + resourceDesc;
     }
 }
