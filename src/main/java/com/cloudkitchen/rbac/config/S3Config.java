@@ -19,9 +19,16 @@ public class S3Config {
 
     @Value("${aws.region}")
     private String region;
+    
+    @Value("${aws.s3.bucket-name}")
+    private String bucketName;
 
     @Bean
     public S3Client s3Client() {
+        System.out.println("AWS Config - Access Key: " + (accessKey != null ? accessKey.substring(0, 5) + "..." : "null"));
+        System.out.println("AWS Config - Region: " + region);
+        System.out.println("AWS Config - Bucket: " + bucketName);
+        
         AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
         
         return S3Client.builder()
