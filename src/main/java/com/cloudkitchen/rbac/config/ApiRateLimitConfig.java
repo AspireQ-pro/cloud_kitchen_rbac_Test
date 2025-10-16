@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Configuration
-public class RateLimitConfig implements WebMvcConfigurer {
+public class ApiRateLimitConfig implements WebMvcConfigurer {
     
     private final RateLimitInterceptor rateLimitInterceptor = new RateLimitInterceptor();
 

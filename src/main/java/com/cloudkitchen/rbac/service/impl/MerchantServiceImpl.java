@@ -14,7 +14,7 @@ import com.cloudkitchen.rbac.dto.merchant.MerchantResponse;
 import com.cloudkitchen.rbac.repository.MerchantRepository;
 import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.service.MerchantService;
-import com.cloudkitchen.rbac.service.S3FolderService;
+import com.cloudkitchen.rbac.service.CloudStorageService;
 import com.cloudkitchen.rbac.service.FileService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -24,16 +24,16 @@ public class MerchantServiceImpl implements MerchantService {
     private final MerchantRepository merchantRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final S3FolderService s3FolderService;
+    private final CloudStorageService cloudStorageService;
     private final FileService fileService;
 
-    public MerchantServiceImpl(MerchantRepository merchantRepository, UserRepository userRepository, 
-                              PasswordEncoder passwordEncoder, S3FolderService s3FolderService,
+    public MerchantServiceImpl(MerchantRepository merchantRepository, UserRepository userRepository,
+                              PasswordEncoder passwordEncoder, CloudStorageService cloudStorageService,
                               FileService fileService) {
         this.merchantRepository = merchantRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.s3FolderService = s3FolderService;
+        this.cloudStorageService = cloudStorageService;
         this.fileService = fileService;
     }
 
@@ -79,7 +79,7 @@ public class MerchantServiceImpl implements MerchantService {
         
         // Create S3 folder structure for merchant (non-blocking)
         try {
-            s3FolderService.createMerchantFolderStructure(merchant.getMerchantId().toString());
+            cloudStorageService.createMerchantFolderStructure(merchant.getMerchantId().toString());
         } catch (Exception e) {
             // Log error but don't fail merchant creation
             System.err.println("Warning: Failed to create S3 folders for merchant " + merchant.getMerchantId() + ": " + e.getMessage());

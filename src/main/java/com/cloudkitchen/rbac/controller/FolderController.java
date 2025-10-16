@@ -1,6 +1,6 @@
 package com.cloudkitchen.rbac.controller;
 
-import com.cloudkitchen.rbac.service.S3FolderService;
+import com.cloudkitchen.rbac.service.CloudStorageService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,24 +10,24 @@ import java.util.Map;
 @RequestMapping("/api/folders")
 public class FolderController {
 
-    private final S3FolderService s3FolderService;
+    private final CloudStorageService cloudStorageService;
 
-    public FolderController(S3FolderService s3FolderService) {
-        this.s3FolderService = s3FolderService;
+    public FolderController(CloudStorageService cloudStorageService) {
+        this.cloudStorageService = cloudStorageService;
     }
 
     @PostMapping("/merchant/{merchantId}")
     public ResponseEntity<Map<String, String>> createMerchantFolders(@PathVariable String merchantId) {
-        s3FolderService.createMerchantFolderStructure(merchantId);
+        cloudStorageService.createMerchantFolderStructure(merchantId);
         return ResponseEntity.ok(Map.of("message", "Merchant folders created successfully", "merchantId", merchantId));
     }
 
     @PostMapping("/customer/{merchantId}/{customerId}")
     public ResponseEntity<Map<String, String>> createCustomerFolders(
-            @PathVariable String merchantId, 
+            @PathVariable String merchantId,
             @PathVariable String customerId) {
-        s3FolderService.createCustomerFolderStructure(merchantId, customerId);
-        return ResponseEntity.ok(Map.of("message", "Customer folders created successfully", 
+        cloudStorageService.createCustomerFolderStructure(merchantId, customerId);
+        return ResponseEntity.ok(Map.of("message", "Customer folders created successfully",
                                       "merchantId", merchantId, "customerId", customerId));
     }
 }

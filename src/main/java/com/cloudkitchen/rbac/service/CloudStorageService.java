@@ -1,31 +1,36 @@
 package com.cloudkitchen.rbac.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.core.sync.RequestBody;
 
 @Service
-public class S3FolderService {
+public class CloudStorageService {
 
+    private static final Logger logger = LoggerFactory.getLogger(CloudStorageService.class);
     private final S3Client s3Client;
-    
+
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
 
-    public S3FolderService(S3Client s3Client) {
+    public CloudStorageService(S3Client s3Client) {
         this.s3Client = s3Client;
     }
 
     public void createMerchantFolderStructure(String merchantId) {
         String[] folders = {
-            merchantId + "/banner/",
-            merchantId + "/profileimg/",
-            merchantId + "/productimg/",
-            merchantId + "/customers/"
+            merchantId + "/banners/",
+            merchantId + "/profile_image/",
+            merchantId + "/product_image/",
+            merchantId + "/customer/customer_profile_img/",
+            merchantId + "/customer/review_img/"
         };
-        
+
         for (String folder : folders) {
             createFolder(folder);
         }
@@ -33,10 +38,10 @@ public class S3FolderService {
 
     public void createCustomerFolderStructure(String merchantId, String customerId) {
         String[] folders = {
-            merchantId + "/customers/" + customerId + "/profileimg/",
-            merchantId + "/customers/" + customerId + "/reviews/"
+            merchantId + "/customer/" + customerId + "/customer_profile_img/",
+            merchantId + "/customer/" + customerId + "/review_img/"
         };
-        
+
         for (String folder : folders) {
             createFolder(folder);
         }
@@ -49,11 +54,10 @@ public class S3FolderService {
                 .key(folderPath + ".keep")
                 .contentType("text/plain")
                 .build();
-            
+
             s3Client.putObject(request, RequestBody.fromString("# Folder placeholder"));
         } catch (Exception e) {
-            // Log error but don't throw exception to prevent blocking operations
-            System.err.println("Warning: Failed to create S3 folder " + folderPath + ": " + e.getMessage());
+            logger.warn("Failed to create S3 folder {}: {}", folderPath, e.getMessage());
         }
     }
 }

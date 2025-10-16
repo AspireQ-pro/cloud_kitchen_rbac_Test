@@ -19,7 +19,7 @@ import com.cloudkitchen.rbac.security.JwtTokenProvider;
 import com.cloudkitchen.rbac.service.AuthService;
 import com.cloudkitchen.rbac.service.ValidationService;
 import com.cloudkitchen.rbac.util.ResponseBuilder;
-import com.cloudkitchen.rbac.util.SecurityUtils;
+
 import com.cloudkitchen.rbac.util.HttpResponseUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

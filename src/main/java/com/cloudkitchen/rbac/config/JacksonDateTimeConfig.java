@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import jakarta.annotation.PostConstruct;
 
 @Configuration
-public class TimezoneConfig {
+public class JacksonDateTimeConfig {
     
     @PostConstruct
     public void init() {

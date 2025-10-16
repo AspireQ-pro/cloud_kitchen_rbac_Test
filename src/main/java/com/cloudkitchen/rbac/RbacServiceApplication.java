@@ -6,12 +6,17 @@ import java.util.Properties;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @SpringBootApplication(exclude = {
-    org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration.class
-})
+     org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration.class
+ })
 public class RbacServiceApplication {
-    public static void main(String[] args) {
+
+     private static final Logger logger = LoggerFactory.getLogger(RbacServiceApplication.class);
+
+     public static void main(String[] args) {
         // Load .env file manually
         try {
             Properties props = new Properties();
@@ -21,9 +26,9 @@ public class RbacServiceApplication {
                     System.setProperty(key.toString(), value.toString());
                 }
             });
-            System.out.println("Loaded .env file with " + props.size() + " variables");
+            logger.info("Loaded .env file with {} variables", props.size());
         } catch (Exception e) {
-            System.out.println("Failed to load .env file: " + e.getMessage());
+            logger.warn("Failed to load .env file: {}", e.getMessage());
         }
         
         // Set default timezone to India Standard Time
