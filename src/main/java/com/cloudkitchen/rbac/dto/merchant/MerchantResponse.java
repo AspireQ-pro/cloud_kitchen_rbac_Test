@@ -12,6 +12,7 @@ public class MerchantResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String username;
+    private Integer userId;
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -39,4 +40,7 @@ public class MerchantResponse {
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
+
+    public Integer getUserId() { return userId; }
+    public void setUserId(Integer userId) { this.userId = userId; }
 }

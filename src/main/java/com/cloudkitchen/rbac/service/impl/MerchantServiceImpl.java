@@ -167,9 +167,12 @@ public class MerchantServiceImpl implements MerchantService {
         response.setCreatedAt(merchant.getCreatedOn());
         response.setUpdatedAt(merchant.getUpdatedOn());
         
-        // Find the merchant admin user to get username
+        // Find the merchant admin user to get username and userId
         userRepository.findByMerchantAndUserType(merchant, "merchant")
-                .ifPresent(user -> response.setUsername(user.getUsername()));
+                .ifPresent(user -> {
+                    response.setUsername(user.getUsername());
+                    response.setUserId(user.getUserId());
+                });
         
         return response;
     }
