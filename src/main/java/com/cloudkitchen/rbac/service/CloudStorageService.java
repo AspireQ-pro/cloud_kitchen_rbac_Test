@@ -27,13 +27,15 @@ public class CloudStorageService {
             merchantId + "/banners/",
             merchantId + "/profile_image/",
             merchantId + "/product_image/",
-            merchantId + "/customer/customer_profile_img/",
-            merchantId + "/customer/review_img/"
+            merchantId + "/offers/"
         };
 
         for (String folder : folders) {
             createFolder(folder);
         }
+        
+        // Create global offers folder (only once)
+        createFolder("offers/");
     }
 
     public void createCustomerFolderStructure(String merchantId, String customerId) {
@@ -45,6 +47,13 @@ public class CloudStorageService {
         for (String folder : folders) {
             createFolder(folder);
         }
+    }
+    
+    public void createOfferFolderStructure(String merchantId) {
+        // This method is now integrated into createMerchantFolderStructure
+        // Keeping for backward compatibility if needed
+        createFolder(merchantId + "/offers/");
+        createFolder("offers/");
     }
 
     private void createFolder(String folderPath) {

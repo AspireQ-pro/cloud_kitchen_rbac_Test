@@ -12,6 +12,7 @@ import com.cloudkitchen.rbac.domain.entity.User;
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
 import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.service.CustomerService;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
 
 @Service
 @Transactional(readOnly = true)
@@ -31,8 +32,8 @@ public class CustomerServiceImpl implements CustomerService {
                     .map(this::mapToResponse)
                     .toList();
         } catch (Exception e) {
-            log.error("Error retrieving all customers", e);
-            throw new RuntimeException("Failed to retrieve customers", e);
+            log.error("Error retrieving all customers: {}", e.getMessage(), e);
+            throw new ValidationException("Failed to retrieve customers. Please try again.");
         }
     }
 
@@ -48,8 +49,8 @@ public class CustomerServiceImpl implements CustomerService {
                     .map(this::mapToResponse)
                     .toList();
         } catch (Exception e) {
-            log.error("Error retrieving customers for merchant ID: {}", merchantId, e);
-            throw new RuntimeException("Failed to retrieve customers for merchant", e);
+            log.error("Error retrieving customers for merchant ID {}: {}", merchantId, e.getMessage(), e);
+            throw new ValidationException("Failed to retrieve customers for merchant. Please try again.");
         }
     }
 
@@ -61,18 +62,18 @@ public class CustomerServiceImpl implements CustomerService {
         
         try {
             User user = userRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Customer not found with ID: " + id));
+                    .orElseThrow(() -> new UserNotFoundException("Customer not found with ID: " + id));
             
             if (!"customer".equals(user.getUserType())) {
-                throw new RuntimeException("User with ID " + id + " is not a customer");
+                throw new ValidationException("User with ID " + id + " is not a customer");
             }
             
             return mapToResponse(user);
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Error retrieving customer with ID: {}", id, e);
-            throw new RuntimeException("Failed to retrieve customer", e);
+            log.error("Error retrieving customer with ID {}: {}", id, e.getMessage(), e);
+            throw new ValidationException("Failed to retrieve customer. Please try again.");
         }
     }
 
@@ -89,7 +90,11 @@ public class CustomerServiceImpl implements CustomerService {
             
             // Super admin or users with customer.read permission see all
             return getAllCustomers();
+        } catch (NumberFormatException e) {
+            log.warn("Invalid user ID in authentication: {}", authentication.getName());
+            return getAllCustomers();
         } catch (Exception e) {
+            log.warn("Error processing authentication for customer access: {}", e.getMessage());
             return getAllCustomers();
         }
     }

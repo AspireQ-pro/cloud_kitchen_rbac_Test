@@ -32,6 +32,7 @@ import com.cloudkitchen.rbac.service.OtpAuditService;
 import com.cloudkitchen.rbac.service.OtpService;
 import com.cloudkitchen.rbac.service.SmsService;
 import com.cloudkitchen.rbac.service.ValidationService;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
 
 import io.jsonwebtoken.Claims;
 
@@ -83,11 +84,11 @@ public class AuthServiceImpl implements AuthService {
         validationService.validateRegistration(req);
         
         if (users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {
-            throw new RuntimeException("Phone number " + maskPhone(req.getPhone()) + " is already registered for this merchant. Please use a different phone number or login instead.");
+            throw new UserAlreadyExistsException("Phone number " + maskPhone(req.getPhone()) + " is already registered for this merchant. Please use a different phone number or login instead.");
         }
         
         Merchant merchant = merchants.findById(req.getMerchantId())
-                .orElseThrow(() -> new RuntimeException("Merchant with ID " + req.getMerchantId() + " not found. Please contact support."));
+                .orElseThrow(() -> new MerchantNotFoundException("Merchant with ID " + req.getMerchantId() + " not found. Please contact support."));
         
         User user = createUser(req, merchant, "customer");
         user = users.save(user);
@@ -159,16 +160,16 @@ public class AuthServiceImpl implements AuthService {
             // Find user by username (admin or merchant)
             user = users.findByUsername(req.getUsername())
                 .filter(u -> "merchant".equals(u.getUserType()) || "super_admin".equals(u.getUserType()))
-                .orElseThrow(() -> new RuntimeException("User not found. Please check your credentials."));
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid username or password. Please check your credentials."));
             
             // Check if user is active
             if (!Boolean.TRUE.equals(user.getActive())) {
-                throw new RuntimeException("Account is inactive. Please contact support.");
+                throw new AccessDeniedException("Account is inactive. Please contact support.");
             }
         }
         else if (req.getMerchantId() > 0) {
             user = users.findByPhoneAndMerchant_MerchantId(req.getUsername(), req.getMerchantId())
-                    .orElseThrow(() -> new RuntimeException("Customer not found for this merchant."));
+                    .orElseThrow(() -> new UserNotFoundException("Customer not found for this merchant. Please check your phone number."));
         }
         else {
             throw new IllegalArgumentException("Invalid merchantId. Use 0 for admin/merchant, >0 for customers");
@@ -176,11 +177,11 @@ public class AuthServiceImpl implements AuthService {
         
         // Verify password
         if (user.getPasswordHash() == null || user.getPasswordHash().trim().isEmpty()) {
-            throw new RuntimeException("Account setup incomplete. Please contact support.");
+            throw new ValidationException("Account setup incomplete. Please contact support.");
         }
         
         if (!encoder.matches(req.getPassword(), user.getPasswordHash())) {
-            throw new RuntimeException("Invalid password.");
+            throw new InvalidCredentialsException("Invalid password. Please check your credentials.");
         }
         
         log.info("Login successful for user: {} (type: {})", user.getUserId(), user.getUserType());
@@ -191,10 +192,10 @@ public class AuthServiceImpl implements AuthService {
         if (merchantId == null || merchantId == 0) {
             return users.findByPhoneAndMerchantIsNull(phone)
                     .or(() -> users.findByPhone(phone).stream().findFirst())
-                    .orElseThrow(() -> new RuntimeException("No user found with phone: " + maskPhone(phone)));
+                    .orElseThrow(() -> new UserNotFoundException("No user found with phone: " + maskPhone(phone)));
         } else {
             return users.findByPhoneAndMerchant_MerchantId(phone, merchantId)
-                    .orElseThrow(() -> new RuntimeException("No customer found with phone: " + maskPhone(phone) + " for merchant: " + merchantId));
+                    .orElseThrow(() -> new UserNotFoundException("No customer found with phone: " + maskPhone(phone) + " for merchant: " + merchantId));
         }
     }
 
@@ -202,25 +203,29 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse refresh(RefreshTokenRequest req) {
         try {
             if (jwt.isTokenBlacklisted(req.getRefreshToken())) {
-                throw new RuntimeException("Token has been revoked");
+                throw new InvalidCredentialsException("Token has been revoked. Please login again.");
             }
             Claims claims = jwt.parse(req.getRefreshToken());
             Integer userId = Integer.valueOf(claims.getSubject());
             Integer merchantId = (Integer) claims.get("merchantId");
-            User user = users.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+            User user = users.findById(userId).orElseThrow(() -> new UserNotFoundException("User not found for token refresh."));
             
             jwt.blacklistToken(req.getRefreshToken());
             
             return buildTokens(user, merchantId);
-        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
-            throw new RuntimeException("Invalid refresh token", e);
+        } catch (io.jsonwebtoken.JwtException e) {
+            log.warn("JWT exception during token refresh: {}", e.getMessage());
+            throw new InvalidCredentialsException("Invalid refresh token. Please login again.");
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid argument during token refresh: {}", e.getMessage());
+            throw new InvalidCredentialsException("Invalid refresh token. Please login again.");
         }
     }
 
     private AuthResponse buildTokens(User user, Integer merchantId) {
         // For merchant/admin users (merchantId=0 in request), return their actual merchantId
         Integer actualMerchantId;
-        if (merchantId != null && merchantId == 0) {
+        if (merchantId != null && Integer.valueOf(0).equals(merchantId)) {
             // Merchant/admin login - return their actual merchantId from user entity, or 0 if no merchant
             actualMerchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : 0;
         } else {
@@ -230,10 +235,19 @@ public class AuthServiceImpl implements AuthService {
         }
         
         // For superadmin users, use null instead of 0 for merchant queries
-        Integer queryMerchantId = (actualMerchantId != null && actualMerchantId == 0) ? null : actualMerchantId;
+        Integer queryMerchantId = (actualMerchantId != null && Integer.valueOf(0).equals(actualMerchantId)) ? null : actualMerchantId;
         
-        List<String> roleNames = userRoles.findRoleNames(user.getUserId(), queryMerchantId);
-        List<String> permissionNames = userRoles.findPermissionNames(user.getUserId(), queryMerchantId);
+        // Cache user roles and permissions lookup
+        List<String> roleNames;
+        List<String> permissionNames;
+        try {
+            roleNames = userRoles.findRoleNames(user.getUserId(), queryMerchantId);
+            permissionNames = userRoles.findPermissionNames(user.getUserId(), queryMerchantId);
+        } catch (Exception e) {
+            log.warn("Error fetching roles/permissions for user {}: {}", user.getUserId(), e.getMessage());
+            roleNames = List.of(getDefaultRoleForUserType(user.getUserType()));
+            permissionNames = List.of();
+        }
         
         // Handle users without roles - assign default role based on userType
         if (roleNames == null || roleNames.isEmpty()) {
@@ -406,15 +420,6 @@ public class AuthServiceImpl implements AuthService {
         };
     }
     
-    private String sanitizeForLogging(String input) {
-        if (input == null) {
-            return null;
-        }
-        String sanitized = input.replaceAll("[\\r\\n\\t\\f\\u0008]", "_")
-                               .replaceAll("[^\\w\\s.-]", "");
-        return sanitized.length() > 100 ? sanitized.substring(0, 100) + "..." : sanitized;
-    }
-
     @Override
     @Transactional
     public void logout(Integer userId) {
@@ -431,8 +436,8 @@ public class AuthServiceImpl implements AuthService {
             
             log.info("User {} logged out successfully with token invalidation", userId);
         } catch (Exception e) {
-            log.warn("Error during logout for user: {}", userId);
-            throw new RuntimeException("Logout failed");
+            log.warn("Error during logout for user {}: {}", userId, e.getMessage());
+            throw new ServiceUnavailableException("Logout failed. Please try again.");
         }
     }
     

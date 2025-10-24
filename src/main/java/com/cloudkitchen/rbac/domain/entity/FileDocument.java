@@ -2,7 +2,6 @@ package com.cloudkitchen.rbac.domain.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
-import java.util.Map;
 
 @Entity
 @Table(name = "documents")

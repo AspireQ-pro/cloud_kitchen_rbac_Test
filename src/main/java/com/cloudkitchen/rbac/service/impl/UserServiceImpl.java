@@ -10,6 +10,7 @@ import com.cloudkitchen.rbac.domain.entity.User;
 import com.cloudkitchen.rbac.dto.user.UserResponse;
 import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.service.UserService;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
 
 @Service
 @Transactional(readOnly = true)
@@ -30,7 +31,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public Object getUserById(Integer id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
         return mapToUserResponse(user);
     }
 

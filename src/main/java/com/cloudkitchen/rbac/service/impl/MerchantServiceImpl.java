@@ -3,6 +3,8 @@ package com.cloudkitchen.rbac.service.impl;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
@@ -15,35 +17,33 @@ import com.cloudkitchen.rbac.repository.MerchantRepository;
 import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.service.MerchantService;
 import com.cloudkitchen.rbac.service.CloudStorageService;
-import com.cloudkitchen.rbac.service.FileService;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Service
 @Transactional
 public class MerchantServiceImpl implements MerchantService {
+    private static final Logger log = LoggerFactory.getLogger(MerchantServiceImpl.class);
     private final MerchantRepository merchantRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final CloudStorageService cloudStorageService;
-    private final FileService fileService;
 
     public MerchantServiceImpl(MerchantRepository merchantRepository, UserRepository userRepository,
-                              PasswordEncoder passwordEncoder, CloudStorageService cloudStorageService,
-                              FileService fileService) {
+                              PasswordEncoder passwordEncoder, CloudStorageService cloudStorageService) {
         this.merchantRepository = merchantRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.cloudStorageService = cloudStorageService;
-        this.fileService = fileService;
     }
 
     @Override
     public MerchantResponse createMerchant(MerchantRequest request) {
         if (merchantRepository.existsByPhone(request.getPhone())) {
-            throw new RuntimeException("Merchant with this phone number already exists");
+            throw new MerchantAlreadyExistsException("A merchant with phone number " + maskPhone(request.getPhone()) + " already exists. Please use a different phone number.");
         }
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new RuntimeException("Username already exists");
+            throw new UserAlreadyExistsException("Username '" + request.getUsername() + "' is already taken. Please choose a different username.");
         }
         
         // Create merchant
@@ -82,7 +82,7 @@ public class MerchantServiceImpl implements MerchantService {
             cloudStorageService.createMerchantFolderStructure(merchant.getMerchantId().toString());
         } catch (Exception e) {
             // Log error but don't fail merchant creation
-            System.err.println("Warning: Failed to create S3 folders for merchant " + merchant.getMerchantId() + ": " + e.getMessage());
+            log.warn("Failed to create S3 folders for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
         }
         
         MerchantResponse response = mapToResponse(merchant);
@@ -93,11 +93,11 @@ public class MerchantServiceImpl implements MerchantService {
     @Override
     public MerchantResponse updateMerchant(Integer id, MerchantRequest request) {
         Merchant merchant = merchantRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Merchant not found"));
+                .orElseThrow(() -> new MerchantNotFoundException("Merchant with ID " + id + " not found."));
         
         if (!merchant.getPhone().equals(request.getPhone()) && 
             merchantRepository.existsByPhone(request.getPhone())) {
-            throw new RuntimeException("Merchant with this phone number already exists");
+            throw new MerchantAlreadyExistsException("A merchant with phone number " + maskPhone(request.getPhone()) + " already exists. Please use a different phone number.");
         }
         
         merchant.setMerchantName(request.getMerchantName());
@@ -114,7 +114,7 @@ public class MerchantServiceImpl implements MerchantService {
     @Override
     public MerchantResponse getMerchantById(Integer id) {
         Merchant merchant = merchantRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Merchant not found"));
+                .orElseThrow(() -> new MerchantNotFoundException("Merchant with ID " + id + " not found."));
         return mapToResponse(merchant);
     }
 
@@ -128,7 +128,7 @@ public class MerchantServiceImpl implements MerchantService {
     @Override
     public void deleteMerchant(Integer id) {
         if (!merchantRepository.existsById(id)) {
-            throw new RuntimeException("Merchant not found");
+            throw new MerchantNotFoundException("Merchant with ID " + id + " not found.");
         }
         merchantRepository.deleteById(id);
     }
@@ -155,6 +155,11 @@ public class MerchantServiceImpl implements MerchantService {
             return false;
         }
     }
+    
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 4) return "****";
+        return "****" + phone.substring(phone.length() - 4);
+    }
 
     private MerchantResponse mapToResponse(Merchant merchant) {
         MerchantResponse response = new MerchantResponse();
@@ -168,11 +173,15 @@ public class MerchantServiceImpl implements MerchantService {
         response.setUpdatedAt(merchant.getUpdatedOn());
         
         // Find the merchant admin user to get username and userId
-        userRepository.findByMerchantAndUserType(merchant, "merchant")
-                .ifPresent(user -> {
-                    response.setUsername(user.getUsername());
-                    response.setUserId(user.getUserId());
-                });
+        try {
+            userRepository.findByMerchantAndUserType(merchant, "merchant")
+                    .ifPresent(user -> {
+                        response.setUsername(user.getUsername());
+                        response.setUserId(user.getUserId());
+                    });
+        } catch (Exception e) {
+            log.warn("Error fetching merchant admin user for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
+        }
         
         return response;
     }

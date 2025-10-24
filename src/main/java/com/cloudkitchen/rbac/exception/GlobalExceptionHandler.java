@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -53,9 +53,8 @@ public class GlobalExceptionHandler {
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
         
-        logger.warn("Validation failed with {} field errors for request: {}", 
-                   fieldErrors.size(), 
-                   request.getDescription(false).replace("uri=", ""));
+        String traceId = response.get("traceId").toString();
+        logger.warn("Validation failed [{}] with {} field errors", traceId, fieldErrors.size());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
@@ -77,7 +76,8 @@ public class GlobalExceptionHandler {
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
         
-        logger.warn("Constraint violation occurred with multiple errors");
+        String traceId = response.get("traceId").toString();
+        logger.warn("Constraint violation [{}] with {} errors", traceId, fieldErrors.size());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
@@ -114,6 +114,39 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
     
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex, WebRequest request) {
+        String message = ex.getMessage();
+        String userFriendlyMessage = getUserFriendlyConstraintMessage(message);
+        String traceId = UUID.randomUUID().toString().substring(0, 8);
+        
+        Map<String, Object> response = ResponseBuilder.error(409, userFriendlyMessage);
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", traceId);
+        
+        logger.warn("Data integrity violation [{}]: {}", traceId, sanitizeLogMessage(message));
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+    
+    private String getUserFriendlyConstraintMessage(String message) {
+        if (message == null) return "Data constraint violation";
+        
+        if (message.contains("merchants_email_key")) {
+            return "A merchant with this email address already exists. Please use a different email.";
+        } else if (message.contains("merchants_phone_key")) {
+            return "A merchant with this phone number already exists. Please use a different phone number.";
+        } else if (message.contains("users_username_key")) {
+            return "This username is already taken. Please choose a different username.";
+        } else if (message.contains("users_phone_key")) {
+            return "A user with this phone number already exists. Please use a different phone number.";
+        } else if (message.contains("users_email_key")) {
+            return "A user with this email address already exists. Please use a different email.";
+        } else if (message.contains("duplicate key")) {
+            return "This information is already registered in the system. Please check your details.";
+        }
+        return "Data constraint violation";
+    }
+    
     @ExceptionHandler({InvalidCredentialsException.class, AccessDeniedException.class})
     public ResponseEntity<Map<String, Object>> handleSecurityException(RuntimeException ex, WebRequest request) {
         Map<String, Object> response = ResponseBuilder.error(401, "Authentication failed");
@@ -134,6 +167,50 @@ public class GlobalExceptionHandler {
         
         logger.warn("Rate limit exceeded for request");
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
+    }
+    
+    @ExceptionHandler({TokenExpiredException.class})
+    public ResponseEntity<Map<String, Object>> handleTokenExpiredException(TokenExpiredException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(401, "Token expired");
+        response.put("details", "Your session has expired. Please login again.");
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+        
+        logger.warn("Token expired for request");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+    
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleServiceUnavailableException(ServiceUnavailableException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(503, "Service temporarily unavailable");
+        response.put("details", sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+        
+        logger.warn("Service unavailable for request");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+    }
+    
+    @ExceptionHandler(FileUploadException.class)
+    public ResponseEntity<Map<String, Object>> handleFileUploadException(FileUploadException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(400, "File upload failed");
+        response.put("details", sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+        
+        logger.warn("File upload failed for request");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+    
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleValidationException(ValidationException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(400, "Validation failed");
+        response.put("details", sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+        
+        logger.warn("Validation failed for request");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
     
     @ExceptionHandler(IllegalArgumentException.class)

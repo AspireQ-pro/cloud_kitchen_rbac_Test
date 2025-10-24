@@ -67,4 +67,25 @@ public class BusinessExceptions {
             super(message);
         }
     }
+    
+    public static class TokenExpiredException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        public TokenExpiredException(String message) {
+            super(message);
+        }
+    }
+    
+    public static class ServiceUnavailableException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        public ServiceUnavailableException(String message) {
+            super(message);
+        }
+    }
+    
+    public static class FileUploadException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        public FileUploadException(String message) {
+            super(message);
+        }
+    }
 }
