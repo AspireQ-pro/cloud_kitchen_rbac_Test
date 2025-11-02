@@ -105,12 +105,11 @@ public class GlobalExceptionHandler {
     
     @ExceptionHandler({MerchantAlreadyExistsException.class, UserAlreadyExistsException.class})
     public ResponseEntity<Map<String, Object>> handleAlreadyExistsException(RuntimeException ex, WebRequest request) {
-        Map<String, Object> response = ResponseBuilder.error(409, "Resource already exists");
-        response.put("details", sanitizeErrorMessage(ex.getMessage()));
+        Map<String, Object> response = ResponseBuilder.error(409, sanitizeErrorMessage(ex.getMessage()));
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
         
-        logger.warn("Resource conflict occurred");
+        logger.warn("Resource conflict occurred: {}", sanitizeLogMessage(ex.getMessage()));
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
     

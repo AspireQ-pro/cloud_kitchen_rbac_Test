@@ -1,20 +1,5 @@
 package com.cloudkitchen.rbac.service.impl;
 
-import com.cloudkitchen.rbac.config.AppConstants;
-import com.cloudkitchen.rbac.domain.entity.FileDocument;
-import com.cloudkitchen.rbac.repository.FileDocumentRepository;
-import com.cloudkitchen.rbac.service.FileService;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.core.async.AsyncRequestBody;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.*;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -23,11 +8,28 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.cloudkitchen.rbac.config.AppConstants;
+import com.cloudkitchen.rbac.domain.entity.FileDocument;
+import com.cloudkitchen.rbac.repository.FileDocumentRepository;
+import com.cloudkitchen.rbac.service.FileService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import software.amazon.awssdk.core.async.AsyncRequestBody;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+
 
 @Service
 public class FileStorageServiceImpl implements FileService {
 
-    private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final S3Presigner s3Presigner;
     private final FileDocumentRepository fileDocumentRepository;
@@ -43,10 +45,9 @@ public class FileStorageServiceImpl implements FileService {
     private final Map<String, Long> presignedUrlExpiry = new ConcurrentHashMap<>();
     private static final long PRESIGNED_URL_TTL = AppConstants.S3Performance.PRESIGNED_URL_TTL;
 
-    public FileStorageServiceImpl(S3Client s3Client, S3AsyncClient s3AsyncClient,
+    public FileStorageServiceImpl(S3AsyncClient s3AsyncClient,
                                  S3Presigner s3Presigner, FileDocumentRepository fileDocumentRepository,
                                  ObjectMapper objectMapper) {
-        this.s3Client = s3Client;
         this.s3AsyncClient = s3AsyncClient;
         this.s3Presigner = s3Presigner;
         this.fileDocumentRepository = fileDocumentRepository;

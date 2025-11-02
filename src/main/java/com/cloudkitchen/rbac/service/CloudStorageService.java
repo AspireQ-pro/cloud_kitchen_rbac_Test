@@ -27,6 +27,7 @@ public class CloudStorageService {
             merchantId + "/banners/",
             merchantId + "/profile_image/",
             merchantId + "/product_image/",
+            merchantId + "/menu_card/",
             merchantId + "/offers/"
         };
 

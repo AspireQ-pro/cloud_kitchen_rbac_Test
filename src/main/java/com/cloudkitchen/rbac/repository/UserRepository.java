@@ -45,4 +45,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     
     List<User> findByUserType(String userType);
     List<User> findByUserTypeAndMerchant_MerchantId(String userType, Integer merchantId);
+    
+    @Modifying
+    @Transactional
+    void deleteByMerchant(Merchant merchant);
 }

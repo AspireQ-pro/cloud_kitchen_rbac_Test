@@ -39,22 +39,9 @@ public class MerchantController {
     @Operation(summary = "Create Merchant", description = "Create a new merchant with user account")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.create')")
     public ResponseEntity<Map<String, Object>> createMerchant(@Valid @RequestBody MerchantRequest request) {
-        try {
-            MerchantResponse response = merchantService.createMerchant(request);
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getId(), response));
-        } catch (RuntimeException e) {
-            if (e.getMessage().contains("already exists")) {
-                return ResponseEntity.status(HttpStatus.CONFLICT)
-                        .body(ResponseBuilder.error(409, "Merchant already exists: " + e.getMessage()));
-            }
-            if (e.getMessage().contains("validation")) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "Validation failed: " + e.getMessage()));
-            }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Internal server error while creating merchant"));
-        }
+        MerchantResponse response = merchantService.createMerchant(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getId(), response));
     }
 
     @PutMapping("/{id}")

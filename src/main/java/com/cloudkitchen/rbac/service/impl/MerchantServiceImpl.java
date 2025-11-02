@@ -127,9 +127,13 @@ public class MerchantServiceImpl implements MerchantService {
 
     @Override
     public void deleteMerchant(Integer id) {
-        if (!merchantRepository.existsById(id)) {
-            throw new MerchantNotFoundException("Merchant with ID " + id + " not found.");
-        }
+        Merchant merchant = merchantRepository.findById(id)
+                .orElseThrow(() -> new MerchantNotFoundException("Merchant with ID " + id + " not found."));
+        
+        // Delete associated users first to avoid foreign key constraint issues
+        userRepository.deleteByMerchant(merchant);
+        
+        // Then delete the merchant
         merchantRepository.deleteById(id);
     }
 

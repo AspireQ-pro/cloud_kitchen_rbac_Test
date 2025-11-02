@@ -96,7 +96,7 @@ public class ValidationServiceImpl implements ValidationService {
         }
         
         if (!PASSWORD_PATTERN.matcher(password).matches()) {
-            throw new IllegalArgumentException("Password must be at least 8 characters with uppercase, lowercase, digit, and special character");
+            throw new IllegalArgumentException("Password must be at least 8 characters with uppercase, lowercase, and digit");
         }
         
         if (password.length() > 128) {
