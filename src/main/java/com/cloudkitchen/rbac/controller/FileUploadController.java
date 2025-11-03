@@ -68,7 +68,7 @@ public class FileUploadController {
 
     @PostMapping("/menu-card/{merchantId}")
     @Operation(summary = "Upload Menu Card Image", description = "Upload menu card image to S3 bucket") 
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.update')")   
+    @PreAuthorize("hasAuthority('merchants.update')")   
     public ResponseEntity<Map<String, Object>> uploadMenuCardImage(
             @PathVariable String merchantId,
             @RequestParam("file") MultipartFile file) {
