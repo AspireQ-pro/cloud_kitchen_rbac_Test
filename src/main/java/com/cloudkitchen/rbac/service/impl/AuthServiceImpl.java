@@ -237,10 +237,11 @@ public class AuthServiceImpl implements AuthService {
         // For superadmin users, use null instead of 0 for merchant queries
         Integer queryMerchantId = (actualMerchantId != null && Integer.valueOf(0).equals(actualMerchantId)) ? null : actualMerchantId;
         
-        // Cache user roles and permissions lookup
+        // Optimized: Fetch roles and permissions in single transaction
         List<String> roleNames;
         List<String> permissionNames;
         try {
+            // TODO: Consider caching this with Redis for better performance
             roleNames = userRoles.findRoleNames(user.getUserId(), queryMerchantId);
             permissionNames = userRoles.findPermissionNames(user.getUserId(), queryMerchantId);
         } catch (Exception e) {

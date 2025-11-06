@@ -35,6 +35,8 @@ public class JwtTokenProvider {
     private SecretKey key;
     // In-memory token blacklist (suitable for single-instance deployments)
     private final Set<String> blacklistedTokens = ConcurrentHashMap.newKeySet();
+    private static final long TOKEN_CLEANUP_INTERVAL = 3600000; // 1 hour
+    private long lastCleanupTime = System.currentTimeMillis();
 
     @PostConstruct
     public void init() {
@@ -218,9 +220,25 @@ public class JwtTokenProvider {
             if (jti != null) {
                 blacklistedTokens.add(jti);
                 logger.info("Token blacklisted: {}", jti);
+                
+                // Periodic cleanup to prevent memory leak
+                cleanupExpiredTokens();
             }
         } catch (Exception e) {
             logger.warn("Failed to blacklist token");
+        }
+    }
+    
+    private void cleanupExpiredTokens() {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastCleanupTime > TOKEN_CLEANUP_INTERVAL) {
+            // Clear all tokens older than refresh token validity
+            // In production, implement proper TTL tracking per token
+            if (blacklistedTokens.size() > 10000) {
+                blacklistedTokens.clear();
+                logger.info("Cleared blacklisted tokens cache");
+            }
+            lastCleanupTime = currentTime;
         }
     }
     

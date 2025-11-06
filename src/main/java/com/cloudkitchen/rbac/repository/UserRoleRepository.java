@@ -8,11 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 public interface UserRoleRepository extends JpaRepository<UserRole, Integer> {
+    @org.springframework.cache.annotation.Cacheable(value = "userRoles", key = "#userId + '_' + #merchantId")
     @Query("SELECT ur.role.roleName FROM UserRole ur " +
            "WHERE ur.user.userId = :userId AND " +
            "((:merchantId IS NULL AND ur.merchant IS NULL) OR ur.merchant.merchantId = :merchantId)")
     List<String> findRoleNames(Integer userId, Integer merchantId);
     
+    @org.springframework.cache.annotation.Cacheable(value = "userPermissions", key = "#userId + '_' + #merchantId")
     @Query("SELECT DISTINCT p.permissionName FROM UserRole ur " +
            "JOIN ur.role r JOIN RolePermission rp ON r.roleId = rp.role.roleId " +
            "JOIN rp.permission p " +
