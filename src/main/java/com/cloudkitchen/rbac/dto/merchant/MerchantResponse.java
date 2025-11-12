@@ -8,6 +8,8 @@ public class MerchantResponse {
     private String phone;
     private String email;
     private String address;
+    private String gstin;
+    private String fssaiLicense;
     private Boolean active;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -43,4 +45,10 @@ public class MerchantResponse {
 
     public Integer getUserId() { return userId; }
     public void setUserId(Integer userId) { this.userId = userId; }
+
+    public String getGstin() { return gstin; }
+    public void setGstin(String gstin) { this.gstin = gstin; }
+
+    public String getFssaiLicense() { return fssaiLicense; }
+    public void setFssaiLicense(String fssaiLicense) { this.fssaiLicense = fssaiLicense; }
 }

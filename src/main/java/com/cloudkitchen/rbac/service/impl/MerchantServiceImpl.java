@@ -172,6 +172,8 @@ public class MerchantServiceImpl implements MerchantService {
         response.setPhone(merchant.getPhone());
         response.setEmail(merchant.getEmail());
         response.setAddress(merchant.getAddress());
+        response.setGstin(merchant.getGstin() != null ? merchant.getGstin() : "");
+        response.setFssaiLicense(merchant.getFssaiLicense() != null ? merchant.getFssaiLicense() : "");
         response.setActive(merchant.getActive());
         response.setCreatedAt(merchant.getCreatedOn());
         response.setUpdatedAt(merchant.getUpdatedOn());

@@ -50,7 +50,6 @@ public class MerchantController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update Merchant", description = "Update merchant details")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.update')")
     public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @Valid @RequestBody MerchantRequest request, Authentication authentication) {
         try {
             // Check if merchant can only update their own data
@@ -127,7 +126,6 @@ public class MerchantController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete Merchant", description = "Delete merchant by ID")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.delete')")
     public ResponseEntity<Map<String, Object>> deleteMerchant(@PathVariable Integer id, Authentication authentication) {
         try {
             // Check if merchant can only delete their own data
