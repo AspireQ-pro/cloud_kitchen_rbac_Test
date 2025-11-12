@@ -95,17 +95,20 @@ public class MerchantServiceImpl implements MerchantService {
         Merchant merchant = merchantRepository.findById(id)
                 .orElseThrow(() -> new MerchantNotFoundException("Merchant with ID " + id + " not found."));
         
-        if (!merchant.getPhone().equals(request.getPhone()) && 
-            merchantRepository.existsByPhone(request.getPhone())) {
-            throw new MerchantAlreadyExistsException("A merchant with phone number " + maskPhone(request.getPhone()) + " already exists. Please use a different phone number.");
-        }
+        // Only update non-null fields (PATCH behavior)
+        if (request.getMerchantName() != null) merchant.setMerchantName(request.getMerchantName());
+        if (request.getEmail() != null) merchant.setEmail(request.getEmail());
+        if (request.getAddress() != null) merchant.setAddress(request.getAddress());
+        if (request.getGstin() != null) merchant.setGstin(request.getGstin());
+        if (request.getFssaiLicense() != null) merchant.setFssaiLicense(request.getFssaiLicense());
         
-        merchant.setMerchantName(request.getMerchantName());
-        merchant.setPhone(request.getPhone());
-        merchant.setEmail(request.getEmail());
-        merchant.setAddress(request.getAddress());
-        merchant.setGstin(request.getGstin());
-        merchant.setFssaiLicense(request.getFssaiLicense());
+        if (request.getPhone() != null) {
+            if (!merchant.getPhone().equals(request.getPhone()) && 
+                merchantRepository.existsByPhone(request.getPhone())) {
+                throw new MerchantAlreadyExistsException("A merchant with phone number " + maskPhone(request.getPhone()) + " already exists. Please use a different phone number.");
+            }
+            merchant.setPhone(request.getPhone());
+        }
         
         merchant = merchantRepository.save(merchant);
         return mapToResponse(merchant);

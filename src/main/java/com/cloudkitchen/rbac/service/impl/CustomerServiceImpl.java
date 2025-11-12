@@ -154,6 +154,21 @@ public class CustomerServiceImpl implements CustomerService {
             return false;
         }
     }
+    
+    @Override
+    public Integer getMerchantIdFromAuth(Authentication authentication) {
+        try {
+            Integer userId = Integer.valueOf(authentication.getName());
+            User user = userRepository.findById(userId).orElse(null);
+            
+            if (user != null && user.getMerchant() != null) {
+                return user.getMerchant().getMerchantId();
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
     private CustomerResponse mapToResponse(User user) {
         CustomerResponse response = new CustomerResponse();

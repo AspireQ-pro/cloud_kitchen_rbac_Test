@@ -29,21 +29,26 @@ public class CustomerController {
     }
 
     @GetMapping
-    @Operation(summary = "Get All Customers", description = "Get all customers")
+    @Operation(summary = "Get All Customers", description = "Super Admin: Get all customers. Merchant: Get only their own customers")
     public ResponseEntity<Map<String, Object>> getAllCustomers(Authentication authentication) {
         try {
-            // Check permissions
-            boolean hasAccess = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> "ROLE_SUPER_ADMIN".equals(auth.getAuthority()) || 
-                                    "customer.read".equals(auth.getAuthority())) ||
-                    customerService.canAccessCustomers(authentication);
+            boolean isSuperAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> "ROLE_SUPER_ADMIN".equals(auth.getAuthority()));
             
-            if (!hasAccess) {
+            List<CustomerResponse> response;
+            
+            if (isSuperAdmin) {
+                // Super Admin gets all customers
+                response = customerService.getAllCustomers(authentication);
+            } else if (customerService.canAccessCustomers(authentication)) {
+                // Merchant gets only their own customers
+                Integer merchantId = customerService.getMerchantIdFromAuth(authentication);
+                response = customerService.getCustomersByMerchantId(merchantId);
+            } else {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(ResponseBuilder.error(403, "Access denied"));
             }
             
-            List<CustomerResponse> response = customerService.getAllCustomers(authentication);
             return ResponseEntity.status(HttpStatus.OK)
                     .body(ResponseBuilder.success(200, "Customers retrieved successfully. Total: " + response.size(), response));
         } catch (RuntimeException e) {

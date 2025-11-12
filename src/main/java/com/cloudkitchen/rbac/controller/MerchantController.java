@@ -9,9 +9,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,9 +48,9 @@ public class MerchantController {
                 .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getId(), response));
     }
 
-    @PutMapping("/{id}")
-    @Operation(summary = "Update Merchant", description = "Update merchant details")
-    public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @Valid @RequestBody MerchantRequest request, Authentication authentication) {
+    @PatchMapping("/{id}")  
+    @Operation(summary = "Update Merchant", description = "Partial or full update of merchant details")
+    public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @RequestBody MerchantRequest request, Authentication authentication) {
         try {
             // Check if merchant can only update their own data
             boolean isSuperAdmin = authentication.getAuthorities().stream()
@@ -125,17 +125,10 @@ public class MerchantController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete Merchant", description = "Delete merchant by ID")
+    @Operation(summary = "Delete Merchant", description = "Delete merchant by ID (Super Admin only)")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<Map<String, Object>> deleteMerchant(@PathVariable Integer id, Authentication authentication) {
         try {
-            // Check if merchant can only delete their own data
-            boolean isSuperAdmin = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> ROLE_SUPER_ADMIN.equals(auth.getAuthority()));
-            
-            if (!isSuperAdmin && !merchantService.canAccessMerchant(authentication, id)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ResponseBuilder.error(403, "Access denied: You can only delete your own merchant data"));
-            }
             
             merchantService.deleteMerchant(id);
             return ResponseEntity.status(HttpStatus.OK)

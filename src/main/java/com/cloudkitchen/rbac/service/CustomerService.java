@@ -14,4 +14,5 @@ public interface CustomerService {
     boolean canAccessCustomers(Authentication authentication);
     boolean canAccessCustomer(Authentication authentication, Integer customerId);
     boolean canAccessMerchantCustomers(Authentication authentication, Integer merchantId);
+    Integer getMerchantIdFromAuth(Authentication authentication);
 }

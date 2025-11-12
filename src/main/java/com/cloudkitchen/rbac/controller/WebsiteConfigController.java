@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
+
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -57,18 +57,6 @@ public class WebsiteConfigController {
         return ResponseEntity.ok(ResponseBuilder.success(200, "Configuration retrieved successfully", response));
     }
 
-    @PutMapping
-    @Operation(summary = "Update website configuration", description = "Update existing website configuration")
-    public ResponseEntity<Object> updateConfiguration(
-            @PathVariable Integer merchantId,
-            @Valid @RequestBody WebsiteConfigRequest request) {
-        
-        log.info("PUT /api/merchants/{}/website-config - Update configuration", merchantId);
-        
-        WebsiteConfigResponse response = websiteConfigService.updateConfiguration(merchantId, request);
-        return ResponseEntity.ok(ResponseBuilder.success(200, "Website configuration updated successfully", response));
-    }
-
     @PostMapping("/publish")
     @Operation(summary = "Publish website", description = "Publish merchant website")
     public ResponseEntity<Object> publishWebsite(@PathVariable Integer merchantId) {
@@ -80,14 +68,14 @@ public class WebsiteConfigController {
     }
 
     @PatchMapping
-    @Operation(summary = "Partial update", description = "Update specific fields (used by Order Service for asset URLs)")
+    @Operation(summary = "Update website configuration", description = "Partial or full update of website configuration")
     public ResponseEntity<Object> patchConfiguration(
             @PathVariable Integer merchantId,
             @Valid @RequestBody com.cloudkitchen.rbac.dto.website.WebsiteConfigUpdateRequest request) {
         
-        log.info("PATCH /api/merchants/{}/website-config - Partial update", merchantId);
+        log.info("PATCH /api/merchants/{}/website-config - Update configuration", merchantId);
         
         WebsiteConfigResponse response = websiteConfigService.patchConfiguration(merchantId, request);
-        return ResponseEntity.ok(ResponseBuilder.success(200, "Configuration updated successfully", response));
+        return ResponseEntity.ok(ResponseBuilder.success(200, "Website configuration updated successfully", response));
     }
 }
