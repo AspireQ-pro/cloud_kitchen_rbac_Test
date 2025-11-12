@@ -38,7 +38,7 @@ public class FileStorageServiceImpl implements FileService {
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
 
-    private static final long MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
+    private static final long MULTIPART_THRESHOLD = 5L * 1024 * 1024; // 5MB
 
     // Cache for presigned URLs to improve performance
     private final Map<String, String> presignedUrlCache = new ConcurrentHashMap<>();
@@ -110,11 +110,11 @@ public class FileStorageServiceImpl implements FileService {
                 .build();
             
             return s3AsyncClient.createMultipartUpload(createRequest)
-                .thenCompose(createResponse -> {
+                .thenCompose(createResponse -> 
                     // Implementation for multipart upload would go here
                     // For brevity, using single upload
-                    return uploadSingle(file, s3Key);
-                });
+                    uploadSingle(file, s3Key)
+                );
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -292,22 +292,22 @@ public class FileStorageServiceImpl implements FileService {
     private FileDocument createFileDocument(String entityType, String entityId, String uploadedByService,
                                           String documentType, String s3Key, MultipartFile file,
                                           Map<String, Object> tags, Integer uploadedByUserId) {
+        FileDocument document = new FileDocument();
+        document.setEntityType(entityType);
+        document.setEntityId(entityId);
+        document.setUploadedByService(uploadedByService);
+        document.setDocumentType(documentType);
+        document.setS3Key(s3Key);
+        document.setS3Bucket(bucketName);
+        document.setFileName(file.getOriginalFilename());
+        document.setFileSize(file.getSize());
+        document.setMimeType(file.getContentType());
         try {
-            FileDocument document = new FileDocument();
-            document.setEntityType(entityType);
-            document.setEntityId(entityId);
-            document.setUploadedByService(uploadedByService);
-            document.setDocumentType(documentType);
-            document.setS3Key(s3Key);
-            document.setS3Bucket(bucketName);
-            document.setFileName(file.getOriginalFilename());
-            document.setFileSize(file.getSize());
-            document.setMimeType(file.getContentType());
             document.setTags(objectMapper.writeValueAsString(tags));
-            document.setUploadedByUserId(uploadedByUserId);
-            return document;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to create file document", e);
+            document.setTags("{}");
         }
+        document.setUploadedByUserId(uploadedByUserId);
+        return document;
     }
 }

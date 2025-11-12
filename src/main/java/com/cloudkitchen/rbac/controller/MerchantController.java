@@ -29,6 +29,10 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/merchants")
 @Tag(name = "Merchant Management", description = "Merchant CRUD operations")
 public class MerchantController {
+    private static final String ROLE_SUPER_ADMIN = "ROLE_SUPER_ADMIN";
+    private static final String NOT_FOUND = "not found";
+    private static final String MERCHANT_NOT_FOUND_MSG = "Merchant not found with ID: ";
+    
     private final MerchantService merchantService;
 
     public MerchantController(MerchantService merchantService) {
@@ -47,15 +51,24 @@ public class MerchantController {
     @PutMapping("/{id}")
     @Operation(summary = "Update Merchant", description = "Update merchant details")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.update')")
-    public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @Valid @RequestBody MerchantRequest request) {
+    public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @Valid @RequestBody MerchantRequest request, Authentication authentication) {
         try {
+            // Check if merchant can only update their own data
+            boolean isSuperAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> ROLE_SUPER_ADMIN.equals(auth.getAuthority()));
+            
+            if (!isSuperAdmin && !merchantService.canAccessMerchant(authentication, id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ResponseBuilder.error(403, "Access denied: You can only update your own merchant data"));
+            }
+            
             MerchantResponse response = merchantService.updateMerchant(id, request);
             return ResponseEntity.status(HttpStatus.OK)
                     .body(ResponseBuilder.success(200, "Merchant ID " + id + " updated successfully", response));
         } catch (RuntimeException e) {
-            if (e.getMessage().contains("not found")) {
+            if (e.getMessage().contains(NOT_FOUND)) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ResponseBuilder.error(404, "Merchant not found with ID: " + id));
+                        .body(ResponseBuilder.error(404, MERCHANT_NOT_FOUND_MSG + id));
             }
             if (e.getMessage().contains("already exists")) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -74,24 +87,24 @@ public class MerchantController {
     @Operation(summary = "Get Merchant", description = "Get merchant by ID")
     public ResponseEntity<Map<String, Object>> getMerchant(@PathVariable Integer id, Authentication authentication) {
         try {
-            // Check permissions
-            boolean hasAccess = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> "ROLE_SUPER_ADMIN".equals(auth.getAuthority()) || 
-                                    "merchants.read".equals(auth.getAuthority())) ||
-                    merchantService.canAccessMerchant(authentication, id);
+            // Check if user has permission to read this merchant
+            boolean isSuperAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> ROLE_SUPER_ADMIN.equals(auth.getAuthority()));
+            boolean hasReadPermission = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> "merchants.read".equals(auth.getAuthority()));
             
-            if (!hasAccess) {
+            if (!isSuperAdmin && !hasReadPermission && !merchantService.canAccessMerchant(authentication, id)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ResponseBuilder.error(403, "Access denied"));
+                        .body(ResponseBuilder.error(403, "Access denied: You can only view your own merchant data"));
             }
             
             MerchantResponse response = merchantService.getMerchantById(id);
             return ResponseEntity.status(HttpStatus.OK)
                     .body(ResponseBuilder.success(200, "Merchant profile retrieved successfully", response));
         } catch (RuntimeException e) {
-            if (e.getMessage().contains("not found")) {
+            if (e.getMessage().contains(NOT_FOUND)) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ResponseBuilder.error(404, "Merchant not found with ID: " + id));
+                        .body(ResponseBuilder.error(404, MERCHANT_NOT_FOUND_MSG + id));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ResponseBuilder.error(500, "Internal server error while retrieving merchant"));
@@ -115,15 +128,24 @@ public class MerchantController {
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete Merchant", description = "Delete merchant by ID")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.delete')")
-    public ResponseEntity<Map<String, Object>> deleteMerchant(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, Object>> deleteMerchant(@PathVariable Integer id, Authentication authentication) {
         try {
+            // Check if merchant can only delete their own data
+            boolean isSuperAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> ROLE_SUPER_ADMIN.equals(auth.getAuthority()));
+            
+            if (!isSuperAdmin && !merchantService.canAccessMerchant(authentication, id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ResponseBuilder.error(403, "Access denied: You can only delete your own merchant data"));
+            }
+            
             merchantService.deleteMerchant(id);
             return ResponseEntity.status(HttpStatus.OK)
                     .body(ResponseBuilder.success(200, "Merchant ID " + id + " deleted successfully"));
         } catch (RuntimeException e) {
-            if (e.getMessage().contains("not found")) {
+            if (e.getMessage().contains(NOT_FOUND)) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ResponseBuilder.error(404, "Merchant not found with ID: " + id));
+                        .body(ResponseBuilder.error(404, MERCHANT_NOT_FOUND_MSG + id));
             }
             if (e.getMessage().contains("cannot be deleted")) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
