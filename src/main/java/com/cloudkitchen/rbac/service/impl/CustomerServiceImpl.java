@@ -156,6 +156,31 @@ public class CustomerServiceImpl implements CustomerService {
     }
     
     @Override
+    @Transactional
+    public void deleteCustomer(Integer id) {
+        if (id == null) {
+            throw new IllegalArgumentException("Customer ID cannot be null");
+        }
+        
+        try {
+            User user = userRepository.findById(id)
+                    .orElseThrow(() -> new UserNotFoundException("Customer not found with ID: " + id));
+            
+            if (!"customer".equals(user.getUserType())) {
+                throw new ValidationException("User with ID " + id + " is not a customer");
+            }
+            
+            userRepository.delete(user);
+            log.info("Customer deleted successfully with ID: {}", id);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error deleting customer with ID {}: {}", id, e.getMessage(), e);
+            throw new ValidationException("Failed to delete customer. Please try again.");
+        }
+    }
+    
+    @Override
     public Integer getMerchantIdFromAuth(Authentication authentication) {
         try {
             Integer userId = Integer.valueOf(authentication.getName());

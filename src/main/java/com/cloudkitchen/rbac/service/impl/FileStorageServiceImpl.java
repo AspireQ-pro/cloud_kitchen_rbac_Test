@@ -1,19 +1,18 @@
 package com.cloudkitchen.rbac.service.impl;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.cloudkitchen.rbac.config.AppConstants;
+import com.cloudkitchen.rbac.constants.AppConstants;
 import com.cloudkitchen.rbac.domain.entity.FileDocument;
 import com.cloudkitchen.rbac.repository.FileDocumentRepository;
 import com.cloudkitchen.rbac.service.FileService;
@@ -30,28 +29,33 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 @Service
 public class FileStorageServiceImpl implements FileService {
 
+    private static final long MULTIPART_THRESHOLD = 5L * 1024 * 1024; // 5MB
+    private static final long PRESIGNED_URL_TTL = AppConstants.S3Performance.PRESIGNED_URL_TTL;
+    private static final String PROFILE_IMG_FOLDER = "profile_img";
+    private static final String REVIEWS_FOLDER = "reviews";
+    private static final String MERCHANT_DEFAULT = "merchant_default";
+
     private final S3AsyncClient s3AsyncClient;
     private final S3Presigner s3Presigner;
     private final FileDocumentRepository fileDocumentRepository;
     private final ObjectMapper objectMapper;
+    private final ApplicationContext applicationContext;
 
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
 
-    private static final long MULTIPART_THRESHOLD = 5L * 1024 * 1024; // 5MB
-
     // Cache for presigned URLs to improve performance
     private final Map<String, String> presignedUrlCache = new ConcurrentHashMap<>();
     private final Map<String, Long> presignedUrlExpiry = new ConcurrentHashMap<>();
-    private static final long PRESIGNED_URL_TTL = AppConstants.S3Performance.PRESIGNED_URL_TTL;
 
     public FileStorageServiceImpl(S3AsyncClient s3AsyncClient,
                                  S3Presigner s3Presigner, FileDocumentRepository fileDocumentRepository,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper, ApplicationContext applicationContext) {
         this.s3AsyncClient = s3AsyncClient;
         this.s3Presigner = s3Presigner;
         this.fileDocumentRepository = fileDocumentRepository;
         this.objectMapper = objectMapper;
+        this.applicationContext = applicationContext;
     }
 
     @Override
@@ -66,8 +70,8 @@ public class FileStorageServiceImpl implements FileService {
                                                  documentType, s3Key, file, tags, uploadedByUserId);
         document = fileDocumentRepository.save(document);
         
-        // Upload asynchronously
-        uploadFileAsync(file, s3Key);
+        // Upload asynchronously using proxy to enable @Async
+        applicationContext.getBean(FileStorageServiceImpl.class).uploadFileAsync(file, s3Key);
         
         return document;
     }
@@ -110,11 +114,7 @@ public class FileStorageServiceImpl implements FileService {
                 .build();
             
             return s3AsyncClient.createMultipartUpload(createRequest)
-                .thenCompose(createResponse -> 
-                    // Implementation for multipart upload would go here
-                    // For brevity, using single upload
-                    uploadSingle(file, s3Key)
-                );
+                .thenCompose(createResponse -> uploadSingle(file, s3Key));
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -174,7 +174,7 @@ public class FileStorageServiceImpl implements FileService {
                                                  String uploadedByService, Integer uploadedByUserId) {
         return files.parallelStream()
             .map(file -> uploadFile(entityType, entityId, file, documentType, uploadedByService, uploadedByUserId, Map.of()))
-            .collect(java.util.stream.Collectors.toList());
+            .toList();
     }
 
     /**
@@ -194,99 +194,88 @@ public class FileStorageServiceImpl implements FileService {
     public void deleteMultipleFiles(List<String> docIds) {
         List<Integer> ids = docIds.stream()
             .map(Integer::valueOf)
-            .collect(java.util.stream.Collectors.toList());
+            .toList();
         fileDocumentRepository.deleteAllById(ids);
     }
     
     private String generateS3Key(String entityType, String entityId, String documentType, String filename) {
-        // Industry-standard S3 key structure for optimal performance and organization
-        // Format: baseFolder/entityType/entityId/fileType/timestamp_filename
-        // Example: merchants/merchant123/profiles/20231201_143022_profile_image.jpg
-
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         String sanitizedFilename = sanitizeFilename(filename);
-        String filePrefix = getFilePrefix(documentType);
-
-        // Build industry-standard folder structure
-        String baseFolder = getBaseFolder(entityType);
-        String entityFolder = entityType.toLowerCase() + "s"; // merchants, customers, etc.
-        String fileTypeFolder = getFileTypeFolder(documentType);
-
-        return String.format("%s/%s/%s/%s/%s_%s_%s",
-            baseFolder,
-            entityFolder,
+        String folder = getDocumentTypeFolder(documentType);
+        
+        if ("customer".equalsIgnoreCase(entityType)) {
+            String subfolder = getCustomerSubfolder(documentType);
+            return String.format("%s/customer/%s/%s/%s",
+                getMerchantIdFromContext(),
+                entityId,
+                subfolder,
+                sanitizedFilename);
+        }
+        
+        if (documentType != null && documentType.toLowerCase().startsWith("website_")) {
+            String subfolder = documentType.substring(8);
+            
+            if ("root".equals(subfolder) || subfolder.isEmpty()) {
+                return String.format("%s/website/%s",
+                    entityId,
+                    sanitizedFilename);
+            }
+            
+            return String.format("%s/website/%s/%s",
+                entityId,
+                subfolder,
+                sanitizedFilename);
+        }
+        
+        return String.format("%s/%s/%s",
             entityId,
-            fileTypeFolder,
-            filePrefix,
-            timestamp,
+            folder,
             sanitizedFilename);
     }
 
-    /**
-     * Get the appropriate base folder based on entity type
-     */
-    private String getBaseFolder(String entityType) {
-        switch (entityType.toLowerCase()) {
-            case "merchant":
-                return AppConstants.S3Folders.PRIVATE;
-            case "customer":
-                return AppConstants.S3Folders.PRIVATE;
-            case "product":
-                return AppConstants.S3Folders.PUBLIC;
-            case "order":
-                return AppConstants.S3Folders.PRIVATE;
-            default:
-                return AppConstants.S3Folders.PUBLIC;
-        }
-    }
-
-    /**
-     * Get the appropriate file type folder
-     */
-    private String getFileTypeFolder(String documentType) {
+    private String getDocumentTypeFolder(String documentType) {
+        if (documentType == null) return "documents";
+        
         String docType = documentType.toLowerCase();
-        if (docType.contains("image") || docType.contains("photo") || docType.contains("picture")) {
-            return AppConstants.S3Folders.IMAGES;
-        } else if (docType.contains("video")) {
-            return AppConstants.S3Folders.VIDEOS;
-        } else if (docType.contains("audio") || docType.contains("sound")) {
-            return AppConstants.S3Folders.AUDIOS;
-        } else if (docType.contains("document") || docType.contains("pdf") || docType.contains("doc")) {
-            return AppConstants.S3Folders.DOCUMENTS;
-        } else if (docType.contains("thumb") || docType.contains("thumbnail")) {
-            return AppConstants.S3Folders.THUMBNAILS;
-        }
-        return AppConstants.S3Folders.DOCUMENTS; // Default fallback
+        
+        if (docType.contains("banner")) return "banners";
+        if (docType.contains("logo")) return "logo";
+        if (docType.contains("profile")) return "profile_image";
+        if (docType.contains("product")) return "product_image";
+        if (docType.contains("menu")) return "menu_card";
+        if (docType.contains("offer")) return "offers";
+        
+        return "documents";
     }
-
-    /**
-     * Get the appropriate file prefix based on document type
-     */
-    private String getFilePrefix(String documentType) {
+    
+    private String getCustomerSubfolder(String documentType) {
+        if (documentType == null) return PROFILE_IMG_FOLDER;
+        
         String docType = documentType.toLowerCase();
-        if (docType.contains("profile")) {
-            return AppConstants.FileNaming.PROFILE_PREFIX;
-        } else if (docType.contains("banner")) {
-            return AppConstants.FileNaming.BANNER_PREFIX;
-        } else if (docType.contains("logo")) {
-            return AppConstants.FileNaming.LOGO_PREFIX;
-        } else if (docType.contains("product")) {
-            return AppConstants.FileNaming.PRODUCT_PREFIX;
-        } else if (docType.contains("thumb") || docType.contains("thumbnail")) {
-            return AppConstants.FileNaming.THUMBNAIL_PREFIX;
-        }
-        return AppConstants.FileNaming.DOCUMENT_PREFIX;
+        if (docType.contains("review")) return REVIEWS_FOLDER;
+        if (docType.contains("profile")) return PROFILE_IMG_FOLDER;
+        
+        return PROFILE_IMG_FOLDER;
+    }
+    
+    private String getMerchantIdFromContext() {
+        return MERCHANT_DEFAULT;
     }
 
-    /**
-     * Sanitize filename for S3 compatibility
-     */
     private String sanitizeFilename(String filename) {
         if (filename == null) return "unknown";
+        
+        // Keep original extension
+        String name = filename;
+        String extension = "";
+        int lastDot = filename.lastIndexOf('.');
+        if (lastDot > 0) {
+            name = filename.substring(0, lastDot);
+            extension = filename.substring(lastDot);
+        }
 
-        return filename.replaceAll("[^a-zA-Z0-9.-]", "_")
-                      .replaceAll("_+", "_")
-                      .toLowerCase();
+        return name.replaceAll("[^a-zA-Z0-9.-]", "_")
+                   .replaceAll("_+", "_")
+                   .toLowerCase() + extension.toLowerCase();
     }
     
     private FileDocument createFileDocument(String entityType, String entityId, String uploadedByService,

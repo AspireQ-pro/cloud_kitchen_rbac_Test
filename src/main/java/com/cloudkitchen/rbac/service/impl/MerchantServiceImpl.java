@@ -18,6 +18,7 @@ import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.service.MerchantService;
 import com.cloudkitchen.rbac.service.CloudStorageService;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Service
@@ -27,14 +28,15 @@ public class MerchantServiceImpl implements MerchantService {
     private final MerchantRepository merchantRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final CloudStorageService cloudStorageService;
+    
+    @Autowired(required = false)
+    private CloudStorageService cloudStorageService;
 
     public MerchantServiceImpl(MerchantRepository merchantRepository, UserRepository userRepository,
-                              PasswordEncoder passwordEncoder, CloudStorageService cloudStorageService) {
+                              PasswordEncoder passwordEncoder) {
         this.merchantRepository = merchantRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.cloudStorageService = cloudStorageService;
     }
 
     @Override
@@ -78,11 +80,12 @@ public class MerchantServiceImpl implements MerchantService {
         userRepository.save(user);
         
         // Create S3 folder structure for merchant (non-blocking)
-        try {
-            cloudStorageService.createMerchantFolderStructure(merchant.getMerchantId().toString());
-        } catch (Exception e) {
-            // Log error but don't fail merchant creation
-            log.warn("Failed to create S3 folders for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
+        if (cloudStorageService != null) {
+            try {
+                cloudStorageService.createMerchantFolderStructure(merchant.getMerchantId().toString());
+            } catch (Exception e) {
+                log.warn("Failed to create S3 folders for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
+            }
         }
         
         MerchantResponse response = mapToResponse(merchant);

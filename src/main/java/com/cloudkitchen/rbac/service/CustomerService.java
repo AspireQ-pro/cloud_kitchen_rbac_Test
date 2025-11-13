@@ -11,6 +11,7 @@ public interface CustomerService {
     List<CustomerResponse> getAllCustomers(Authentication authentication);
     List<CustomerResponse> getCustomersByMerchantId(Integer merchantId);
     CustomerResponse getCustomerById(Integer id);
+    void deleteCustomer(Integer id);
     boolean canAccessCustomers(Authentication authentication);
     boolean canAccessCustomer(Authentication authentication, Integer customerId);
     boolean canAccessMerchantCustomers(Authentication authentication, Integer merchantId);

@@ -103,7 +103,7 @@ public class FileUploadServiceImpl implements FileUploadService {
     }
 
     private String generateFileName(String originalFilename) {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("ddMMyyyyHhmmss"));
         String uuid = UUID.randomUUID().toString().substring(0, 8);
         String extension = getFileExtension(originalFilename);
         return timestamp + "_" + uuid + extension;

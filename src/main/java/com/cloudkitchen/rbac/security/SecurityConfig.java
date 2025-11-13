@@ -9,6 +9,8 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer.FrameOptionsConfig;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -52,14 +54,14 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .httpBasic(httpBasic -> httpBasic.disable())
-                .formLogin(formLogin -> formLogin.disable())
-                .logout(logout -> logout.disable())
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
                 .headers(headers -> headers
-                    .frameOptions(frameOptions -> frameOptions.deny())
+                    .frameOptions(FrameOptionsConfig::deny)
                     .contentTypeOptions(contentTypeOptions -> {})
                     .httpStrictTransportSecurity(hstsConfig -> hstsConfig
                         .maxAgeInSeconds(31536000)
@@ -87,9 +89,20 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Development-friendly CORS - restrict in production
-        configuration.addAllowedOriginPattern("*");
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        
+        // Production: Set CORS_ALLOWED_ORIGINS environment variable
+        // Example: CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+        String allowedOrigins = System.getenv("CORS_ALLOWED_ORIGINS");
+        
+        if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
+            // Production: Use specific origins from environment
+            configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+        } else {
+            // Development: Allow all origins (NOT FOR PRODUCTION)
+            configuration.addAllowedOriginPattern("*");
+        }
+        
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L); // Cache preflight for 1 hour

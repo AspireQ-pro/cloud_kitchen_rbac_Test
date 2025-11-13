@@ -10,7 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.cloudkitchen.rbac.config.AppConstants;
+import com.cloudkitchen.rbac.constants.AppConstants;
 import com.cloudkitchen.rbac.domain.entity.Merchant;
 import com.cloudkitchen.rbac.domain.entity.Role;
 import com.cloudkitchen.rbac.domain.entity.User;
@@ -21,6 +21,13 @@ import com.cloudkitchen.rbac.dto.auth.OtpRequest;
 import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
 import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.AccessDeniedException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.InvalidCredentialsException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.MerchantNotFoundException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.ServiceUnavailableException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.UserAlreadyExistsException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.UserNotFoundException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.ValidationException;
 import com.cloudkitchen.rbac.repository.MerchantRepository;
 import com.cloudkitchen.rbac.repository.OtpLogRepository;
 import com.cloudkitchen.rbac.repository.RoleRepository;
@@ -32,7 +39,6 @@ import com.cloudkitchen.rbac.service.OtpAuditService;
 import com.cloudkitchen.rbac.service.OtpService;
 import com.cloudkitchen.rbac.service.SmsService;
 import com.cloudkitchen.rbac.service.ValidationService;
-import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
 
 import io.jsonwebtoken.Claims;
 
@@ -297,7 +303,9 @@ public class AuthServiceImpl implements AuthService {
     
     private void validateUserRoleForOtp(User user, Integer merchantId) {
         if (merchantId == null || merchantId == 0) {
-            log.debug("OTP request with merchantId=0 for phone: {}, allowing OTP generation", maskPhone(user.getPhone()));
+            if (log.isDebugEnabled()) {
+                log.debug("OTP request with merchantId=0 for phone: {}, allowing OTP generation", maskPhone(user.getPhone()));
+            }
         } else {
             if (!ROLE_CUSTOMER.equals(user.getUserType())) {
                 throw new AccessDeniedException("Access denied. Only customers can request OTP for specific merchant.");
@@ -324,7 +332,7 @@ public class AuthServiceImpl implements AuthService {
             LocalDateTime blockedUntil = user.getOtpBlockedUntil();
             boolean isBlocked = blockedUntil != null && blockedUntil.isAfter(LocalDateTime.now());
             
-            if (isBlocked) {
+            if (isBlocked && log.isWarnEnabled()) {
                 log.warn("Phone {} is blocked until: {}", maskPhone(phone), blockedUntil);
             }
             
@@ -340,8 +348,10 @@ public class AuthServiceImpl implements AuthService {
         int recentRequests = otpLogRepository.countByPhoneAndCreatedOnAfter(phone, timeLimit);
         
         if (recentRequests >= AppConstants.OTP_RATE_LIMIT_REQUESTS) {
-            log.warn("Rate limit exceeded for phone: {}, type: {}, requests: {} in last {} minutes", 
-                    maskPhone(phone), otpType, recentRequests, AppConstants.OTP_RATE_LIMIT_WINDOW_MINUTES);
+            if (log.isWarnEnabled()) {
+                log.warn("Rate limit exceeded for phone: {}, type: {}, requests: {} in last {} minutes", 
+                        maskPhone(phone), otpType, recentRequests, AppConstants.OTP_RATE_LIMIT_WINDOW_MINUTES);
+            }
             
             String errorMessage = String.format(
                 "Too many OTP requests. You have exceeded the limit of %d OTP requests. Please try again after %d minutes.", 
@@ -355,7 +365,9 @@ public class AuthServiceImpl implements AuthService {
     private void invalidateExistingOtp(User user) {
         if (user.getOtpCode() != null) {
             clearOtpData(user);
-            log.debug("Cleared existing OTP for user: {}", user.getUserId());
+            if (log.isDebugEnabled()) {
+                log.debug("Cleared existing OTP for user: {}", user.getUserId());
+            }
         }
     }
     
@@ -363,7 +375,7 @@ public class AuthServiceImpl implements AuthService {
         return otpService.generateOtp();
     }
     
-    private LocalDateTime getExpiryByType(String otpType) {
+    private LocalDateTime getExpiryByType() {
         return LocalDateTime.now().plusMinutes(AppConstants.OTP_EXPIRY_MINUTES);
     }
     
@@ -430,10 +442,11 @@ public class AuthServiceImpl implements AuthService {
         try {
             org.springframework.security.core.Authentication auth = 
                 org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.getCredentials() instanceof String) {
-                String token = (String) auth.getCredentials();
+            if (auth != null && auth.getCredentials() instanceof String token) {
                 jwt.blacklistToken(token);
-                log.debug("Token blacklisted for user: {}", userId);
+                if (log.isDebugEnabled()) {
+                    log.debug("Token blacklisted for user: {}", userId);
+                }
             }
             
             org.springframework.security.core.context.SecurityContextHolder.clearContext();
@@ -457,7 +470,7 @@ public class AuthServiceImpl implements AuthService {
                 throw new IllegalArgumentException("Phone number is required");
             }
             
-            String cleanPhone = req.getPhone().trim().replaceAll("[^0-9]", "");
+            String cleanPhone = req.getPhone().trim().replaceAll("\\D", "");
             validationService.validatePhone(cleanPhone);
             
             if (req.getOtpType() != null && !req.getOtpType().matches("^(login|password_reset|registration|phone_verification)$")) {
@@ -471,30 +484,32 @@ public class AuthServiceImpl implements AuthService {
             invalidateExistingOtpSafely(user);
             
             String otpCode = generateOtp();
-            LocalDateTime expiresAt = getExpiryByType(otpType);
-            log.debug("Generated OTP for phone: {}, expires at: {}", maskedPhone, expiresAt);
+            LocalDateTime expiresAt = getExpiryByType();
+            if (log.isDebugEnabled()) {
+                log.debug("Generated OTP for phone: {}, expires at: {}", maskedPhone, expiresAt);
+            }
             
             user.setOtpCode(otpCode);
             user.setOtpExpiresAt(expiresAt);
             user.setOtpAttempts(0);
             user.setOtpUsed(false);
             users.save(user);
-            log.debug("OTP stored successfully for user: {}", user.getUserId());
+            
+            if (log.isDebugEnabled()) {
+                log.debug("OTP stored successfully for user: {}", user.getUserId());
+            }
             
             boolean smsSent = sendOtpByType(req.getPhone(), otpCode);
             String status = smsSent ? "sent" : "send_failed";
-            log.debug("SMS send result for phone: {}, status: {}", maskedPhone, status);
             
-            try {
-                Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
-                otpAuditService.logOtp(merchantId, req.getPhone(), otpCode, otpType, status, expiresAt);
-                log.debug("OTP audit log created for phone: {}", maskedPhone);
-            } catch (Exception e) {
-                log.warn("Failed to create OTP audit log");
+            if (log.isDebugEnabled()) {
+                log.debug("SMS send result for phone: {}, status: {}", maskedPhone, status);
             }
             
+            logOtpAudit(user, req, otpCode, otpType, status, expiresAt, maskedPhone);
+            
             if (!smsSent) {
-                throw new RuntimeException("SMS service temporarily unavailable. Please try again.");
+                throw new ServiceUnavailableException("SMS service temporarily unavailable. Please try again.");
             }
             
             log.info("OTP sent successfully to phone: {}, type: {}", maskedPhone, otpType);
@@ -504,16 +519,18 @@ public class AuthServiceImpl implements AuthService {
             throw e;
         } catch (Exception e) {
             log.warn("OTP request processing failed for otpType: {}", otpType);
-            throw new RuntimeException("Failed to process OTP request", e);
+            throw new ServiceUnavailableException("Failed to process OTP request");
         }
     }
     
     private User findUserForOtpRequest(OtpRequest req, String otpType) {
         try {
             User user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
-            log.debug("Found user for OTP request: userId={}, userType={}, merchantId={}", 
-                     user.getUserId(), user.getUserType(), 
-                     user.getMerchant() != null ? user.getMerchant().getMerchantId() : "null");
+            if (log.isDebugEnabled()) {
+                log.debug("Found user for OTP request: userId={}, userType={}, merchantId={}", 
+                         user.getUserId(), user.getUserType(), 
+                         user.getMerchant() != null ? user.getMerchant().getMerchantId() : "null");
+            }
             return user;
         } catch (RuntimeException e) {
             log.warn("User not found for OTP request with merchantId: {}", req.getMerchantId());
@@ -527,8 +544,10 @@ public class AuthServiceImpl implements AuthService {
     private void validateUserRoleForOtpRequest(User user, Integer merchantId) {
         try {
             validateUserRoleForOtp(user, merchantId);
-            log.debug("User role validation passed for userId={}, userType={}, merchantId={}", 
-                     user.getUserId(), user.getUserType(), merchantId);
+            if (log.isDebugEnabled()) {
+                log.debug("User role validation passed for userId={}, userType={}, merchantId={}", 
+                         user.getUserId(), user.getUserType(), merchantId);
+            }
         } catch (RuntimeException e) {
             log.warn("Role validation failed for userId: {}, merchantId: {}", user.getUserId(), merchantId);
             throw e;
@@ -684,6 +703,18 @@ public class AuthServiceImpl implements AuthService {
             return true;
         } catch (RuntimeException e) {
             return false;
+        }
+    }
+    
+    private void logOtpAudit(User user, OtpRequest req, String otpCode, String otpType, String status, LocalDateTime expiresAt, String maskedPhone) {
+        try {
+            Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
+            otpAuditService.logOtp(merchantId, req.getPhone(), otpCode, otpType, status, expiresAt);
+            if (log.isDebugEnabled()) {
+                log.debug("OTP audit log created for phone: {}", maskedPhone);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to create OTP audit log");
         }
     }
     

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cloudkitchen.rbac.dto.merchant.MerchantRequest;
 import com.cloudkitchen.rbac.dto.merchant.MerchantResponse;
 import com.cloudkitchen.rbac.service.MerchantService;
+import com.cloudkitchen.rbac.util.AccessControlUtil;
 import com.cloudkitchen.rbac.util.ResponseBuilder;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,14 +30,15 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/merchants")
 @Tag(name = "Merchant Management", description = "Merchant CRUD operations")
 public class MerchantController {
-    private static final String ROLE_SUPER_ADMIN = "ROLE_SUPER_ADMIN";
     private static final String NOT_FOUND = "not found";
     private static final String MERCHANT_NOT_FOUND_MSG = "Merchant not found with ID: ";
     
     private final MerchantService merchantService;
+    private final AccessControlUtil accessControl;
 
-    public MerchantController(MerchantService merchantService) {
+    public MerchantController(MerchantService merchantService, AccessControlUtil accessControl) {
         this.merchantService = merchantService;
+        this.accessControl = accessControl;
     }
 
     @PostMapping
@@ -52,11 +54,7 @@ public class MerchantController {
     @Operation(summary = "Update Merchant", description = "Partial or full update of merchant details")
     public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @RequestBody MerchantRequest request, Authentication authentication) {
         try {
-            // Check if merchant can only update their own data
-            boolean isSuperAdmin = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> ROLE_SUPER_ADMIN.equals(auth.getAuthority()));
-            
-            if (!isSuperAdmin && !merchantService.canAccessMerchant(authentication, id)) {
+            if (!accessControl.isSuperAdmin(authentication) && !merchantService.canAccessMerchant(authentication, id)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(ResponseBuilder.error(403, "Access denied: You can only update your own merchant data"));
             }
@@ -86,13 +84,9 @@ public class MerchantController {
     @Operation(summary = "Get Merchant", description = "Get merchant by ID")
     public ResponseEntity<Map<String, Object>> getMerchant(@PathVariable Integer id, Authentication authentication) {
         try {
-            // Check if user has permission to read this merchant
-            boolean isSuperAdmin = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> ROLE_SUPER_ADMIN.equals(auth.getAuthority()));
-            boolean hasReadPermission = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> "merchants.read".equals(auth.getAuthority()));
-            
-            if (!isSuperAdmin && !hasReadPermission && !merchantService.canAccessMerchant(authentication, id)) {
+            if (!accessControl.isSuperAdmin(authentication) && 
+                !accessControl.hasPermission(authentication, "merchants.read") && 
+                !merchantService.canAccessMerchant(authentication, id)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(ResponseBuilder.error(403, "Access denied: You can only view your own merchant data"));
             }
