@@ -3,7 +3,6 @@ package com.cloudkitchen.rbac.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -11,7 +10,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Service
-@ConditionalOnBean(S3Client.class)
 public class CloudStorageService {
 
     private static final Logger logger = LoggerFactory.getLogger(CloudStorageService.class);

@@ -1,7 +1,6 @@
 package com.cloudkitchen.rbac.controller;
 
 import com.cloudkitchen.rbac.service.CloudStorageService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -9,7 +8,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/folders")
-@ConditionalOnBean(CloudStorageService.class)
 public class FolderController {
 
     private final CloudStorageService cloudStorageService;
