@@ -15,7 +15,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 public class CloudStorageService {
 
     private static final Logger logger = LoggerFactory.getLogger(CloudStorageService.class);
-    private static final String MERCHANTS_PREFIX = "merchants/";
     
     private final S3Client s3Client;
 
@@ -28,16 +27,17 @@ public class CloudStorageService {
 
     public void createMerchantFolderStructure(String merchantId) {
         String[] folders = {
-            MERCHANTS_PREFIX + merchantId + "/banners/",
-            MERCHANTS_PREFIX + merchantId + "/profile_image/",
-            MERCHANTS_PREFIX + merchantId + "/product_image/",
-            MERCHANTS_PREFIX + merchantId + "/menu_card/",
-            MERCHANTS_PREFIX + merchantId + "/offers/",
-            MERCHANTS_PREFIX + merchantId + "/website/",
-            MERCHANTS_PREFIX + merchantId + "/website/static/",
-            MERCHANTS_PREFIX + merchantId + "/website/static/css/",
-            MERCHANTS_PREFIX + merchantId + "/website/static/js/",
-            MERCHANTS_PREFIX + merchantId + "/website/static/images/"
+            merchantId + "/banners/",
+            merchantId + "/logo/",
+            merchantId + "/profile_image/",
+            merchantId + "/product_image/",
+            merchantId + "/menu_card/",
+            merchantId + "/offers/",
+            merchantId + "/documents/",
+            merchantId + "/website/",
+            merchantId + "/website/static/css/",
+            merchantId + "/website/static/js/",
+            merchantId + "/website/static/media/"
         };
 
         for (String folder : folders) {
@@ -49,8 +49,8 @@ public class CloudStorageService {
 
     public void createCustomerFolderStructure(String merchantId, String customerId) {
         String[] folders = {
-            MERCHANTS_PREFIX + merchantId + "/customer/" + customerId + "/customer_profile_img/",
-            MERCHANTS_PREFIX + merchantId + "/customer/" + customerId + "/review_img/"
+            merchantId + "/customer/" + customerId + "/profile_img/",
+            merchantId + "/customer/" + customerId + "/reviews/"
         };
 
         for (String folder : folders) {
