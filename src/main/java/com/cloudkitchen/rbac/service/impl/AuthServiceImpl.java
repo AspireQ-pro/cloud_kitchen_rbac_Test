@@ -93,6 +93,10 @@ public class AuthServiceImpl implements AuthService {
         }
         
         log.info("Customer registration attempt for merchantId: {}", req.getMerchantId());
+        
+        // Validate password complexity
+        com.cloudkitchen.rbac.util.PasswordValidator.validate(req.getPassword());
+        
         validationService.validateRegistration(req);
         
         if (users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {
@@ -290,14 +294,23 @@ public class AuthServiceImpl implements AuthService {
     private boolean isOtpValid(String inputOtp, String storedOtp) {
         if (inputOtp == null || storedOtp == null) return false;
         
-        // Handle leading zeros by comparing as integers
+        // Constant-time comparison to prevent timing attacks
         try {
-            int inputInt = Integer.parseInt(inputOtp);
-            int storedInt = Integer.parseInt(storedOtp);
-            return inputInt == storedInt;
+            // Normalize both OTPs to same format
+            String normalizedInput = String.format("%06d", Integer.parseInt(inputOtp));
+            String normalizedStored = String.format("%06d", Integer.parseInt(storedOtp));
+            
+            // Use constant-time comparison
+            return java.security.MessageDigest.isEqual(
+                normalizedInput.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                normalizedStored.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+            );
         } catch (NumberFormatException e) {
-            // Fallback to string comparison
-            return otpService.verifyOtp(inputOtp, storedOtp);
+            // Fallback to constant-time string comparison
+            return java.security.MessageDigest.isEqual(
+                inputOtp.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                storedOtp.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+            );
         }
     }
     

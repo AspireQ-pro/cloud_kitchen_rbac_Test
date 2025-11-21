@@ -2,6 +2,8 @@ package com.cloudkitchen.rbac.security;
 
 import java.util.Arrays;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -23,6 +25,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
+    
+    private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
 
     // ✅ Whitelisted endpoints (accessible without authentication)
     private static final String[] AUTH_WHITELIST = {
@@ -90,16 +94,23 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Production: Set CORS_ALLOWED_ORIGINS environment variable
-        // Example: CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+        String profile = System.getenv("SPRING_PROFILES_ACTIVE");
         String allowedOrigins = System.getenv("CORS_ALLOWED_ORIGINS");
         
-        if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
-            // Production: Use specific origins from environment
+        if ("prod".equals(profile)) {
+            if (allowedOrigins == null || allowedOrigins.isEmpty()) {
+                throw new IllegalStateException("CORS_ALLOWED_ORIGINS must be set in production");
+            }
             configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+            logger.info("CORS configured for production with origins: {}", allowedOrigins);
         } else {
-            // Development: Allow all origins (NOT FOR PRODUCTION)
-            configuration.addAllowedOriginPattern("*");
+            if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
+                configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+                logger.info("CORS configured with specific origins: {}", allowedOrigins);
+            } else {
+                configuration.addAllowedOriginPattern("*");
+                logger.warn("CORS configured to allow all origins (DEVELOPMENT ONLY)");
+            }
         }
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PATCH", "DELETE", "OPTIONS"));

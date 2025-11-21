@@ -10,6 +10,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,10 +34,8 @@ public class JwtTokenProvider {
     private String issuer;
 
     private SecretKey key;
-    // In-memory token blacklist (suitable for single-instance deployments)
-    private final Set<String> blacklistedTokens = ConcurrentHashMap.newKeySet();
-    private static final long TOKEN_CLEANUP_INTERVAL = 3600000; // 1 hour
-    private long lastCleanupTime = System.currentTimeMillis();
+    // Token blacklist with TTL tracking (development-friendly)
+    private final Map<String, Long> blacklistedTokens = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() {
@@ -218,40 +217,39 @@ public class JwtTokenProvider {
             Claims claims = parse(token);
             String jti = claims.getId();
             if (jti != null) {
-                blacklistedTokens.add(jti);
-                logger.info("Token blacklisted: {}", jti);
-                
-                // Periodic cleanup to prevent memory leak
+                long expiryTime = claims.getExpiration().getTime();
+                blacklistedTokens.put(jti, expiryTime);
+                logger.info("Token blacklisted: {} until {}", jti, new Date(expiryTime));
                 cleanupExpiredTokens();
             }
         } catch (Exception e) {
-            logger.warn("Failed to blacklist token");
+            logger.warn("Failed to blacklist token: {}", e.getMessage());
         }
     }
     
     private void cleanupExpiredTokens() {
         long currentTime = System.currentTimeMillis();
-        if (currentTime - lastCleanupTime > TOKEN_CLEANUP_INTERVAL) {
-            // Clear all tokens older than refresh token validity
-            // In production, implement proper TTL tracking per token
-            if (blacklistedTokens.size() > 10000) {
-                blacklistedTokens.clear();
-                logger.info("Cleared blacklisted tokens cache");
-            }
-            lastCleanupTime = currentTime;
-        }
+        blacklistedTokens.entrySet().removeIf(entry -> entry.getValue() < currentTime);
     }
     
     public boolean isTokenBlacklisted(String token) {
         try {
-            // Extract JTI without full parsing for performance
             Claims claims = Jwts.parser()
                     .verifyWith(key)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
             String jti = claims.getId();
-            return jti != null && blacklistedTokens.contains(jti);
+            if (jti == null) return false;
+            
+            Long expiryTime = blacklistedTokens.get(jti);
+            if (expiryTime == null) return false;
+            
+            if (expiryTime < System.currentTimeMillis()) {
+                blacklistedTokens.remove(jti);
+                return false;
+            }
+            return true;
         } catch (Exception e) {
             return false;
         }

@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.cloudkitchen.rbac.config.S3Properties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -40,9 +40,7 @@ public class FileStorageServiceImpl implements FileService {
     private final FileDocumentRepository fileDocumentRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationContext applicationContext;
-
-    @Value("${aws.s3.bucket-name}")
-    private String bucketName;
+    private final S3Properties s3Properties;
 
     // Cache for presigned URLs to improve performance
     private final Map<String, String> presignedUrlCache = new ConcurrentHashMap<>();
@@ -50,12 +48,14 @@ public class FileStorageServiceImpl implements FileService {
 
     public FileStorageServiceImpl(S3AsyncClient s3AsyncClient,
                                  S3Presigner s3Presigner, FileDocumentRepository fileDocumentRepository,
-                                 ObjectMapper objectMapper, ApplicationContext applicationContext) {
+                                 ObjectMapper objectMapper, ApplicationContext applicationContext,
+                                 S3Properties s3Properties) {
         this.s3AsyncClient = s3AsyncClient;
         this.s3Presigner = s3Presigner;
         this.fileDocumentRepository = fileDocumentRepository;
         this.objectMapper = objectMapper;
         this.applicationContext = applicationContext;
+        this.s3Properties = s3Properties;
     }
 
     @Override
@@ -92,7 +92,7 @@ public class FileStorageServiceImpl implements FileService {
     private CompletableFuture<Void> uploadSingle(MultipartFile file, String s3Key) {
         try {
             PutObjectRequest request = PutObjectRequest.builder()
-                .bucket(bucketName)
+                .bucket(s3Properties.getBucket())
                 .key(s3Key)
                 .contentType(file.getContentType())
                 .contentLength(file.getSize())
@@ -108,7 +108,7 @@ public class FileStorageServiceImpl implements FileService {
     private CompletableFuture<Void> uploadMultipart(MultipartFile file, String s3Key) {
         try {
             CreateMultipartUploadRequest createRequest = CreateMultipartUploadRequest.builder()
-                .bucket(bucketName)
+                .bucket(s3Properties.getBucket())
                 .key(s3Key)
                 .contentType(file.getContentType())
                 .build();
@@ -149,7 +149,7 @@ public class FileStorageServiceImpl implements FileService {
         // Generate new presigned URL
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
             .signatureDuration(Duration.ofHours(1))
-            .getObjectRequest(req -> req.bucket(bucketName).key(s3Key))
+            .getObjectRequest(req -> req.bucket(s3Properties.getBucket()).key(s3Key))
             .build();
 
         String newUrl = s3Presigner.presignGetObject(presignRequest).url().toString();
@@ -287,7 +287,7 @@ public class FileStorageServiceImpl implements FileService {
         document.setUploadedByService(uploadedByService);
         document.setDocumentType(documentType);
         document.setS3Key(s3Key);
-        document.setS3Bucket(bucketName);
+        document.setS3Bucket(s3Properties.getBucket());
         document.setFileName(file.getOriginalFilename());
         document.setFileSize(file.getSize());
         document.setMimeType(file.getContentType());

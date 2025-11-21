@@ -1,10 +1,10 @@
 package com.cloudkitchen.rbac.service.impl;
 
+import com.cloudkitchen.rbac.config.S3Properties;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.FileUploadException;
 import com.cloudkitchen.rbac.service.FileUploadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -26,15 +26,11 @@ public class FileUploadServiceImpl implements FileUploadService {
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
     private final S3Client s3Client;
+    private final S3Properties s3Properties;
 
-    @Value("${aws.s3.bucket-name}")
-    private String bucketName;
-
-    @Value("${aws.s3.url}")
-    private String s3BaseUrl;
-
-    public FileUploadServiceImpl(S3Client s3Client) {
+    public FileUploadServiceImpl(S3Client s3Client, S3Properties s3Properties) {
         this.s3Client = s3Client;
+        this.s3Properties = s3Properties;
     }
 
     @Override
@@ -119,7 +115,7 @@ public class FileUploadServiceImpl implements FileUploadService {
     private String uploadToS3(MultipartFile file, String key, String fileType) {
         try {
             PutObjectRequest request = PutObjectRequest.builder()
-                    .bucket(bucketName)
+                    .bucket(s3Properties.getBucket())
                     .key(key)
                     .contentType(file.getContentType())
                     .contentLength(file.getSize())
@@ -127,7 +123,17 @@ public class FileUploadServiceImpl implements FileUploadService {
 
             s3Client.putObject(request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
             
-            String fileUrl = s3BaseUrl + key;
+            // Construct S3 URL (works for all regions)
+            String fileUrl;
+            if (s3Properties.getEndpoint() != null && !s3Properties.getEndpoint().isBlank()) {
+                // LocalStack or custom endpoint
+                fileUrl = s3Properties.getEndpoint() + "/" + s3Properties.getBucket() + "/" + key;
+            } else {
+                // AWS S3 - use region-specific URL
+                fileUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", 
+                    s3Properties.getBucket(), s3Properties.getRegion(), key);
+            }
+            
             logger.info("Successfully uploaded {} to S3: {}", fileType, key);
             return fileUrl;
             
