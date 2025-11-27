@@ -144,7 +144,6 @@ Enterprise-grade Role-Based Access Control (RBAC) service for Cloud Kitchen appl
     │<──────────────────────────┤                          │
 ```
 
----
 
 ## 📁 Project Structure
 
@@ -249,8 +248,7 @@ cloud-kitchen-rbac-service/
 │   └── test/
 │       └── java/                            # Test classes
 │
-├── logs/                                    # Application logs
-│   └── security.log                         # Security audit logs
+├──                         # Security audit logs
 │
 ├── target/                                  # Maven build output
 │
