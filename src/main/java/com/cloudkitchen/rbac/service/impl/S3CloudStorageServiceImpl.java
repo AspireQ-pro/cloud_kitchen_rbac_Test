@@ -38,9 +38,8 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
         validateId(merchantId, "merchantId");
         
         String[] folders = {
-            "banners/", "logo/", "profile_image/", "product_image/",
-            "menu_card/", "offers/", "documents/",
-            "website/static/css/", "website/static/js/", "website/static/media/"
+            "banners/", "logos/", "profile_image/", "product_image/",
+            "menu_card/", "offers/", "website/"
         };
         
         long start = System.currentTimeMillis();

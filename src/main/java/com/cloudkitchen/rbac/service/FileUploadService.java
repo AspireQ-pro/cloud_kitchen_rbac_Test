@@ -8,4 +8,9 @@ public interface FileUploadService {
     String uploadProductImage(String merchantId, MultipartFile file);
     String uploadProfileImage(String merchantId, MultipartFile file);
     String uploadMenuCardImage(String merchantId, MultipartFile file);
+    
+    // Enhanced methods for complete folder structure support
+    String uploadFile(String merchantId, String documentType, MultipartFile file);
+    String uploadCustomerFile(String merchantId, String customerId, String documentType, MultipartFile file);
+    String uploadWebsiteFile(String merchantId, String documentType, MultipartFile file);
 }

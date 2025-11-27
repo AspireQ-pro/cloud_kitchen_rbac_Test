@@ -166,6 +166,29 @@ public class FileStorageServiceImpl implements FileService {
         fileDocumentRepository.deleteById(Integer.valueOf(docId));
     }
 
+    public S3Properties getS3Properties() {
+        return s3Properties;
+    }
+
+    public java.net.URL generatePresignedPutUrl(String s3Key, String contentType, long expirySeconds) {
+        software.amazon.awssdk.services.s3.model.PutObjectRequest putReq = 
+            software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+                .bucket(s3Properties.getBucket())
+                .key(s3Key)
+                .contentType(contentType == null ? "application/octet-stream" : contentType)
+                .build();
+
+        software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest presignReq = 
+            software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest.builder()
+                .putObjectRequest(putReq)
+                .signatureDuration(Duration.ofSeconds(Math.max(60, expirySeconds)))
+                .build();
+
+        software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest presigned = 
+            s3Presigner.presignPutObject(presignReq);
+        return presigned.url();
+    }
+
     /**
      * Batch upload multiple files for better performance
      */
@@ -200,36 +223,39 @@ public class FileStorageServiceImpl implements FileService {
     
     private String generateS3Key(String entityType, String entityId, String documentType, String filename) {
         String sanitizedFilename = sanitizeFilename(filename);
-        String folder = getDocumentTypeFolder(documentType);
         
+        // Global offers at root level: offers/{file}
+        if (documentType != null && documentType.toLowerCase().contains("global_offer")) {
+            return String.format("offers/%s", sanitizedFilename);
+        }
+        
+        // Customer files: {merchantId}/customer/{customerId}/{subfolder}/{file}
         if ("customer".equalsIgnoreCase(entityType)) {
             String subfolder = getCustomerSubfolder(documentType);
             return String.format("%s/customer/%s/%s/%s",
-                getMerchantIdFromContext(),
                 entityId,
+                getMerchantIdFromContext(),
                 subfolder,
                 sanitizedFilename);
         }
         
+        // Website files: {merchantId}/website/static/{subfolder}/{file}
         if (documentType != null && documentType.toLowerCase().startsWith("website_")) {
             String subfolder = documentType.substring(8);
             
-            if ("root".equals(subfolder) || subfolder.isEmpty()) {
-                return String.format("%s/website/%s",
-                    entityId,
-                    sanitizedFilename);
+            if ("root".equals(subfolder)) {
+                return String.format("%s/website/%s", entityId, sanitizedFilename);
             }
             
-            return String.format("%s/website/%s/%s",
+            return String.format("%s/website/static/%s/%s",
                 entityId,
                 subfolder,
                 sanitizedFilename);
         }
         
-        return String.format("%s/%s/%s",
-            entityId,
-            folder,
-            sanitizedFilename);
+        // Merchant files: {merchantId}/{folder}/{file}
+        String folder = getDocumentTypeFolder(documentType);
+        return String.format("%s/%s/%s", entityId, folder, sanitizedFilename);
     }
 
     private String getDocumentTypeFolder(String documentType) {
@@ -238,7 +264,7 @@ public class FileStorageServiceImpl implements FileService {
         String docType = documentType.toLowerCase();
         
         if (docType.contains("banner")) return "banners";
-        if (docType.contains("logo")) return "logo";
+        if (docType.contains("logo")) return "logos";
         if (docType.contains("profile")) return "profile_image";
         if (docType.contains("product")) return "product_image";
         if (docType.contains("menu")) return "menu_card";
