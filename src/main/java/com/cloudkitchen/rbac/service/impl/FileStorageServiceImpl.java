@@ -5,26 +5,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-
 import com.cloudkitchen.rbac.config.S3Properties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
 import com.cloudkitchen.rbac.constants.AppConstants;
 import com.cloudkitchen.rbac.domain.entity.FileDocument;
 import com.cloudkitchen.rbac.repository.FileDocumentRepository;
 import com.cloudkitchen.rbac.service.FileService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
-
 
 @Service
 public class FileStorageServiceImpl implements FileService {
@@ -47,9 +43,9 @@ public class FileStorageServiceImpl implements FileService {
     private final Map<String, Long> presignedUrlExpiry = new ConcurrentHashMap<>();
 
     public FileStorageServiceImpl(S3AsyncClient s3AsyncClient,
-                                 S3Presigner s3Presigner, FileDocumentRepository fileDocumentRepository,
-                                 ObjectMapper objectMapper, ApplicationContext applicationContext,
-                                 S3Properties s3Properties) {
+            S3Presigner s3Presigner, FileDocumentRepository fileDocumentRepository,
+            ObjectMapper objectMapper, ApplicationContext applicationContext,
+            S3Properties s3Properties) {
         this.s3AsyncClient = s3AsyncClient;
         this.s3Presigner = s3Presigner;
         this.fileDocumentRepository = fileDocumentRepository;
@@ -59,23 +55,23 @@ public class FileStorageServiceImpl implements FileService {
     }
 
     @Override
-    public FileDocument uploadFile(String entityType, String entityId, MultipartFile file, 
-                                  String documentType, String uploadedByService, Integer uploadedByUserId, 
-                                  Map<String, Object> tags) {
-        
+    public FileDocument uploadFile(String entityType, String entityId, MultipartFile file,
+            String documentType, String uploadedByService, Integer uploadedByUserId,
+            Map<String, Object> tags) {
+
         String s3Key = generateS3Key(entityType, entityId, documentType, file.getOriginalFilename());
-        
+
         // Save metadata first for immediate response
-        FileDocument document = createFileDocument(entityType, entityId, uploadedByService, 
-                                                 documentType, s3Key, file, tags, uploadedByUserId);
+        FileDocument document = createFileDocument(entityType, entityId, uploadedByService,
+                documentType, s3Key, file, tags, uploadedByUserId);
         document = fileDocumentRepository.save(document);
-        
+
         // Upload asynchronously using proxy to enable @Async
         applicationContext.getBean(FileStorageServiceImpl.class).uploadFileAsync(file, s3Key);
-        
+
         return document;
     }
-    
+
     @Async
     public CompletableFuture<Void> uploadFileAsync(MultipartFile file, String s3Key) {
         try {
@@ -88,33 +84,33 @@ public class FileStorageServiceImpl implements FileService {
             return CompletableFuture.failedFuture(e);
         }
     }
-    
+
     private CompletableFuture<Void> uploadSingle(MultipartFile file, String s3Key) {
         try {
             PutObjectRequest request = PutObjectRequest.builder()
-                .bucket(s3Properties.getBucket())
-                .key(s3Key)
-                .contentType(file.getContentType())
-                .contentLength(file.getSize())
-                .build();
+                    .bucket(s3Properties.getBucket())
+                    .key(s3Key)
+                    .contentType(file.getContentType())
+                    .contentLength(file.getSize())
+                    .build();
 
             return s3AsyncClient.putObject(request, AsyncRequestBody.fromBytes(file.getBytes()))
-                .thenApply(response -> null);
+                    .thenApply(response -> null);
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
     }
-    
+
     private CompletableFuture<Void> uploadMultipart(MultipartFile file, String s3Key) {
         try {
             CreateMultipartUploadRequest createRequest = CreateMultipartUploadRequest.builder()
-                .bucket(s3Properties.getBucket())
-                .key(s3Key)
-                .contentType(file.getContentType())
-                .build();
-            
+                    .bucket(s3Properties.getBucket())
+                    .key(s3Key)
+                    .contentType(file.getContentType())
+                    .build();
+
             return s3AsyncClient.createMultipartUpload(createRequest)
-                .thenCompose(createResponse -> uploadSingle(file, s3Key));
+                    .thenCompose(createResponse -> uploadSingle(file, s3Key));
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -124,11 +120,11 @@ public class FileStorageServiceImpl implements FileService {
     public List<FileDocument> getFiles(String entityType, String entityId, Map<String, Object> filters) {
         if (filters.containsKey("documentType")) {
             return fileDocumentRepository.findByEntityTypeAndEntityIdAndDocumentType(
-                entityType, entityId, (String) filters.get("documentType"));
+                    entityType, entityId, (String) filters.get("documentType"));
         }
         if (filters.containsKey("service")) {
             return fileDocumentRepository.findByEntityAndService(
-                entityType, entityId, (String) filters.get("service"));
+                    entityType, entityId, (String) filters.get("service"));
         }
         return fileDocumentRepository.findByEntityTypeAndEntityId(entityType, entityId);
     }
@@ -148,9 +144,9 @@ public class FileStorageServiceImpl implements FileService {
 
         // Generate new presigned URL
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-            .signatureDuration(Duration.ofHours(1))
-            .getObjectRequest(req -> req.bucket(s3Properties.getBucket()).key(s3Key))
-            .build();
+                .signatureDuration(Duration.ofHours(1))
+                .getObjectRequest(req -> req.bucket(s3Properties.getBucket()).key(s3Key))
+                .build();
 
         String newUrl = s3Presigner.presignGetObject(presignRequest).url().toString();
 
@@ -171,21 +167,21 @@ public class FileStorageServiceImpl implements FileService {
     }
 
     public java.net.URL generatePresignedPutUrl(String s3Key, String contentType, long expirySeconds) {
-        software.amazon.awssdk.services.s3.model.PutObjectRequest putReq = 
-            software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+        software.amazon.awssdk.services.s3.model.PutObjectRequest putReq = software.amazon.awssdk.services.s3.model.PutObjectRequest
+                .builder()
                 .bucket(s3Properties.getBucket())
                 .key(s3Key)
                 .contentType(contentType == null ? "application/octet-stream" : contentType)
                 .build();
 
-        software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest presignReq = 
-            software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest.builder()
+        software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest presignReq = software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest
+                .builder()
                 .putObjectRequest(putReq)
                 .signatureDuration(Duration.ofSeconds(Math.max(60, expirySeconds)))
                 .build();
 
-        software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest presigned = 
-            s3Presigner.presignPutObject(presignReq);
+        software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest presigned = s3Presigner
+                .presignPutObject(presignReq);
         return presigned.url();
     }
 
@@ -193,11 +189,12 @@ public class FileStorageServiceImpl implements FileService {
      * Batch upload multiple files for better performance
      */
     public List<FileDocument> uploadMultipleFiles(String entityType, String entityId,
-                                                 List<MultipartFile> files, String documentType,
-                                                 String uploadedByService, Integer uploadedByUserId) {
+            List<MultipartFile> files, String documentType,
+            String uploadedByService, Integer uploadedByUserId) {
         return files.parallelStream()
-            .map(file -> uploadFile(entityType, entityId, file, documentType, uploadedByService, uploadedByUserId, Map.of()))
-            .toList();
+                .map(file -> uploadFile(entityType, entityId, file, documentType, uploadedByService, uploadedByUserId,
+                        Map.of()))
+                .toList();
     }
 
     /**
@@ -205,10 +202,9 @@ public class FileStorageServiceImpl implements FileService {
      */
     public Map<String, String> generateMultiplePresignedUrls(List<String> s3Keys, String operation) {
         return s3Keys.parallelStream()
-            .collect(java.util.stream.Collectors.toMap(
-                s3Key -> s3Key,
-                s3Key -> generatePresignedUrl(s3Key, operation)
-            ));
+                .collect(java.util.stream.Collectors.toMap(
+                        s3Key -> s3Key,
+                        s3Key -> generatePresignedUrl(s3Key, operation)));
     }
 
     /**
@@ -216,80 +212,91 @@ public class FileStorageServiceImpl implements FileService {
      */
     public void deleteMultipleFiles(List<String> docIds) {
         List<Integer> ids = docIds.stream()
-            .map(Integer::valueOf)
-            .toList();
+                .map(Integer::valueOf)
+                .toList();
         fileDocumentRepository.deleteAllById(ids);
     }
-    
+
     private String generateS3Key(String entityType, String entityId, String documentType, String filename) {
         String sanitizedFilename = sanitizeFilename(filename);
-        
+
         // Global offers at root level: offers/{file}
         if (documentType != null && documentType.toLowerCase().contains("global_offer")) {
             return String.format("offers/%s", sanitizedFilename);
         }
-        
+
         // Customer files: {merchantId}/customer/{customerId}/{subfolder}/{file}
         if ("customer".equalsIgnoreCase(entityType)) {
             String subfolder = getCustomerSubfolder(documentType);
             return String.format("%s/customer/%s/%s/%s",
-                entityId,
-                getMerchantIdFromContext(),
-                subfolder,
-                sanitizedFilename);
+                    entityId,
+                    getMerchantIdFromContext(),
+                    subfolder,
+                    sanitizedFilename);
         }
-        
+
         // Website files: {merchantId}/website/static/{subfolder}/{file}
         if (documentType != null && documentType.toLowerCase().startsWith("website_")) {
             String subfolder = documentType.substring(8);
-            
+
             if ("root".equals(subfolder)) {
                 return String.format("%s/website/%s", entityId, sanitizedFilename);
             }
-            
+
             return String.format("%s/website/static/%s/%s",
-                entityId,
-                subfolder,
-                sanitizedFilename);
+                    entityId,
+                    subfolder,
+                    sanitizedFilename);
         }
-        
+
         // Merchant files: {merchantId}/{folder}/{file}
         String folder = getDocumentTypeFolder(documentType);
         return String.format("%s/%s/%s", entityId, folder, sanitizedFilename);
     }
 
     private String getDocumentTypeFolder(String documentType) {
-        if (documentType == null) return "documents";
-        
+        if (documentType == null)
+            return "documents";
+
         String docType = documentType.toLowerCase();
-        
-        if (docType.contains("banner")) return "banners";
-        if (docType.contains("logo")) return "logos";
-        if (docType.contains("profile")) return "profile_image";
-        if (docType.contains("product")) return "product_image";
-        if (docType.contains("menu")) return "menu_card";
-        if (docType.contains("offer")) return "offers";
-        
+
+        if (docType.contains("banner"))
+            return "banners";
+        if (docType.contains("logo"))
+            return "logos";
+        if (docType.contains("profile"))
+            return "profile_image";
+        if (docType.contains("product"))
+            return "product_image";
+        if (docType.contains("menu"))
+            return "menu_card";
+        if (docType.contains("offer"))
+            return "offers";
+
         return "documents";
     }
-    
+
     private String getCustomerSubfolder(String documentType) {
-        if (documentType == null) return PROFILE_IMG_FOLDER;
-        
+        if (documentType == null)
+            return PROFILE_IMG_FOLDER;
+
         String docType = documentType.toLowerCase();
-        if (docType.contains("review")) return REVIEWS_FOLDER;
-        if (docType.contains("profile")) return PROFILE_IMG_FOLDER;
-        
+        if (docType.contains("review"))
+            return REVIEWS_FOLDER;
+        if (docType.contains("profile"))
+            return PROFILE_IMG_FOLDER;
+
         return PROFILE_IMG_FOLDER;
     }
-    
+
     private String getMerchantIdFromContext() {
         return MERCHANT_DEFAULT;
     }
 
     private String sanitizeFilename(String filename) {
-        if (filename == null) return "unknown";
-        
+        if (filename == null)
+            return "unknown";
+
         // Keep original extension
         String name = filename;
         String extension = "";
@@ -300,13 +307,13 @@ public class FileStorageServiceImpl implements FileService {
         }
 
         return name.replaceAll("[^a-zA-Z0-9.-]", "_")
-                   .replaceAll("_+", "_")
-                   .toLowerCase() + extension.toLowerCase();
+                .replaceAll("_+", "_")
+                .toLowerCase() + extension.toLowerCase();
     }
-    
+
     private FileDocument createFileDocument(String entityType, String entityId, String uploadedByService,
-                                          String documentType, String s3Key, MultipartFile file,
-                                          Map<String, Object> tags, Integer uploadedByUserId) {
+            String documentType, String s3Key, MultipartFile file,
+            Map<String, Object> tags, Integer uploadedByUserId) {
         FileDocument document = new FileDocument();
         document.setEntityType(entityType);
         document.setEntityId(entityId);

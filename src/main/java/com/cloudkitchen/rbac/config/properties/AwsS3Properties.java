@@ -1,27 +1,34 @@
-package com.cloudkitchen.rbac.config;
-
+package com.cloudkitchen.rbac.config.properties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.validation.annotation.Validated;
 import jakarta.validation.constraints.NotBlank;
 
+
+/**
+ * AWS S3 configuration properties
+ * Binds aws.s3.* properties from application.properties
+ */
+@Configuration
 @ConfigurationProperties(prefix = "aws.s3")
 @Validated
-public class S3Properties {
+public class AwsS3Properties {
 
-    @NotBlank(message = "AWS S3 access key is required")
+    @NotBlank(message = "AWS Access Key is required")
     private String accessKey;
 
-    @NotBlank(message = "AWS S3 secret key is required")
+    @NotBlank(message = "AWS Secret Key is required")
     private String secretKey;
 
-    @NotBlank(message = "AWS S3 region is required")
+    @NotBlank(message = "AWS Region is required")
     private String region;
 
-    @NotBlank(message = "AWS S3 bucket name is required")
+    @NotBlank(message = "AWS S3 Bucket is required")
     private String bucket;
 
-    private String endpoint;
+    private String endpoint = "";
 
+    // Getters and Setters
     public String getAccessKey() {
         return accessKey;
     }

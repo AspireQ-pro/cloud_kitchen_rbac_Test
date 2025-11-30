@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import org.apache.tika.Tika;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -25,12 +26,14 @@ import java.util.UUID;
 public class FileUploadServiceImpl implements FileUploadService {
 
     private static final Logger logger = LoggerFactory.getLogger(FileUploadServiceImpl.class);
-    private static final List<String> ALLOWED_IMAGE_TYPES = Arrays.asList("image/jpeg", "image/jpg", "image/png", "image/webp");
+    private static final List<String> ALLOWED_IMAGE_TYPES = Arrays.asList("image/jpeg", "image/jpg", "image/png",
+            "image/webp");
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
     private final S3Client s3Client;
     private final S3Properties s3Properties;
     private final JwtTokenProvider jwtTokenProvider;
+    private final Tika tika = new Tika();
 
     public FileUploadServiceImpl(S3Client s3Client, S3Properties s3Properties, JwtTokenProvider jwtTokenProvider) {
         this.s3Client = s3Client;
@@ -50,6 +53,20 @@ public class FileUploadServiceImpl implements FileUploadService {
         String resolvedMerchantId = resolveMerchantId(merchantId);
         String key = generateS3Key(resolvedMerchantId, "offer", file.getOriginalFilename(), null);
         return uploadToS3(file, key, "offer image");
+    }
+
+    @Override
+    public String uploadAdImage(String merchantId, MultipartFile file, boolean global) {
+        validateFile(file);
+        if (global) {
+            // Global ads at root: ads/{file}
+            String sanitizedFilename = sanitizeFilename(file.getOriginalFilename());
+            String key = "ads/" + sanitizedFilename;
+            return uploadToS3(file, key, "global ad image");
+        }
+        String resolvedMerchantId = resolveMerchantId(merchantId);
+        String key = generateS3Key(resolvedMerchantId, "ad", file.getOriginalFilename(), null);
+        return uploadToS3(file, key, "ad image");
     }
 
     @Override
@@ -96,11 +113,11 @@ public class FileUploadServiceImpl implements FileUploadService {
     public String uploadCustomerFile(String merchantId, String customerId, String documentType, MultipartFile file) {
         validateFile(file);
         String resolvedMerchantId = resolveMerchantId(merchantId);
-        
+
         if (customerId == null || customerId.isBlank()) {
             throw new FileUploadException("Customer ID is required for customer file uploads");
         }
-        
+
         String key = generateS3Key(resolvedMerchantId, documentType, file.getOriginalFilename(), customerId);
         return uploadToS3(file, key, "customer " + documentType);
     }
@@ -118,21 +135,22 @@ public class FileUploadServiceImpl implements FileUploadService {
      * Generates S3 key with correct folder structure based on document type.
      * Always prefixes with {merchantId}/ for proper organization.
      * 
-     * @param merchantId Merchant identifier
-     * @param documentType Type of document (banner, logo, product, menu, offer, website_root, website_static, etc.)
+     * @param merchantId       Merchant identifier
+     * @param documentType     Type of document (banner, logo, product, menu, offer,
+     *                         website_root, website_static, etc.)
      * @param originalFilename Original file name
-     * @param customerId Customer ID (optional, for customer-specific files)
+     * @param customerId       Customer ID (optional, for customer-specific files)
      * @return Complete S3 key path
      */
     private String generateS3Key(String merchantId, String documentType, String originalFilename, String customerId) {
         String sanitizedFilename = sanitizeFilename(originalFilename);
         String folder = mapDocumentTypeToFolder(documentType);
-        
+
         // Customer-specific files: {merchantId}/customer/{customerId}/{folder}/{file}
         if (customerId != null && !customerId.isBlank()) {
             return String.format("%s/customer/%s/%s%s", merchantId, customerId, folder, sanitizedFilename);
         }
-        
+
         // Regular merchant files: {merchantId}/{folder}/{file}
         return String.format("%s/%s%s", merchantId, folder, sanitizedFilename);
     }
@@ -145,7 +163,7 @@ public class FileUploadServiceImpl implements FileUploadService {
         if (documentType == null) {
             throw new FileUploadException("Document type is required");
         }
-        
+
         return switch (documentType.toLowerCase()) {
             case "banner" -> "banners/";
             case "logo" -> "logos/";
@@ -153,6 +171,7 @@ public class FileUploadServiceImpl implements FileUploadService {
             case "product" -> "product_image/";
             case "menu" -> "menu_card/";
             case "offer" -> "offers/";
+            case "ad" -> "ads/";
             case "website_root" -> "website/";
             case "website_static" -> "website/static/";
             case "website_css" -> "website/static/css/";
@@ -175,13 +194,13 @@ public class FileUploadServiceImpl implements FileUploadService {
         if (providedMerchantId != null && !providedMerchantId.isBlank() && !providedMerchantId.equals("null")) {
             return providedMerchantId;
         }
-        
+
         // Extract from JWT token
         Integer merchantIdFromJwt = getMerchantIdFromContext();
         if (merchantIdFromJwt != null) {
             return String.valueOf(merchantIdFromJwt);
         }
-        
+
         // Fallback for test cases only
         logger.warn("No merchantId found in request or JWT. Using fallback 'merchant_default'");
         return "merchant_default";
@@ -197,12 +216,12 @@ public class FileUploadServiceImpl implements FileUploadService {
             if (authentication == null || !authentication.isAuthenticated()) {
                 return null;
             }
-            
+
             Object credentials = authentication.getCredentials();
             if (credentials instanceof String token) {
                 return jwtTokenProvider.getMerchantId(token);
             }
-            
+
             return null;
         } catch (Exception e) {
             logger.debug("Failed to extract merchantId from JWT: {}", e.getMessage());
@@ -222,22 +241,23 @@ public class FileUploadServiceImpl implements FileUploadService {
         if (filename == null || filename.isBlank()) {
             return generateUniqueFilename(".jpg");
         }
-        
+
         String extension = getFileExtension(filename);
-        String nameWithoutExt = filename.substring(0, filename.lastIndexOf('.') > 0 ? filename.lastIndexOf('.') : filename.length());
-        
+        String nameWithoutExt = filename.substring(0,
+                filename.lastIndexOf('.') > 0 ? filename.lastIndexOf('.') : filename.length());
+
         // Sanitize: lowercase, replace spaces, remove invalid chars
         String sanitized = nameWithoutExt.toLowerCase()
                 .replaceAll("\\s+", "_")
                 .replaceAll("[^a-z0-9_-]", "")
                 .replaceAll("_{2,}", "_")
                 .replaceAll("^_+|_+$", "");
-        
+
         // If sanitization removed everything, generate new name
         if (sanitized.isBlank()) {
             return generateUniqueFilename(extension);
         }
-        
+
         // Add timestamp and UUID for uniqueness
         return generateUniqueFilename(sanitized + extension);
     }
@@ -247,11 +267,11 @@ public class FileUploadServiceImpl implements FileUploadService {
         String uuid = UUID.randomUUID().toString().substring(0, 8);
         String extension = getFileExtension(filename);
         String nameWithoutExt = filename.replace(extension, "");
-        
+
         if (nameWithoutExt.isBlank()) {
             return timestamp + "_" + uuid + extension;
         }
-        
+
         return nameWithoutExt + "_" + timestamp + "_" + uuid + extension;
     }
 
@@ -275,6 +295,15 @@ public class FileUploadServiceImpl implements FileUploadService {
         if (contentType == null || !ALLOWED_IMAGE_TYPES.contains(contentType.toLowerCase())) {
             throw new FileUploadException("Only JPEG, JPG, PNG, and WebP images are allowed");
         }
+
+        try {
+            String detectedType = tika.detect(file.getInputStream());
+            if (!ALLOWED_IMAGE_TYPES.contains(detectedType)) {
+                throw new FileUploadException("Invalid file type detected: " + detectedType);
+            }
+        } catch (IOException e) {
+            throw new FileUploadException("Failed to validate file content");
+        }
     }
 
     private void validateWebsiteFile(MultipartFile file) {
@@ -288,10 +317,9 @@ public class FileUploadServiceImpl implements FileUploadService {
 
         String contentType = file.getContentType();
         List<String> allowedWebTypes = Arrays.asList(
-            "text/html", "text/css", "application/javascript", "text/javascript",
-            "application/json", "image/jpeg", "image/png", "image/webp", "image/svg+xml"
-        );
-        
+                "text/html", "text/css", "application/javascript", "text/javascript",
+                "application/json", "image/jpeg", "image/png", "image/webp", "image/svg+xml");
+
         if (contentType == null || !allowedWebTypes.contains(contentType.toLowerCase())) {
             throw new FileUploadException("Invalid file type for website upload");
         }
@@ -314,17 +342,18 @@ public class FileUploadServiceImpl implements FileUploadService {
                     .build();
 
             s3Client.putObject(request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
-            
+
             String fileUrl = buildS3Url(key);
             logger.info("Successfully uploaded {} to S3: {}", fileType, key);
             return fileUrl;
-            
+
         } catch (IOException e) {
             logger.error("Failed to upload {} to S3 due to IO error: {}", fileType, e.getMessage(), e);
             throw new FileUploadException("Failed to upload " + fileType + " due to IO error: " + e.getMessage());
         } catch (Exception e) {
             logger.error("Unexpected error uploading {} to S3: {}", fileType, e.getMessage(), e);
-            throw new FileUploadException("Failed to upload " + fileType + " due to unexpected error: " + e.getMessage());
+            throw new FileUploadException(
+                    "Failed to upload " + fileType + " due to unexpected error: " + e.getMessage());
         }
     }
 
@@ -334,7 +363,7 @@ public class FileUploadServiceImpl implements FileUploadService {
             return s3Properties.getEndpoint() + "/" + s3Properties.getBucket() + "/" + key;
         }
         // AWS S3 - region-specific URL
-        return String.format("https://%s.s3.%s.amazonaws.com/%s", 
-            s3Properties.getBucket(), s3Properties.getRegion(), key);
+        return String.format("https://%s.s3.%s.amazonaws.com/%s",
+                s3Properties.getBucket(), s3Properties.getRegion(), key);
     }
 }

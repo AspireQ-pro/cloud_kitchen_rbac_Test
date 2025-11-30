@@ -1,4 +1,5 @@
 package com.cloudkitchen.rbac.security;
+
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.slf4j.Logger;
@@ -10,17 +11,16 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+
+import com.cloudkitchen.rbac.service.TokenBlacklistService;
 
 @Component
 public class JwtTokenProvider {
     private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
     private static final String TOKEN_TYPE_ACCESS = "access";
     private static final String TOKEN_TYPE_REFRESH = "refresh";
-    
+
     @Value("${app.jwt.secret}")
     private String secret;
 
@@ -29,13 +29,17 @@ public class JwtTokenProvider {
 
     @Value("${app.jwt.refresh-valid-seconds:604800}")
     private int refreshTokenValiditySeconds;
-    
+
     @Value("${app.jwt.issuer:cloud-kitchen-rbac}")
     private String issuer;
 
     private SecretKey key;
-    // Token blacklist with TTL tracking (development-friendly)
-    private final Map<String, Long> blacklistedTokens = new ConcurrentHashMap<>();
+
+    private final TokenBlacklistService tokenBlacklistService;
+
+    public JwtTokenProvider(TokenBlacklistService tokenBlacklistService) {
+        this.tokenBlacklistService = tokenBlacklistService;
+    }
 
     @PostConstruct
     public void init() {
@@ -43,7 +47,8 @@ public class JwtTokenProvider {
             throw new IllegalStateException("JWT secret cannot be null or empty. Set JWT_SECRET environment variable.");
         }
         if (secret.length() < 32) {
-            throw new IllegalStateException("JWT secret must be at least 32 characters long. Current: " + secret.length());
+            throw new IllegalStateException(
+                    "JWT secret must be at least 32 characters long. Current: " + secret.length());
         }
         try {
             this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
@@ -58,9 +63,9 @@ public class JwtTokenProvider {
         if (userId == null) {
             throw new IllegalArgumentException("User ID cannot be null");
         }
-        
+
         Date now = new Date();
-        long expiryTime = Math.addExact(now.getTime(), Math.multiplyExact((long)accessTokenValiditySeconds, 1000L));
+        long expiryTime = Math.addExact(now.getTime(), Math.multiplyExact((long) accessTokenValiditySeconds, 1000L));
         Date expiry = new Date(expiryTime);
         String jti = generateJti();
 
@@ -84,9 +89,9 @@ public class JwtTokenProvider {
         if (userId == null) {
             throw new IllegalArgumentException("User ID cannot be null");
         }
-        
+
         Date now = new Date();
-        long expiryTime = Math.addExact(now.getTime(), Math.multiplyExact((long)refreshTokenValiditySeconds, 1000L));
+        long expiryTime = Math.addExact(now.getTime(), Math.multiplyExact((long) refreshTokenValiditySeconds, 1000L));
         Date expiry = new Date(expiryTime);
         String jti = generateJti();
 
@@ -108,7 +113,7 @@ public class JwtTokenProvider {
         if (isTokenBlacklisted(token)) {
             throw new JwtException("Token has been revoked");
         }
-        
+
         try {
             Claims claims = Jwts.parser()
                     .verifyWith(key)
@@ -117,13 +122,13 @@ public class JwtTokenProvider {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-                    
+
             // Validate token type for access tokens
             String tokenType = claims.get("type", String.class);
             if (tokenType == null) {
                 throw new JwtException("Token type not specified");
             }
-            
+
             return claims;
         } catch (ExpiredJwtException e) {
             logger.warn("JWT token expired");
@@ -152,7 +157,7 @@ public class JwtTokenProvider {
             return false;
         }
     }
-    
+
     public boolean validateAccessToken(String token) {
         try {
             Claims claims = parse(token);
@@ -162,7 +167,7 @@ public class JwtTokenProvider {
             return false;
         }
     }
-    
+
     public boolean validateRefreshToken(String token) {
         try {
             Claims claims = parse(token);
@@ -172,9 +177,7 @@ public class JwtTokenProvider {
             return false;
         }
     }
-    
 
-    
     public Integer getUserIdFromToken(String token) {
         try {
             Claims claims = parse(token);
@@ -191,7 +194,7 @@ public class JwtTokenProvider {
             throw new IllegalArgumentException("Invalid token", e);
         }
     }
-    
+
     public Integer getMerchantId(String token) {
         try {
             Claims claims = parse(token);
@@ -211,27 +214,24 @@ public class JwtTokenProvider {
             throw new IllegalArgumentException("Invalid token", e);
         }
     }
-    
+
     public void blacklistToken(String token) {
         try {
             Claims claims = parse(token);
             String jti = claims.getId();
             if (jti != null) {
                 long expiryTime = claims.getExpiration().getTime();
-                blacklistedTokens.put(jti, expiryTime);
-                logger.info("Token blacklisted: {} until {}", jti, new Date(expiryTime));
-                cleanupExpiredTokens();
+                long ttlMillis = expiryTime - System.currentTimeMillis();
+                if (ttlMillis > 0) {
+                    tokenBlacklistService.blacklist(jti, ttlMillis);
+                    logger.info("Token blacklisted: {}", jti);
+                }
             }
         } catch (Exception e) {
             logger.warn("Failed to blacklist token: {}", e.getMessage());
         }
     }
-    
-    private void cleanupExpiredTokens() {
-        long currentTime = System.currentTimeMillis();
-        blacklistedTokens.entrySet().removeIf(entry -> entry.getValue() < currentTime);
-    }
-    
+
     public boolean isTokenBlacklisted(String token) {
         try {
             Claims claims = Jwts.parser()
@@ -240,26 +240,17 @@ public class JwtTokenProvider {
                     .parseSignedClaims(token)
                     .getPayload();
             String jti = claims.getId();
-            if (jti == null) return false;
-            
-            Long expiryTime = blacklistedTokens.get(jti);
-            if (expiryTime == null) return false;
-            
-            if (expiryTime < System.currentTimeMillis()) {
-                blacklistedTokens.remove(jti);
-                return false;
-            }
-            return true;
+            return tokenBlacklistService.isBlacklisted(jti);
         } catch (Exception e) {
             return false;
         }
     }
-    
+
     private boolean isTokenExpired(Claims claims) {
         Date expiration = claims.getExpiration();
         return expiration != null && expiration.before(new Date());
     }
-    
+
     private String generateJti() {
         return UUID.randomUUID().toString();
     }
