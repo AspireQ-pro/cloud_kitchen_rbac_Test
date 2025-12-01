@@ -31,12 +31,13 @@ public class SecurityConfig {
     // ✅ Whitelisted endpoints (accessible without authentication)
     private static final String[] AUTH_WHITELIST = {
             "/",
-            "/api/auth/signup",
-            "/api/auth/customer/login",
-            "/api/auth/login",
-            "/api/auth/otp/request",
-            "/api/auth/otp/verify",
-            "/api/auth/refresh",
+            "/api/v1/auth/signup",
+            "/api/v1/auth/customer/login",
+            "/api/v1/auth/login",
+            "/api/v1/auth/otp/request",
+            "/api/v1/auth/otp/verify",
+            "/api/v1/auth/refresh",
+            "/api/auth/**", // Backward compatibility
             "/error"
     };
 

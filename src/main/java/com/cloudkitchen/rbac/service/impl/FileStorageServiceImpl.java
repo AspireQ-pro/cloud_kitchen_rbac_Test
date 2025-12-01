@@ -14,6 +14,7 @@ import com.cloudkitchen.rbac.constants.AppConstants;
 import com.cloudkitchen.rbac.domain.entity.FileDocument;
 import com.cloudkitchen.rbac.repository.FileDocumentRepository;
 import com.cloudkitchen.rbac.service.FileService;
+import com.cloudkitchen.rbac.util.FilenameSanitizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -25,7 +26,7 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 @Service
 public class FileStorageServiceImpl implements FileService {
 
-    private static final long MULTIPART_THRESHOLD = 5L * 1024 * 1024; // 5MB
+    private static final long MULTIPART_THRESHOLD = AppConstants.S3Performance.MULTIPART_THRESHOLD;
     private static final long PRESIGNED_URL_TTL = AppConstants.S3Performance.PRESIGNED_URL_TTL;
     private static final String PROFILE_IMG_FOLDER = "profile_img";
     private static final String REVIEWS_FOLDER = "reviews";
@@ -159,7 +160,28 @@ public class FileStorageServiceImpl implements FileService {
 
     @Override
     public void deleteFile(String docId) {
+        // Get file document to retrieve S3 key before deletion
+        FileDocument document = fileDocumentRepository.findById(Integer.valueOf(docId))
+                .orElse(null);
+        
+        // Delete from database
         fileDocumentRepository.deleteById(Integer.valueOf(docId));
+        
+        // Delete from S3 if document exists
+        if (document != null && document.getS3Key() != null) {
+            try {
+                software.amazon.awssdk.services.s3.model.DeleteObjectRequest deleteRequest = 
+                    software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
+                        .bucket(s3Properties.getBucket())
+                        .key(document.getS3Key())
+                        .build();
+                
+                s3AsyncClient.deleteObject(deleteRequest);
+            } catch (Exception e) {
+                // Log error but don't fail - file may already be deleted
+                // Database record is already deleted
+            }
+        }
     }
 
     public S3Properties getS3Properties() {
@@ -214,11 +236,33 @@ public class FileStorageServiceImpl implements FileService {
         List<Integer> ids = docIds.stream()
                 .map(Integer::valueOf)
                 .toList();
+        
+        // Get all documents before deletion to retrieve S3 keys
+        List<FileDocument> documents = fileDocumentRepository.findAllById(ids);
+        
+        // Delete from database
         fileDocumentRepository.deleteAllById(ids);
+        
+        // Delete from S3
+        for (FileDocument document : documents) {
+            if (document != null && document.getS3Key() != null) {
+                try {
+                    software.amazon.awssdk.services.s3.model.DeleteObjectRequest deleteRequest = 
+                        software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
+                            .bucket(s3Properties.getBucket())
+                            .key(document.getS3Key())
+                            .build();
+                    
+                    s3AsyncClient.deleteObject(deleteRequest);
+                } catch (Exception e) {
+                    // Log error but continue - file may already be deleted
+                }
+            }
+        }
     }
 
     private String generateS3Key(String entityType, String entityId, String documentType, String filename) {
-        String sanitizedFilename = sanitizeFilename(filename);
+        String sanitizedFilename = FilenameSanitizer.sanitizeFilename(filename);
 
         // Global offers at root level: offers/{file}
         if (documentType != null && documentType.toLowerCase().contains("global_offer")) {
@@ -293,23 +337,6 @@ public class FileStorageServiceImpl implements FileService {
         return MERCHANT_DEFAULT;
     }
 
-    private String sanitizeFilename(String filename) {
-        if (filename == null)
-            return "unknown";
-
-        // Keep original extension
-        String name = filename;
-        String extension = "";
-        int lastDot = filename.lastIndexOf('.');
-        if (lastDot > 0) {
-            name = filename.substring(0, lastDot);
-            extension = filename.substring(lastDot);
-        }
-
-        return name.replaceAll("[^a-zA-Z0-9.-]", "_")
-                .replaceAll("_+", "_")
-                .toLowerCase() + extension.toLowerCase();
-    }
 
     private FileDocument createFileDocument(String entityType, String entityId, String uploadedByService,
             String documentType, String s3Key, MultipartFile file,

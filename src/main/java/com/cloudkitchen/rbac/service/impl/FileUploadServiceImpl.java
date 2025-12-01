@@ -1,9 +1,11 @@
 package com.cloudkitchen.rbac.service.impl;
 
 import com.cloudkitchen.rbac.config.S3Properties;
+import com.cloudkitchen.rbac.constants.AppConstants;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.FileUploadException;
 import com.cloudkitchen.rbac.security.JwtTokenProvider;
 import com.cloudkitchen.rbac.service.FileUploadService;
+import com.cloudkitchen.rbac.util.FilenameSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
@@ -16,11 +18,8 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import org.apache.tika.Tika;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class FileUploadServiceImpl implements FileUploadService {
@@ -28,7 +27,7 @@ public class FileUploadServiceImpl implements FileUploadService {
     private static final Logger logger = LoggerFactory.getLogger(FileUploadServiceImpl.class);
     private static final List<String> ALLOWED_IMAGE_TYPES = Arrays.asList("image/jpeg", "image/jpg", "image/png",
             "image/webp");
-    private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    private static final long MAX_FILE_SIZE = AppConstants.S3Performance.MAX_FILE_SIZE;
 
     private final S3Client s3Client;
     private final S3Properties s3Properties;
@@ -46,7 +45,7 @@ public class FileUploadServiceImpl implements FileUploadService {
         validateFile(file);
         if (global) {
             // Global offers at root: offers/{file}
-            String sanitizedFilename = sanitizeFilename(file.getOriginalFilename());
+            String sanitizedFilename = FilenameSanitizer.sanitizeFilename(file.getOriginalFilename());
             String key = "offers/" + sanitizedFilename;
             return uploadToS3(file, key, "global offer image");
         }
@@ -60,7 +59,7 @@ public class FileUploadServiceImpl implements FileUploadService {
         validateFile(file);
         if (global) {
             // Global ads at root: ads/{file}
-            String sanitizedFilename = sanitizeFilename(file.getOriginalFilename());
+            String sanitizedFilename = FilenameSanitizer.sanitizeFilename(file.getOriginalFilename());
             String key = "ads/" + sanitizedFilename;
             return uploadToS3(file, key, "global ad image");
         }
@@ -143,7 +142,7 @@ public class FileUploadServiceImpl implements FileUploadService {
      * @return Complete S3 key path
      */
     private String generateS3Key(String merchantId, String documentType, String originalFilename, String customerId) {
-        String sanitizedFilename = sanitizeFilename(originalFilename);
+        String sanitizedFilename = FilenameSanitizer.sanitizeFilename(originalFilename);
         String folder = mapDocumentTypeToFolder(documentType);
 
         // Customer-specific files: {merchantId}/customer/{customerId}/{folder}/{file}
@@ -229,58 +228,6 @@ public class FileUploadServiceImpl implements FileUploadService {
         }
     }
 
-    /**
-     * Sanitizes filename to ensure consistent, safe S3 keys.
-     * - Converts to lowercase
-     * - Replaces spaces with underscores
-     * - Removes invalid characters
-     * - Prevents double underscores
-     * - Preserves file extension
-     */
-    private String sanitizeFilename(String filename) {
-        if (filename == null || filename.isBlank()) {
-            return generateUniqueFilename(".jpg");
-        }
-
-        String extension = getFileExtension(filename);
-        String nameWithoutExt = filename.substring(0,
-                filename.lastIndexOf('.') > 0 ? filename.lastIndexOf('.') : filename.length());
-
-        // Sanitize: lowercase, replace spaces, remove invalid chars
-        String sanitized = nameWithoutExt.toLowerCase()
-                .replaceAll("\\s+", "_")
-                .replaceAll("[^a-z0-9_-]", "")
-                .replaceAll("_{2,}", "_")
-                .replaceAll("^_+|_+$", "");
-
-        // If sanitization removed everything, generate new name
-        if (sanitized.isBlank()) {
-            return generateUniqueFilename(extension);
-        }
-
-        // Add timestamp and UUID for uniqueness
-        return generateUniqueFilename(sanitized + extension);
-    }
-
-    private String generateUniqueFilename(String filename) {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-        String uuid = UUID.randomUUID().toString().substring(0, 8);
-        String extension = getFileExtension(filename);
-        String nameWithoutExt = filename.replace(extension, "");
-
-        if (nameWithoutExt.isBlank()) {
-            return timestamp + "_" + uuid + extension;
-        }
-
-        return nameWithoutExt + "_" + timestamp + "_" + uuid + extension;
-    }
-
-    private String getFileExtension(String filename) {
-        if (filename == null || !filename.contains(".")) {
-            return ".jpg";
-        }
-        return filename.substring(filename.lastIndexOf(".")).toLowerCase();
-    }
 
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {

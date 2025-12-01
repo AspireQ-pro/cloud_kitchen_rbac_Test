@@ -1,6 +1,5 @@
 package com.cloudkitchen.rbac.controller;
 
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
@@ -14,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cloudkitchen.rbac.dto.merchant.MerchantRequest;
@@ -27,7 +27,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/merchants")
+@RequestMapping("/api/v1/merchants")
 @Tag(name = "Merchant Management", description = "Merchant CRUD operations")
 public class MerchantController {
     private static final String NOT_FOUND = "not found";
@@ -105,13 +105,27 @@ public class MerchantController {
     }
 
     @GetMapping
-    @Operation(summary = "Get All Merchants", description = "Get all merchants")
+    @Operation(summary = "Get All Merchants", description = "Get all merchants with pagination, filtering, and sorting")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.read')")
-    public ResponseEntity<Map<String, Object>> getAllMerchants() {
+    public ResponseEntity<Map<String, Object>> getAllMerchants(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDirection,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String search) {
         try {
-            List<MerchantResponse> response = merchantService.getAllMerchants();
+            com.cloudkitchen.rbac.dto.common.PageRequest pageRequest = 
+                new com.cloudkitchen.rbac.dto.common.PageRequest(page, size, sortBy, sortDirection);
+            
+            com.cloudkitchen.rbac.dto.common.PageResponse<MerchantResponse> response = 
+                merchantService.getAllMerchants(pageRequest, status, search);
+            
             return ResponseEntity.status(HttpStatus.OK)
-                    .body(ResponseBuilder.success(200, "All merchants retrieved successfully. Total: " + response.size(), response));
+                    .body(ResponseBuilder.success(200, 
+                        String.format("Merchants retrieved successfully. Page %d of %d, Total: %d", 
+                            response.getPage() + 1, response.getTotalPages(), response.getTotalElements()), 
+                        response));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ResponseBuilder.error(500, "Internal server error while retrieving merchants"));

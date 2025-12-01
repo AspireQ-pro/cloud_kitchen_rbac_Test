@@ -2,6 +2,8 @@ package com.cloudkitchen.rbac.repository;
 
 import com.cloudkitchen.rbac.domain.entity.User;
 import com.cloudkitchen.rbac.domain.entity.Merchant;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -44,7 +46,23 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     int updateOtpAttempts(@Param("phone") String phone, @Param("attempts") Integer attempts, @Param("merchantId") Integer merchantId);
     
     List<User> findByUserType(String userType);
+    Page<User> findByUserType(String userType, Pageable pageable);
     List<User> findByUserTypeAndMerchant_MerchantId(String userType, Integer merchantId);
+    Page<User> findByUserTypeAndMerchant_MerchantId(String userType, Integer merchantId, Pageable pageable);
+    
+    @Query("SELECT u FROM User u WHERE u.userType = 'customer' AND " +
+           "(LOWER(u.firstName) LIKE LOWER(:search) OR " +
+           "LOWER(u.lastName) LIKE LOWER(:search) OR " +
+           "LOWER(u.email) LIKE LOWER(:search) OR " +
+           "u.phone LIKE :search)")
+    Page<User> findCustomersBySearch(@Param("search") String search, Pageable pageable);
+    
+    @Query("SELECT u FROM User u WHERE u.userType = 'customer' AND u.merchant.merchantId = :merchantId AND " +
+           "(LOWER(u.firstName) LIKE LOWER(:search) OR " +
+           "LOWER(u.lastName) LIKE LOWER(:search) OR " +
+           "LOWER(u.email) LIKE LOWER(:search) OR " +
+           "u.phone LIKE :search)")
+    Page<User> findCustomersByMerchantIdAndSearch(@Param("merchantId") Integer merchantId, @Param("search") String search, Pageable pageable);
     
     @Modifying
     @Transactional

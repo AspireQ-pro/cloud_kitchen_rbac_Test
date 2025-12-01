@@ -5,12 +5,17 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
 
 import com.cloudkitchen.rbac.domain.entity.Merchant;
 import com.cloudkitchen.rbac.domain.entity.User;
+import com.cloudkitchen.rbac.dto.common.PageRequest;
+import com.cloudkitchen.rbac.dto.common.PageResponse;
 import com.cloudkitchen.rbac.dto.merchant.MerchantRequest;
 import com.cloudkitchen.rbac.dto.merchant.MerchantResponse;
 import com.cloudkitchen.rbac.repository.MerchantRepository;
@@ -129,6 +134,51 @@ public class MerchantServiceImpl implements MerchantService {
         return merchantRepository.findAll().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public PageResponse<MerchantResponse> getAllMerchants(PageRequest pageRequest) {
+        return getAllMerchants(pageRequest, null, null);
+    }
+
+    @Override
+    public PageResponse<MerchantResponse> getAllMerchants(PageRequest pageRequest, String status, String search) {
+        Pageable pageable = createPageable(pageRequest);
+        Page<Merchant> merchantPage;
+
+        if (search != null && !search.trim().isEmpty()) {
+            // Search by name, email, or phone
+            String searchTerm = "%" + search.trim().toLowerCase() + "%";
+            merchantPage = merchantRepository.findByMerchantNameContainingIgnoreCaseOrEmailContainingIgnoreCaseOrPhoneContaining(
+                    searchTerm, searchTerm, searchTerm, pageable);
+        } else if (status != null && !status.trim().isEmpty()) {
+            boolean active = "active".equalsIgnoreCase(status.trim());
+            merchantPage = merchantRepository.findByActive(active, pageable);
+        } else {
+            merchantPage = merchantRepository.findAll(pageable);
+        }
+
+        List<MerchantResponse> content = merchantPage.getContent().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+
+        return new PageResponse<>(
+                content,
+                merchantPage.getNumber(),
+                merchantPage.getSize(),
+                merchantPage.getTotalElements()
+        );
+    }
+
+    private Pageable createPageable(PageRequest pageRequest) {
+        Sort sort = Sort.unsorted();
+        if (pageRequest.getSortBy() != null && !pageRequest.getSortBy().trim().isEmpty()) {
+            Sort.Direction direction = "desc".equalsIgnoreCase(pageRequest.getSortDirection()) 
+                    ? Sort.Direction.DESC 
+                    : Sort.Direction.ASC;
+            sort = Sort.by(direction, pageRequest.getSortBy());
+        }
+        return org.springframework.data.domain.PageRequest.of(pageRequest.getPage(), pageRequest.getSize(), sort);
     }
 
     @Override

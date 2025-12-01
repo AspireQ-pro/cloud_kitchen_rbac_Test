@@ -13,7 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/upload")
+@RequestMapping("/api/v1/upload")
 @Tag(name = "File Upload", description = "File upload operations for S3")
 public class FileUploadController {
 

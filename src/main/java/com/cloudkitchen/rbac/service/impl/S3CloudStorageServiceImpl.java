@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import com.cloudkitchen.rbac.config.S3Properties;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.ServiceUnavailableException;
 import com.cloudkitchen.rbac.service.CloudStorageService;
+import com.cloudkitchen.rbac.util.FilenameSanitizer;
 
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -129,7 +130,7 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
     }
     
     private void createFolder(String path) {
-        String key = sanitizePath(path) + ".keep";
+        String key = FilenameSanitizer.sanitizePath(path) + ".keep";
         
         try {
             PutObjectRequest request = PutObjectRequest.builder()
@@ -174,10 +175,4 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
         }
     }
     
-    private String sanitizePath(String path) {
-        if (path.contains("..")) {
-            throw new SecurityException("Path traversal detected");
-        }
-        return path.replaceAll("[^a-zA-Z0-9/_.-]", "");
-    }
 }

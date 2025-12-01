@@ -67,6 +67,8 @@ public final class AppConstants {
         public static final long CACHE_CLEANUP_INTERVAL = 60 * 60 * 1000L; // 1 hour
         public static final int MAX_CONCURRENT_UPLOADS = 10;
         public static final long MULTIPART_THRESHOLD = 5 * 1024 * 1024L; // 5MB
+        public static final long MAX_FILE_SIZE = 5 * 1024 * 1024L; // 5MB
+        public static final long MAX_FILE_SIZE_LARGE = 10 * 1024 * 1024L; // 10MB
     }
     
     // Document Types

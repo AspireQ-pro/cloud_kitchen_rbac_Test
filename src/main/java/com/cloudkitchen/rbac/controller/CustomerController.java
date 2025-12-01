@@ -1,6 +1,5 @@
 package com.cloudkitchen.rbac.controller;
 
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
@@ -10,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
@@ -21,7 +21,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
-@RequestMapping("/api/customers")
+@RequestMapping("/api/v1/customers")
 @Tag(name = "Customer Management", description = "Customer data retrieval operations")
 public class CustomerController {
     private final CustomerService customerService;
@@ -33,8 +33,15 @@ public class CustomerController {
     }
 
     @GetMapping("/all")
-    @Operation(summary = "Get All Customers", description = "Super Admin only: Get all customers across all merchants")
-    public ResponseEntity<Map<String, Object>> getAllCustomers(Authentication authentication) {
+    @Operation(summary = "Get All Customers", description = "Super Admin only: Get all customers with pagination, filtering, and sorting")
+    public ResponseEntity<Map<String, Object>> getAllCustomers(
+            Authentication authentication,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDirection,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String search) {
         try {
             // Only Super Admin can access all customers
             if (!accessControl.isSuperAdmin(authentication)) {
@@ -42,9 +49,17 @@ public class CustomerController {
                         .body(ResponseBuilder.error(403, "Access denied. Only Super Admin can access all customers."));
             }
             
-            List<CustomerResponse> response = customerService.getAllCustomers();
+            com.cloudkitchen.rbac.dto.common.PageRequest pageRequest = 
+                new com.cloudkitchen.rbac.dto.common.PageRequest(page, size, sortBy, sortDirection);
+            
+            com.cloudkitchen.rbac.dto.common.PageResponse<CustomerResponse> response = 
+                customerService.getAllCustomers(pageRequest, status, search);
+            
             return ResponseEntity.status(HttpStatus.OK)
-                    .body(ResponseBuilder.success(200, "Customers retrieved successfully. Total: " + response.size(), response));
+                    .body(ResponseBuilder.success(200, 
+                        String.format("Customers retrieved successfully. Page %d of %d, Total: %d", 
+                            response.getPage() + 1, response.getTotalPages(), response.getTotalElements()), 
+                        response));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ResponseBuilder.error(500, "Internal server error while retrieving customers"));
@@ -82,14 +97,29 @@ public class CustomerController {
     }
 
     @GetMapping("/merchant/{merchantId}")
-    @Operation(summary = "Get Customers by Merchant", description = "Super Admin: Get any merchant's customers. Merchant: Get only their own customers")
-    public ResponseEntity<Map<String, Object>> getCustomersByMerchant(@PathVariable Integer merchantId, Authentication authentication) {
+    @Operation(summary = "Get Customers by Merchant", description = "Get merchant's customers with pagination, filtering, and sorting")
+    public ResponseEntity<Map<String, Object>> getCustomersByMerchant(
+            @PathVariable Integer merchantId, 
+            Authentication authentication,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDirection,
+            @RequestParam(required = false) String search) {
         try {
             // Super Admin can access any merchant's customers
             if (accessControl.isSuperAdmin(authentication)) {
-                List<CustomerResponse> response = customerService.getCustomersByMerchantId(merchantId);
+                com.cloudkitchen.rbac.dto.common.PageRequest pageRequest = 
+                    new com.cloudkitchen.rbac.dto.common.PageRequest(page, size, sortBy, sortDirection);
+                
+                com.cloudkitchen.rbac.dto.common.PageResponse<CustomerResponse> response = 
+                    customerService.getCustomersByMerchantId(merchantId, pageRequest);
+                
                 return ResponseEntity.status(HttpStatus.OK)
-                        .body(ResponseBuilder.success(200, "Customers for merchant ID " + merchantId + " retrieved successfully. Total: " + response.size(), response));
+                        .body(ResponseBuilder.success(200, 
+                            String.format("Customers for merchant ID %d retrieved successfully. Page %d of %d, Total: %d", 
+                                merchantId, response.getPage() + 1, response.getTotalPages(), response.getTotalElements()), 
+                            response));
             }
             
             // Merchant can only access their own customers
@@ -98,9 +128,17 @@ public class CustomerController {
                         .body(ResponseBuilder.error(403, "Access denied. You can only access your own merchant's customers."));
             }
             
-            List<CustomerResponse> response = customerService.getCustomersByMerchantId(merchantId);
+            com.cloudkitchen.rbac.dto.common.PageRequest pageRequest = 
+                new com.cloudkitchen.rbac.dto.common.PageRequest(page, size, sortBy, sortDirection);
+            
+            com.cloudkitchen.rbac.dto.common.PageResponse<CustomerResponse> response = 
+                customerService.getCustomersByMerchantId(merchantId, pageRequest);
+            
             return ResponseEntity.status(HttpStatus.OK)
-                    .body(ResponseBuilder.success(200, "Customers for merchant ID " + merchantId + " retrieved successfully. Total: " + response.size(), response));
+                    .body(ResponseBuilder.success(200, 
+                        String.format("Customers for merchant ID %d retrieved successfully. Page %d of %d, Total: %d", 
+                            merchantId, response.getPage() + 1, response.getTotalPages(), response.getTotalElements()), 
+                        response));
         } catch (RuntimeException e) {
             if (e.getMessage().contains("Merchant not found")) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)

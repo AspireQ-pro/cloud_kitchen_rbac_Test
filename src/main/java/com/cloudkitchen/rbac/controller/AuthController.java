@@ -28,7 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @Tag(name = "Authentication", description = "User authentication and registration endpoints")
 public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);

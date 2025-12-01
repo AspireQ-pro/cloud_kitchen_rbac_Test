@@ -1,14 +1,20 @@
 package com.cloudkitchen.rbac.service.impl;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
 
 import com.cloudkitchen.rbac.domain.entity.User;
+import com.cloudkitchen.rbac.dto.common.PageRequest;
+import com.cloudkitchen.rbac.dto.common.PageResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
 import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.service.CustomerService;
@@ -52,6 +58,67 @@ public class CustomerServiceImpl implements CustomerService {
             log.error("Error retrieving customers for merchant ID {}: {}", merchantId, e.getMessage(), e);
             throw new ValidationException("Failed to retrieve customers for merchant. Please try again.");
         }
+    }
+
+    @Override
+    public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest) {
+        return getAllCustomers(pageRequest, null, null);
+    }
+
+    @Override
+    public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest, String status, String search) {
+        Pageable pageable = createPageable(pageRequest);
+        Page<User> customerPage;
+
+        if (search != null && !search.trim().isEmpty()) {
+            String searchTerm = "%" + search.trim().toLowerCase() + "%";
+            customerPage = userRepository.findCustomersBySearch(searchTerm, pageable);
+        } else {
+            customerPage = userRepository.findByUserType("customer", pageable);
+        }
+
+        List<CustomerResponse> content = customerPage.getContent().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+
+        return new PageResponse<>(
+                content,
+                customerPage.getNumber(),
+                customerPage.getSize(),
+                customerPage.getTotalElements()
+        );
+    }
+
+    @Override
+    public PageResponse<CustomerResponse> getCustomersByMerchantId(Integer merchantId, PageRequest pageRequest) {
+        if (merchantId == null) {
+            throw new IllegalArgumentException("Merchant ID cannot be null");
+        }
+        
+        Pageable pageable = createPageable(pageRequest);
+        Page<User> customerPage = userRepository.findByUserTypeAndMerchant_MerchantId("customer", merchantId, pageable);
+
+        List<CustomerResponse> content = customerPage.getContent().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+
+        return new PageResponse<>(
+                content,
+                customerPage.getNumber(),
+                customerPage.getSize(),
+                customerPage.getTotalElements()
+        );
+    }
+
+    private Pageable createPageable(PageRequest pageRequest) {
+        Sort sort = Sort.unsorted();
+        if (pageRequest.getSortBy() != null && !pageRequest.getSortBy().trim().isEmpty()) {
+            Sort.Direction direction = "desc".equalsIgnoreCase(pageRequest.getSortDirection()) 
+                    ? Sort.Direction.DESC 
+                    : Sort.Direction.ASC;
+            sort = Sort.by(direction, pageRequest.getSortBy());
+        }
+        return org.springframework.data.domain.PageRequest.of(pageRequest.getPage(), pageRequest.getSize(), sort);
     }
 
     @Override

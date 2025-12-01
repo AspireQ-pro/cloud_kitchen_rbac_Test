@@ -9,7 +9,7 @@ import com.cloudkitchen.rbac.service.AuthService;
 import com.cloudkitchen.rbac.util.ResponseBuilder;
 
 @RestController
-@RequestMapping("/api/health")
+@RequestMapping("/api/v1/health")
 public class HealthController {
     private final AuthService authService;
 

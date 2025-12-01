@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/folders")
+@RequestMapping("/api/v1/folders")
 @Tag(name = "Folder Management", description = "S3 folder structure operations")
 public class FolderController {
     
@@ -23,7 +23,7 @@ public class FolderController {
     
     @PostMapping("/merchant/{merchantId}")
     @Operation(summary = "Create Merchant Folder Structure")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchant:write')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.write')")
     public ResponseEntity<Map<String, Object>> createMerchantFolders(@PathVariable String merchantId) {
         try {
             cloudStorageService.createMerchantFolderStructure(merchantId);
@@ -42,7 +42,7 @@ public class FolderController {
     
     @PostMapping("/customer/{merchantId}/{customerId}")
     @Operation(summary = "Create Customer Folder Structure")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchant:write')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.write')")
     public ResponseEntity<Map<String, Object>> createCustomerFolders(
             @PathVariable String merchantId,
             @PathVariable String customerId) {
