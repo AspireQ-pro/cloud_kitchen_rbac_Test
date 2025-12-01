@@ -93,9 +93,6 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("Customer registration attempt for merchantId: {}", req.getMerchantId());
 
-        // Validate password complexity
-        com.cloudkitchen.rbac.util.PasswordValidator.validate(req.getPassword());
-
         validationService.validateRegistration(req);
 
         if (users.findByPhoneAndMerchant_MerchantId(req.getPhone(), req.getMerchantId()).isPresent()) {

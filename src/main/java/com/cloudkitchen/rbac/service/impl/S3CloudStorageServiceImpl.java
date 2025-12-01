@@ -40,7 +40,7 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
         
         String[] folders = {
             "banners/", "logos/", "profile_image/", "product_image/",
-            "menu_card/", "offers/", "website/"
+            "menu_card/", "offers/"
         };
         
         long start = System.currentTimeMillis();

@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
 import com.cloudkitchen.rbac.util.ResponseBuilder;
-import com.cloudkitchen.rbac.util.ValidationUtils;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
 
 import jakarta.validation.ConstraintViolationException;
@@ -391,8 +390,8 @@ public class GlobalExceptionHandler {
             strValue.matches(".*(?i)(password|token|otp|secret|key).*")) {
             return "[MASKED]"; 
         }
-        // Mask phone numbers
-        if (ValidationUtils.isValidPhone(strValue)) {
+        // Mask phone numbers (basic check)
+        if (strValue.matches("^[6-9]\\d{9}$")) {
             return "****" + strValue.substring(strValue.length() - 4);
         }
         return value;
