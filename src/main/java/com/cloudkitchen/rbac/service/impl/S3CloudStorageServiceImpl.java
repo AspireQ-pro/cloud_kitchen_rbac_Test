@@ -38,7 +38,11 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
     public void createMerchantFolderStructure(String merchantId) {
         validateId(merchantId, "merchantId");
         
-        String[] folders = {
+        // Global folders (root level)
+        String[] globalFolders = {"offers/", "ads/"};
+        
+        // Merchant-specific folders
+        String[] merchantFolders = {
             "banners/", "logos/", "profile_image/", "product_image/",
             "menu_card/", "offers/"
         };
@@ -47,7 +51,19 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
         int success = 0;
         int failed = 0;
         
-        for (String folder : folders) {
+        // Create global folders (only once, idempotent)
+        for (String folder : globalFolders) {
+            try {
+                createFolder(folder);
+                success++;
+            } catch (Exception e) {
+                failed++;
+                logger.error("Failed to create global folder {}: {}", folder, e.getMessage());
+            }
+        }
+        
+        // Create merchant-specific folders
+        for (String folder : merchantFolders) {
             try {
                 createFolder(merchantId + "/" + folder);
                 success++;
@@ -59,7 +75,7 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
         
         if (failed > 0) {
             throw new ServiceUnavailableException(
-                String.format("Failed to create %d/%d folders for merchant %s", failed, folders.length, merchantId)
+                String.format("Failed to create %d/%d folders for merchant %s", failed, globalFolders.length + merchantFolders.length, merchantId)
             );
         }
         
