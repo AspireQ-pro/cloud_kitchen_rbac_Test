@@ -33,6 +33,7 @@ public class SecurityConfig {
     private String activeProfile;
 
     @Value("${cors.allowed.origins:}")
+    
     private String allowedOrigins;
 
     // ✅ Whitelisted endpoints (accessible without authentication)
