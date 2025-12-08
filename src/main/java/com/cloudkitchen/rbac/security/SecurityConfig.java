@@ -32,7 +32,7 @@ public class SecurityConfig {
     @Value("${spring.profiles.active:dev}")
     private String activeProfile;
 
-    @Value("${cors.allowed.origins:*}")
+    @Value("${cors.allowed.origins:}")
     private String allowedOrigins;
 
     // ✅ Whitelisted endpoints (accessible without authentication)
@@ -110,15 +110,26 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
+        // Check environment variable first, then property
+        String corsOrigins = System.getenv("CORS_ALLOWED_ORIGINS");
+        if (corsOrigins == null || corsOrigins.isEmpty()) {
+            corsOrigins = allowedOrigins;
+        }
+
         if ("prod".equals(activeProfile)) {
-            if ("*".equals(allowedOrigins)) {
-                throw new IllegalStateException("CORS wildcard (*) not allowed in production. Set cors.allowed.origins in application.properties");
+            if (corsOrigins == null || corsOrigins.isEmpty() || "*".equals(corsOrigins)) {
+                throw new IllegalStateException("CORS wildcard (*) not allowed in production. Set CORS_ALLOWED_ORIGINS environment variable");
             }
-            configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
-            logger.info("CORS configured for production with origins: {}", allowedOrigins);
+            configuration.setAllowedOrigins(Arrays.asList(corsOrigins.split(",")));
+            logger.info("CORS configured for production with origins: {}", corsOrigins);
         } else {
-            configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-            logger.warn("CORS configured for development - allowing all origins (*)");
+            if (corsOrigins != null && !corsOrigins.isEmpty() && !"*".equals(corsOrigins)) {
+                configuration.setAllowedOrigins(Arrays.asList(corsOrigins.split(",")));
+                logger.info("CORS configured with specific origins: {}", corsOrigins);
+            } else {
+                configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+                logger.warn("CORS configured for development - allowing all origins (*)");
+            }
         }
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
@@ -127,7 +138,7 @@ public class SecurityConfig {
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", configuration);
+        source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 
