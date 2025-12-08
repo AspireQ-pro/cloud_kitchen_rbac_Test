@@ -4,6 +4,7 @@ import java.util.Arrays;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -27,6 +28,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
+
+    @Value("${spring.profiles.active:dev}")
+    private String activeProfile;
+
+    @Value("${cors.allowed.origins:*}")
+    private String allowedOrigins;
 
     // ✅ Whitelisted endpoints (accessible without authentication)
     private static final String[] AUTH_WHITELIST = {
@@ -103,29 +110,21 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        String profile = System.getenv("SPRING_PROFILES_ACTIVE");
-        String allowedOrigins = System.getenv("CORS_ALLOWED_ORIGINS");
-
-        if ("prod".equals(profile)) {
-            if (allowedOrigins == null || allowedOrigins.isEmpty()) {
-                throw new IllegalStateException("CORS_ALLOWED_ORIGINS must be set in production");
+        if ("prod".equals(activeProfile)) {
+            if ("*".equals(allowedOrigins)) {
+                throw new IllegalStateException("CORS wildcard (*) not allowed in production. Set cors.allowed.origins in application.properties");
             }
             configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
             logger.info("CORS configured for production with origins: {}", allowedOrigins);
         } else {
-            if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
-                configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
-                logger.info("CORS configured with specific origins: {}", allowedOrigins);
-            } else {
-                configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:5173"));
-                logger.warn("CORS configured for local development (localhost:3000, localhost:5173)");
-            }
+            configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+            logger.warn("CORS configured for development - allowing all origins (*)");
         }
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(false);
-        configuration.setMaxAge(3600L); // Cache preflight for 1 hour
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);

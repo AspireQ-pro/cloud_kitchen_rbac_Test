@@ -96,7 +96,13 @@ public class S3Config {
         S3Client client = builder.build();
         logger.info("S3Client initialized for region: {}", properties.getRegion());
         
-        validateS3Configuration(client);
+        // Non-blocking validation - log warning but don't fail startup
+        try {
+            validateS3Configuration(client);
+        } catch (Exception e) {
+            logger.warn("⚠️ S3 validation failed (non-blocking): {}", e.getMessage());
+            logger.warn("Application will start but S3 operations may fail. Check network/credentials.");
+        }
         
         return client;
     }
