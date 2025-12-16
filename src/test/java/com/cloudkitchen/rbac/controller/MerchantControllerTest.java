@@ -47,11 +47,11 @@ class MerchantControllerTest {
     void testGetAllMerchants_WithPagination() throws Exception {
         // Given
         MerchantResponse merchant1 = new MerchantResponse();
-        merchant1.setId(1);
+        merchant1.setMerchantId(1);
         merchant1.setMerchantName("Merchant 1");
 
         MerchantResponse merchant2 = new MerchantResponse();
-        merchant2.setId(2);
+        merchant2.setMerchantId(2);
         merchant2.setMerchantName("Merchant 2");
 
         PageResponse<MerchantResponse> pageResponse = new PageResponse<>(
@@ -80,7 +80,7 @@ class MerchantControllerTest {
     void testGetAllMerchants_WithFiltering() throws Exception {
         // Given
         MerchantResponse merchant = new MerchantResponse();
-        merchant.setId(1);
+        merchant.setMerchantId(1);
         merchant.setMerchantName("Active Merchant");
         merchant.setActive(true);
 
@@ -116,7 +116,7 @@ class MerchantControllerTest {
         request.setPassword("Password123!");
 
         MerchantResponse response = new MerchantResponse();
-        response.setId(1);
+        response.setMerchantId(1);
         response.setMerchantName("New Merchant");
 
         when(merchantService.createMerchant(any(MerchantRequest.class))).thenReturn(response);
@@ -128,7 +128,7 @@ class MerchantControllerTest {
                         .with(csrf()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.merchantId").value(1))
                 .andExpect(jsonPath("$.data.merchantName").value("New Merchant"));
     }
 
@@ -137,7 +137,7 @@ class MerchantControllerTest {
     void testGetMerchantById_Success() throws Exception {
         // Given
         MerchantResponse response = new MerchantResponse();
-        response.setId(1);
+        response.setMerchantId(1);
         response.setMerchantName("Test Merchant");
 
         when(merchantService.getMerchantById(1)).thenReturn(response);
@@ -147,7 +147,7 @@ class MerchantControllerTest {
                         .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.merchantId").value(1))
                 .andExpect(jsonPath("$.data.merchantName").value("Test Merchant"));
     }
 

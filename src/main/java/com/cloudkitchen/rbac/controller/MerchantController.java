@@ -47,7 +47,7 @@ public class MerchantController {
     public ResponseEntity<Map<String, Object>> createMerchant(@Valid @RequestBody MerchantRequest request) {
         MerchantResponse response = merchantService.createMerchant(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getId(), response));
+                .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getMerchantId(), response));
     }
 
     @PatchMapping("/{id}")  

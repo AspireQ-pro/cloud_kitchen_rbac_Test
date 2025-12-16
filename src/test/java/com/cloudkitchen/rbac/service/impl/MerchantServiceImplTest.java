@@ -90,7 +90,7 @@ class MerchantServiceImplTest {
 
         // Then
         assertNotNull(response);
-        assertEquals(1, response.getId());
+        assertEquals(1, response.getMerchantId());
         assertEquals("Test Merchant", response.getMerchantName());
         verify(merchantRepository, times(1)).save(any(Merchant.class));
         verify(userRepository, times(1)).save(any(User.class));
@@ -132,7 +132,7 @@ class MerchantServiceImplTest {
 
         // Then
         assertNotNull(response);
-        assertEquals(1, response.getId());
+        assertEquals(1, response.getMerchantId());
         assertEquals("Test Merchant", response.getMerchantName());
     }
 
