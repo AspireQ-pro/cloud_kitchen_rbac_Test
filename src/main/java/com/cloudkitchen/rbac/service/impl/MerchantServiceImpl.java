@@ -223,7 +223,7 @@ public class MerchantServiceImpl implements MerchantService {
 
     private MerchantResponse mapToResponse(Merchant merchant) {
         MerchantResponse response = new MerchantResponse();
-        response.setId(merchant.getMerchantId());
+        response.setMerchantId(merchant.getMerchantId());
         response.setMerchantName(merchant.getMerchantName());
         response.setPhone(merchant.getPhone());
         response.setEmail(merchant.getEmail());

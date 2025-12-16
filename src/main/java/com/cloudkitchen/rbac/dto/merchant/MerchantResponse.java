@@ -3,7 +3,7 @@ package com.cloudkitchen.rbac.dto.merchant;
 import java.time.LocalDateTime;
 
 public class MerchantResponse {
-    private Integer id;
+    private Integer merchantId;
     private String merchantName;
     private String phone;
     private String email;
@@ -16,8 +16,8 @@ public class MerchantResponse {
     private String username;
     private Integer userId;
 
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
+    public Integer getMerchantId() { return merchantId; }
+    public void setMerchantId(Integer merchantId) { this.merchantId = merchantId; }
 
     public String getMerchantName() { return merchantName; }
     public void setMerchantName(String merchantName) { this.merchantName = merchantName; }
