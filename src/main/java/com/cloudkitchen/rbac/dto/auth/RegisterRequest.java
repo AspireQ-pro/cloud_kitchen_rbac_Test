@@ -42,6 +42,18 @@ public class RegisterRequest {
     @JsonProperty("email")
     private String email;
 
+    @Schema(description = "City", example = "Mumbai")
+    @JsonProperty("city")
+    private String city;
+
+    @Schema(description = "State", example = "Maharashtra")
+    @JsonProperty("state")
+    private String state;
+
+    @Schema(description = "Pincode", example = "400001")
+    @JsonProperty("pincode")
+    private String pincode;
+
     public RegisterRequest() {}
 
     public Integer getMerchantId() { return merchantId; }
@@ -70,4 +82,13 @@ public class RegisterRequest {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
+
+    public String getPincode() { return pincode; }
+    public void setPincode(String pincode) { this.pincode = pincode; }
 }

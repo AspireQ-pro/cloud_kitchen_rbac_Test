@@ -9,6 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.cloudkitchen.rbac.constants.AppConstants;
+import com.cloudkitchen.rbac.domain.entity.Customer;
 import com.cloudkitchen.rbac.domain.entity.Merchant;
 import com.cloudkitchen.rbac.domain.entity.Role;
 import com.cloudkitchen.rbac.domain.entity.User;
@@ -26,6 +27,7 @@ import com.cloudkitchen.rbac.exception.BusinessExceptions.ServiceUnavailableExce
 import com.cloudkitchen.rbac.exception.BusinessExceptions.UserAlreadyExistsException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.UserNotFoundException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.ValidationException;
+import com.cloudkitchen.rbac.repository.CustomerRepository;
 import com.cloudkitchen.rbac.repository.MerchantRepository;
 import com.cloudkitchen.rbac.repository.OtpLogRepository;
 import com.cloudkitchen.rbac.repository.RoleRepository;
@@ -53,6 +55,7 @@ public class AuthServiceImpl implements AuthService {
     private final MerchantRepository merchants;
     private final RoleRepository roles;
     private final UserRoleRepository userRoles;
+    private final CustomerRepository customers;
     private final PasswordEncoder encoder;
     private final OtpService otpService;
     private final OtpAuditService otpAuditService;
@@ -62,13 +65,14 @@ public class AuthServiceImpl implements AuthService {
     private final ValidationService validationService;
 
     public AuthServiceImpl(UserRepository users, MerchantRepository merchants, RoleRepository roles,
-            UserRoleRepository userRoles, PasswordEncoder encoder, OtpService otpService,
+            UserRoleRepository userRoles, CustomerRepository customers, PasswordEncoder encoder, OtpService otpService,
             OtpAuditService otpAuditService, SmsService smsService, JwtTokenProvider jwt,
             OtpLogRepository otpLogRepository, ValidationService validationService) {
         this.users = users;
         this.merchants = merchants;
         this.roles = roles;
         this.userRoles = userRoles;
+        this.customers = customers;
         this.encoder = encoder;
         this.otpService = otpService;
         this.otpAuditService = otpAuditService;
@@ -108,8 +112,10 @@ public class AuthServiceImpl implements AuthService {
         user = users.save(user);
 
         assignUserRole(user, ROLE_CUSTOMER, merchant);
+        
+        Customer customer = createCustomer(req, merchant, user);
 
-        return buildTokens(user, merchant.getMerchantId());
+        return buildTokens(user, merchant.getMerchantId(), customer.getCustomerId());
     }
 
     private User createUser(RegisterRequest req, Merchant merchant, String userType) {
@@ -149,14 +155,37 @@ public class AuthServiceImpl implements AuthService {
         userRoles.save(userRole);
     }
 
+    private Customer createCustomer(RegisterRequest req, Merchant merchant, User user) {
+        Customer customer = new Customer();
+        customer.setMerchant(merchant);
+        customer.setUser(user);
+        customer.setPhone(req.getPhone());
+        customer.setEmail(req.getEmail());
+        customer.setFirstName(req.getFirstName());
+        customer.setLastName(req.getLastName());
+        customer.setAddress(req.getAddress());
+        customer.setCity(req.getCity());
+        customer.setState(req.getState());
+        customer.setPincode(req.getPincode());
+        customer.setIsActive(true);
+        customer.setCreatedBy(user.getUserId());
+        customer.setCreatedOn(LocalDateTime.now());
+        customer.setUpdatedOn(LocalDateTime.now());
+        customer = customers.save(customer);
+        log.info("Customer record created: customerId={}, userId={}, merchantId={}", 
+                customer.getCustomerId(), user.getUserId(), merchant.getMerchantId());
+        return customer;
+    }
+
     @Override
     public AuthResponse login(AuthRequest req) {
         log.info("Login attempt for merchantId: {}", req.getMerchantId());
         validateLoginRequest(req);
         User user = findUserForLogin(req);
         verifyPassword(user, req.getPassword());
+        Integer customerId = getCustomerId(user, req.getMerchantId());
         log.info("Login successful for user: {} (type: {})", user.getUserId(), user.getUserType());
-        return buildTokens(user, req.getMerchantId());
+        return buildTokens(user, req.getMerchantId(), customerId);
     }
 
     private void validateLoginRequest(AuthRequest req) {
@@ -232,8 +261,9 @@ public class AuthServiceImpl implements AuthService {
                     .orElseThrow(() -> new UserNotFoundException("User not found for token refresh."));
 
             jwt.blacklistToken(req.getRefreshToken());
-
-            return buildTokens(user, merchantId);
+            
+            Integer customerId = getCustomerId(user, merchantId);
+            return buildTokens(user, merchantId, customerId);
         } catch (io.jsonwebtoken.JwtException e) {
             log.warn("JWT exception during token refresh: {}", e.getMessage());
             throw new InvalidCredentialsException("Invalid refresh token. Please login again.");
@@ -243,7 +273,16 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    private AuthResponse buildTokens(User user, Integer merchantId) {
+    private Integer getCustomerId(User user, Integer merchantId) {
+        if (ROLE_CUSTOMER.equals(user.getUserType()) && merchantId != null && merchantId > 0) {
+            return customers.findByUser_UserIdAndMerchant_MerchantId(user.getUserId(), merchantId)
+                    .map(Customer::getCustomerId)
+                    .orElse(null);
+        }
+        return null;
+    }
+
+    private AuthResponse buildTokens(User user, Integer merchantId, Integer customerId) {
         Integer actualMerchantId = determineActualMerchantId(user, merchantId);
         Integer queryMerchantId = (actualMerchantId != null && Integer.valueOf(0).equals(actualMerchantId)) ? null
                 : actualMerchantId;
@@ -279,6 +318,7 @@ public class AuthServiceImpl implements AuthService {
         response.setExpiresIn(86400);
         response.setUserId(user.getUserId());
         response.setMerchantId(actualMerchantId);
+        response.setCustomerId(customerId);
         response.setPhone(user.getPhone());
         response.setRoles(roleNames);
         return response;
@@ -697,16 +737,18 @@ public class AuthServiceImpl implements AuthService {
             users.save(user);
             clearOtpData(user);
 
+            Integer customerId = getCustomerId(user, merchantId);
+            
             if (OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())) {
                 String randomPassword = generateRandomPassword();
                 user.setPasswordHash(encoder.encode(randomPassword));
                 users.save(user);
                 log.info("Password reset with random password for user: {}", maskedPhone);
-                return buildTokens(user, req.getMerchantId());
+                return buildTokens(user, req.getMerchantId(), customerId);
             }
 
             log.info("OTP verified successfully for phone: {}", maskedPhone);
-            return buildTokens(user, req.getMerchantId());
+            return buildTokens(user, req.getMerchantId(), customerId);
 
         } catch (RuntimeException e) {
             log.warn("OTP verification failed");

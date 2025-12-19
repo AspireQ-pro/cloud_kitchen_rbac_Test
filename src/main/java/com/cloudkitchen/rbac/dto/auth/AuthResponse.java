@@ -9,6 +9,7 @@ public class AuthResponse {
     private int expiresIn;
     private Integer userId;
     private Integer merchantId;
+    private Integer customerId;
     private String phone;
     private List<String> roles;
 
@@ -33,6 +34,9 @@ public class AuthResponse {
 
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+
+    public Integer getCustomerId() { return customerId; }
+    public void setCustomerId(Integer customerId) { this.customerId = customerId; }
 
     public List<String> getRoles() { return roles; }
     public void setRoles(List<String> roles) { this.roles = roles; }
