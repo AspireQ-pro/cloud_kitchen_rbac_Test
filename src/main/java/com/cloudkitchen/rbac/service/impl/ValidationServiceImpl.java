@@ -23,10 +23,6 @@ public class ValidationServiceImpl implements ValidationService {
         validatePhone(request.getPhone());
         validatePassword(request.getPassword());
         
-        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
-            validateEmail(request.getEmail());
-        }
-        
         if (request.getFirstName() == null || request.getFirstName().trim().isEmpty()) {
             throw new IllegalArgumentException("First name is required");
         }
