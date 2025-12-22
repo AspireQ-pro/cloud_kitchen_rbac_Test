@@ -129,10 +129,6 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(encoder.encode(req.getPassword()));
         user.setAddress(req.getAddress());
 
-        if (req.getEmail() != null && !req.getEmail().trim().isEmpty()) {
-            user.setEmail(req.getEmail().trim());
-        }
-
         return user;
     }
 
@@ -160,13 +156,9 @@ public class AuthServiceImpl implements AuthService {
         customer.setMerchant(merchant);
         customer.setUser(user);
         customer.setPhone(req.getPhone());
-        customer.setEmail(req.getEmail());
         customer.setFirstName(req.getFirstName());
         customer.setLastName(req.getLastName());
         customer.setAddress(req.getAddress());
-        customer.setCity(req.getCity());
-        customer.setState(req.getState());
-        customer.setPincode(req.getPincode());
         customer.setIsActive(true);
         customer.setCreatedBy(user.getUserId());
         customer.setCreatedOn(LocalDateTime.now());

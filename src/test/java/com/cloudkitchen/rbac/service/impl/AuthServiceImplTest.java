@@ -78,7 +78,6 @@ class AuthServiceImplTest {
         registerRequest.setFirstName("John");
         registerRequest.setLastName("Doe");
         registerRequest.setPhone("1234567890");
-        registerRequest.setEmail("john@example.com");
         registerRequest.setPassword("Password123!");
         registerRequest.setMerchantId(1);
 

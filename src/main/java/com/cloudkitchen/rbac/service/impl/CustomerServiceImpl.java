@@ -1,279 +1,228 @@
 package com.cloudkitchen.rbac.service.impl;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Service;
 
-import com.cloudkitchen.rbac.domain.entity.User;
+import com.cloudkitchen.rbac.domain.entity.Customer;
 import com.cloudkitchen.rbac.dto.common.PageRequest;
 import com.cloudkitchen.rbac.dto.common.PageResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
-import com.cloudkitchen.rbac.repository.UserRepository;
+import com.cloudkitchen.rbac.dto.customer.CustomerUpdateRequest;
+import com.cloudkitchen.rbac.repository.CustomerRepository;
 import com.cloudkitchen.rbac.service.CustomerService;
-import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
+import com.cloudkitchen.rbac.util.AccessControlUtil;
 
 @Service
-@Transactional(readOnly = true)
 public class CustomerServiceImpl implements CustomerService {
-    private static final Logger log = LoggerFactory.getLogger(CustomerServiceImpl.class);
-    private final UserRepository userRepository;
 
-    public CustomerServiceImpl(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    private final CustomerRepository customerRepository;
+    private final AccessControlUtil accessControlUtil;
+    
+    public CustomerServiceImpl(CustomerRepository customerRepository, AccessControlUtil accessControlUtil) {
+        this.customerRepository = customerRepository;
+        this.accessControlUtil = accessControlUtil;
     }
 
     @Override
     public List<CustomerResponse> getAllCustomers() {
-        try {
-            List<User> customers = userRepository.findByUserType("customer");
-            return customers.stream()
-                    .map(this::mapToResponse)
-                    .toList();
-        } catch (Exception e) {
-            log.error("Error retrieving all customers: {}", e.getMessage(), e);
-            throw new ValidationException("Failed to retrieve customers. Please try again.");
-        }
-    }
-
-    @Override
-    public List<CustomerResponse> getCustomersByMerchantId(Integer merchantId) {
-        if (merchantId == null) {
-            throw new IllegalArgumentException("Merchant ID cannot be null");
-        }
-        
-        try {
-            List<User> customers = userRepository.findByUserTypeAndMerchant_MerchantId("customer", merchantId);
-            return customers.stream()
-                    .map(this::mapToResponse)
-                    .toList();
-        } catch (Exception e) {
-            log.error("Error retrieving customers for merchant ID {}: {}", merchantId, e.getMessage(), e);
-            throw new ValidationException("Failed to retrieve customers for merchant. Please try again.");
-        }
-    }
-
-    @Override
-    public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest) {
-        return getAllCustomers(pageRequest, null, null);
-    }
-
-    @Override
-    public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest, String status, String search) {
-        Pageable pageable = createPageable(pageRequest);
-        Page<User> customerPage;
-
-        if (search != null && !search.trim().isEmpty()) {
-            String searchTerm = "%" + search.trim().toLowerCase() + "%";
-            customerPage = userRepository.findCustomersBySearch(searchTerm, pageable);
-        } else {
-            customerPage = userRepository.findByUserType("customer", pageable);
-        }
-
-        List<CustomerResponse> content = customerPage.getContent().stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
-
-        return new PageResponse<>(
-                content,
-                customerPage.getNumber(),
-                customerPage.getSize(),
-                customerPage.getTotalElements()
-        );
-    }
-
-    @Override
-    public PageResponse<CustomerResponse> getCustomersByMerchantId(Integer merchantId, PageRequest pageRequest) {
-        if (merchantId == null) {
-            throw new IllegalArgumentException("Merchant ID cannot be null");
-        }
-        
-        Pageable pageable = createPageable(pageRequest);
-        Page<User> customerPage = userRepository.findByUserTypeAndMerchant_MerchantId("customer", merchantId, pageable);
-
-        List<CustomerResponse> content = customerPage.getContent().stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
-
-        return new PageResponse<>(
-                content,
-                customerPage.getNumber(),
-                customerPage.getSize(),
-                customerPage.getTotalElements()
-        );
-    }
-
-    private Pageable createPageable(PageRequest pageRequest) {
-        Sort sort = Sort.unsorted();
-        if (pageRequest.getSortBy() != null && !pageRequest.getSortBy().trim().isEmpty()) {
-            Sort.Direction direction = "desc".equalsIgnoreCase(pageRequest.getSortDirection()) 
-                    ? Sort.Direction.DESC 
-                    : Sort.Direction.ASC;
-            sort = Sort.by(direction, pageRequest.getSortBy());
-        }
-        return org.springframework.data.domain.PageRequest.of(pageRequest.getPage(), pageRequest.getSize(), sort);
-    }
-
-    @Override
-    public CustomerResponse getCustomerById(Integer id) {
-        if (id == null) {
-            throw new IllegalArgumentException("Customer ID cannot be null");
-        }
-        
-        try {
-            User user = userRepository.findById(id)
-                    .orElseThrow(() -> new UserNotFoundException("Customer not found with ID: " + id));
-            
-            if (!"customer".equals(user.getUserType())) {
-                throw new ValidationException("User with ID " + id + " is not a customer");
-            }
-            
-            return mapToResponse(user);
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Error retrieving customer with ID {}: {}", id, e.getMessage(), e);
-            throw new ValidationException("Failed to retrieve customer. Please try again.");
-        }
+        return customerRepository.findAllByDeletedAtIsNull().stream()
+                .map(this::convertToResponse)
+                .toList();
     }
 
     @Override
     public List<CustomerResponse> getAllCustomers(Authentication authentication) {
-        try {
-            Integer userId = Integer.valueOf(authentication.getName());
-            User user = userRepository.findById(userId).orElse(null);
-            
-            if (user != null && "merchant".equals(user.getUserType()) && user.getMerchant() != null) {
-                // Merchant can only see their own customers
-                return getCustomersByMerchantId(user.getMerchant().getMerchantId());
-            }
-            
-            // Super admin or users with customer.read permission see all
+        if (accessControlUtil.isSuperAdmin(authentication)) {
             return getAllCustomers();
-        } catch (NumberFormatException e) {
-            log.warn("Invalid user ID in authentication: {}", authentication.getName());
-            return getAllCustomers();
-        } catch (Exception e) {
-            log.warn("Error processing authentication for customer access: {}", e.getMessage());
-            return getAllCustomers();
+        } else if (accessControlUtil.isMerchant(authentication)) {
+            Integer merchantId = getMerchantIdFromAuth(authentication);
+            return getCustomersByMerchantId(merchantId);
         }
-    }
-    
-    @Override
-    public boolean canAccessCustomers(Authentication authentication) {
-        try {
-            Integer userId = Integer.valueOf(authentication.getName());
-            User user = userRepository.findById(userId).orElse(null);
-            
-            // Merchants can access their own customers
-            return user != null && "merchant".equals(user.getUserType());
-        } catch (Exception e) {
-            return false;
-        }
-    }
-    
-    @Override
-    public boolean canAccessCustomer(Authentication authentication, Integer customerId) {
-        try {
-            Integer userId = Integer.valueOf(authentication.getName());
-            User user = userRepository.findById(userId).orElse(null);
-            User customer = userRepository.findById(customerId).orElse(null);
-            
-            if (user == null || customer == null) {
-                return false;
-            }
-            
-            // Customer can access their own data
-            if (userId.equals(customerId)) {
-                return true;
-            }
-            
-            // Merchant can access their own customers
-            return "merchant".equals(user.getUserType()) && 
-                   user.getMerchant() != null && 
-                   customer.getMerchant() != null &&
-                   user.getMerchant().getMerchantId().equals(customer.getMerchant().getMerchantId());
-        } catch (Exception e) {
-            log.warn("Error checking customer access: {}", e.getMessage());
-            return false;
-        }
-    }
-    
-    @Override
-    public boolean canAccessMerchantCustomers(Authentication authentication, Integer merchantId) {
-        try {
-            Integer userId = Integer.valueOf(authentication.getName());
-            User user = userRepository.findById(userId).orElse(null);
-            
-            // Merchant can access their own customers
-            return user != null && 
-                   "merchant".equals(user.getUserType()) && 
-                   user.getMerchant() != null &&
-                   merchantId.equals(user.getMerchant().getMerchantId());
-        } catch (Exception e) {
-            return false;
-        }
-    }
-    
-    @Override
-    @Transactional
-    public void deleteCustomer(Integer id) {
-        if (id == null) {
-            throw new IllegalArgumentException("Customer ID cannot be null");
-        }
-        
-        try {
-            User user = userRepository.findById(id)
-                    .orElseThrow(() -> new UserNotFoundException("Customer not found with ID: " + id));
-            
-            if (!"customer".equals(user.getUserType())) {
-                throw new ValidationException("User with ID " + id + " is not a customer");
-            }
-            
-            userRepository.delete(user);
-            log.info("Customer deleted successfully with ID: {}", id);
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Error deleting customer with ID {}: {}", id, e.getMessage(), e);
-            throw new ValidationException("Failed to delete customer. Please try again.");
-        }
-    }
-    
-    @Override
-    public Integer getMerchantIdFromAuth(Authentication authentication) {
-        try {
-            Integer userId = Integer.valueOf(authentication.getName());
-            User user = userRepository.findById(userId).orElse(null);
-            
-            if (user != null && user.getMerchant() != null) {
-                return user.getMerchant().getMerchantId();
-            }
-            return null;
-        } catch (Exception e) {
-            return null;
-        }
+        throw new RuntimeException("Access denied");
     }
 
-    private CustomerResponse mapToResponse(User user) {
+    @Override
+    public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest) {
+        return null;
+    }
+
+    @Override
+    public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest, String status, String search) {
+        return null;
+    }
+
+    @Override
+    public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest, String status, String search, Authentication authentication) {
+        if (accessControlUtil.isSuperAdmin(authentication)) {
+            return getAllCustomersWithFilters(pageRequest);
+        } else if (accessControlUtil.isMerchant(authentication)) {
+            Integer merchantId = getMerchantIdFromAuth(authentication);
+            return getCustomersByMerchantIdWithFilters(merchantId, pageRequest);
+        }
+        throw new RuntimeException("Access denied");
+    }
+
+    @Override
+    public List<CustomerResponse> getCustomersByMerchantId(Integer merchantId) {
+        return customerRepository.findByMerchant_MerchantIdAndDeletedAtIsNull(merchantId).stream()
+                .map(this::convertToResponse)
+                .toList();
+    }
+
+    @Override
+    public PageResponse<CustomerResponse> getCustomersByMerchantId(Integer merchantId, PageRequest pageRequest) {
+        return getCustomersByMerchantIdWithFilters(merchantId, pageRequest);
+    }
+
+    @Override
+    public CustomerResponse getCustomerById(Integer id) {
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
+        return convertToResponse(customer);
+    }
+
+    @Override
+    public CustomerResponse getCustomerProfile(Authentication authentication) {
+        Integer customerId = getCustomerIdFromAuth(authentication);
+        return getCustomerById(customerId);
+    }
+
+    @Override
+    public CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, Integer updatedBy) {
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
+        
+        if (request.getFirstName() != null) customer.setFirstName(request.getFirstName());
+        if (request.getLastName() != null) customer.setLastName(request.getLastName());
+        if (request.getEmail() != null) customer.setEmail(request.getEmail());
+        if (request.getAddress() != null) customer.setAddress(request.getAddress());
+        if (request.getCity() != null) customer.setCity(request.getCity());
+        if (request.getState() != null) customer.setState(request.getState());
+        if (request.getDob() != null) customer.setDob(request.getDob());
+        if (request.getFavoriteFood() != null) customer.setFavoriteFood(request.getFavoriteFood());
+        
+        customer.setUpdatedBy(updatedBy);
+        customer.setUpdatedOn(LocalDateTime.now());
+        Customer updatedCustomer = customerRepository.save(customer);
+        return convertToResponse(updatedCustomer);
+    }
+
+    @Override
+    public CustomerResponse updateCustomerProfile(Authentication authentication, CustomerUpdateRequest request) {
+        Integer customerId = getCustomerIdFromAuth(authentication);
+        return updateCustomer(customerId, request, customerId);
+    }
+
+    @Override
+    public void deleteCustomer(Integer id) {
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
+        customer.setDeletedAt(LocalDateTime.now());
+        customerRepository.save(customer);
+    }
+
+    @Override
+    public boolean canAccessCustomers(Authentication authentication) {
+        return accessControlUtil.isSuperAdmin(authentication) || accessControlUtil.isMerchant(authentication);
+    }
+
+    @Override
+    public boolean canAccessCustomer(Authentication authentication, Integer customerId) {
+        if (accessControlUtil.isSuperAdmin(authentication)) {
+            return true;
+        }
+        if (accessControlUtil.isCustomer(authentication)) {
+            return customerId.equals(getCustomerIdFromAuth(authentication));
+        }
+        if (accessControlUtil.isMerchant(authentication)) {
+            Customer customer = customerRepository.findById(customerId).orElse(null);
+            return customer != null && getMerchantIdFromAuth(authentication).equals(customer.getMerchant().getMerchantId());
+        }
+        return false;
+    }
+
+    @Override
+    public boolean canAccessMerchantCustomers(Authentication authentication, Integer merchantId) {
+        if (accessControlUtil.isSuperAdmin(authentication)) {
+            return true;
+        }
+        if (accessControlUtil.isMerchant(authentication)) {
+            return merchantId.equals(getMerchantIdFromAuth(authentication));
+        }
+        return false;
+    }
+
+    @Override
+    public Integer getMerchantIdFromAuth(Authentication authentication) {
+        return accessControlUtil.getUserId(authentication);
+    }
+
+    @Override
+    public Integer getCustomerIdFromAuth(Authentication authentication) {
+        return accessControlUtil.getUserId(authentication);
+    }
+
+    private PageResponse<CustomerResponse> getAllCustomersWithFilters(PageRequest pageRequest) {
+        List<Customer> customers = customerRepository.findAllByDeletedAtIsNull();
+        List<CustomerResponse> responses = customers.stream()
+                .map(this::convertToResponse)
+                .toList();
+        
+        return new PageResponse<>(responses, pageRequest.getPage(), pageRequest.getSize(), responses.size());
+    }
+
+    private PageResponse<CustomerResponse> getCustomersByMerchantIdWithFilters(Integer merchantId, PageRequest pageRequest) {
+        List<Customer> customers = customerRepository.findByMerchant_MerchantIdAndDeletedAtIsNull(merchantId);
+        List<CustomerResponse> responses = customers.stream()
+                .map(this::convertToResponse)
+                .toList();
+        
+        return new PageResponse<>(responses, pageRequest.getPage(), pageRequest.getSize(), responses.size());
+    }
+
+    private CustomerResponse convertToResponse(Customer customer) {
+        // Get order statistics from database
+        Object[] orderStats = customerRepository.findOrderStatsByCustomerId(customer.getCustomerId());
+        
+        LocalDateTime lastOrderAt = null;
+        Integer totalOrders = 0;
+        
+        if (orderStats != null && orderStats.length >= 2) {
+            if (orderStats[0] != null) {
+                lastOrderAt = ((java.sql.Timestamp) orderStats[0]).toLocalDateTime();
+            }
+            if (orderStats[1] != null) {
+                totalOrders = ((Number) orderStats[1]).intValue();
+            }
+        }
+        
         CustomerResponse response = new CustomerResponse();
-        response.setId(user.getUserId());
-        response.setFirstName(user.getFirstName());
-        response.setLastName(user.getLastName());
-        response.setPhone(user.getPhone());
-        response.setEmail(user.getEmail());
-        response.setAddress(user.getAddress());
-        response.setMerchantId(user.getMerchant() != null ? user.getMerchant().getMerchantId() : null);
-        response.setMerchantName(user.getMerchant() != null ? user.getMerchant().getMerchantName() : null);
-        response.setActive(user.getActive());
-        response.setCreatedAt(user.getCreatedOn());
+        response.setId(customer.getCustomerId());
+        response.setFirstName(customer.getFirstName());
+        response.setLastName(customer.getLastName());
+        response.setPhone(customer.getPhone());
+        response.setEmail(customer.getEmail());
+        response.setAddress(customer.getAddress());
+        response.setCity(customer.getCity());
+        response.setState(customer.getState());
+        response.setCountry(customer.getCountry());
+        response.setPincode(customer.getPincode());
+        response.setDob(customer.getDob());
+        response.setFavoriteFood(customer.getFavoriteFood());
+        response.setLastOrderAt(lastOrderAt);
+        response.setTotalOrders(totalOrders);
+        response.setActive(customer.getIsActive());
+        response.setCreatedAt(customer.getCreatedOn());
+        response.setUpdatedAt(customer.getUpdatedOn());
+        
+        if (customer.getMerchant() != null) {
+            response.setMerchantId(customer.getMerchant().getMerchantId());
+            response.setMerchantName(customer.getMerchant().getBusinessName());
+        }
+        
         return response;
     }
 }

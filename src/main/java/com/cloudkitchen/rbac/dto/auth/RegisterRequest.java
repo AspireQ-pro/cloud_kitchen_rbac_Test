@@ -37,22 +37,6 @@ public class RegisterRequest {
     @Schema(description = "Address", example = "123 Main Street")
     @JsonProperty("address")
     private String address;
-    
-    @Schema(description = "Email", example = "john@example.com")
-    @JsonProperty("email")
-    private String email;
-
-    @Schema(description = "City", example = "Mumbai")
-    @JsonProperty("city")
-    private String city;
-
-    @Schema(description = "State", example = "Maharashtra")
-    @JsonProperty("state")
-    private String state;
-
-    @Schema(description = "Pincode", example = "400001")
-    @JsonProperty("pincode")
-    private String pincode;
 
     public RegisterRequest() {}
 
@@ -79,16 +63,4 @@ public class RegisterRequest {
     
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
-
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
-
-    public String getCity() { return city; }
-    public void setCity(String city) { this.city = city; }
-
-    public String getState() { return state; }
-    public void setState(String state) { this.state = state; }
-
-    public String getPincode() { return pincode; }
-    public void setPincode(String pincode) { this.pincode = pincode; }
 }
