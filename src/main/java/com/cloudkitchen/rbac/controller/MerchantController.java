@@ -50,34 +50,17 @@ public class MerchantController {
                 .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getMerchantId(), response));
     }
 
-    @PatchMapping("/{id}")  
-    @Operation(summary = "Update Merchant", description = "Partial or full update of merchant details")
+    @PatchMapping("/{id}")
+    @Operation(summary = "Update Merchant", description = "Full update of merchant details")
     public ResponseEntity<Map<String, Object>> updateMerchant(@PathVariable Integer id, @RequestBody MerchantRequest request, Authentication authentication) {
-        try {
-            if (!accessControl.isSuperAdmin(authentication) && !merchantService.canAccessMerchant(authentication, id)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ResponseBuilder.error(403, "Access denied: You can only update your own merchant data"));
-            }
-            
-            MerchantResponse response = merchantService.updateMerchant(id, request);
-            return ResponseEntity.status(HttpStatus.OK)
-                    .body(ResponseBuilder.success(200, "Merchant ID " + id + " updated successfully", response));
-        } catch (RuntimeException e) {
-            if (e.getMessage().contains(NOT_FOUND)) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ResponseBuilder.error(404, MERCHANT_NOT_FOUND_MSG + id));
-            }
-            if (e.getMessage().contains("already exists")) {
-                return ResponseEntity.status(HttpStatus.CONFLICT)
-                        .body(ResponseBuilder.error(409, "Merchant data conflict: " + e.getMessage()));
-            }
-            if (e.getMessage().contains("validation")) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "Validation failed: " + e.getMessage()));
-            }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Internal server error while updating merchant"));
+        if (!accessControl.isSuperAdmin(authentication) && !merchantService.canAccessMerchant(authentication, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(403, "Access denied: You can only update your own merchant data"));
         }
+
+        MerchantResponse response = merchantService.updateMerchant(id, request);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(ResponseBuilder.success(200, "Merchant ID " + id + " updated successfully", response));
     }
 
     @GetMapping("/{id}")

@@ -22,6 +22,7 @@ import com.cloudkitchen.rbac.repository.MerchantRepository;
 import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.service.MerchantService;
 import com.cloudkitchen.rbac.service.CloudStorageService;
+import com.cloudkitchen.rbac.service.ValidationService;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -33,15 +34,17 @@ public class MerchantServiceImpl implements MerchantService {
     private final MerchantRepository merchantRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    
+    private final ValidationService validationService;
+
     @Autowired(required = false)
     private CloudStorageService cloudStorageService;
 
     public MerchantServiceImpl(MerchantRepository merchantRepository, UserRepository userRepository,
-                              PasswordEncoder passwordEncoder) {
+                              PasswordEncoder passwordEncoder, ValidationService validationService) {
         this.merchantRepository = merchantRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.validationService = validationService;
     }
 
     @Override
@@ -100,26 +103,111 @@ public class MerchantServiceImpl implements MerchantService {
 
     @Override
     public MerchantResponse updateMerchant(Integer id, MerchantRequest request) {
+        // 1. VALIDATE REQUEST BODY - Check for empty request
+        if (request == null || isEmptyRequest(request)) {
+            throw new ValidationException("All required fields are missing");
+        }
+
+        // 2. VALIDATE REQUIRED FIELDS - merchantName is mandatory
+        validationService.validateMerchantName(request.getMerchantName());
+
+        // 3. VALIDATE FIELD FORMATS - Fail-fast validation
+        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+            validationService.validateEmail(request.getEmail());
+        }
+
+        if (request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
+            validationService.validatePhone(request.getPhone());
+        }
+
+        if (request.getGstin() != null && !request.getGstin().trim().isEmpty()) {
+            validationService.validateGstin(request.getGstin());
+        }
+
+        if (request.getFssaiLicense() != null && !request.getFssaiLicense().trim().isEmpty()) {
+            validationService.validateFssaiLicense(request.getFssaiLicense());
+        }
+
+        if (request.getAddress() != null && !request.getAddress().trim().isEmpty()) {
+            validationService.validateAddress(request.getAddress());
+        }
+
+        // 4. PASSWORD POLICY - If password is provided
+        if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
+            validationService.validatePassword(request.getPassword());
+        }
+
+        // 5. FETCH MERCHANT - Must exist
         Merchant merchant = merchantRepository.findById(id)
                 .orElseThrow(() -> new MerchantNotFoundException("Merchant with ID " + id + " not found."));
-        
-        // Only update non-null fields (PATCH behavior)
-        if (request.getMerchantName() != null) merchant.setMerchantName(request.getMerchantName());
-        if (request.getEmail() != null) merchant.setEmail(request.getEmail());
-        if (request.getAddress() != null) merchant.setAddress(request.getAddress());
-        if (request.getGstin() != null) merchant.setGstin(request.getGstin());
-        if (request.getFssaiLicense() != null) merchant.setFssaiLicense(request.getFssaiLicense());
-        
-        if (request.getPhone() != null) {
-            if (!merchant.getPhone().equals(request.getPhone()) && 
+
+        // 6. BUSINESS RULE VALIDATION - Username uniqueness
+        if (request.getUsername() != null && !request.getUsername().trim().isEmpty()) {
+            User existingMerchantUser = userRepository.findByMerchantAndUserType(merchant, "merchant")
+                    .orElse(null);
+
+            if (existingMerchantUser != null && !existingMerchantUser.getUsername().equals(request.getUsername())) {
+                if (userRepository.existsByUsername(request.getUsername())) {
+                    throw new UserAlreadyExistsException("Username '" + request.getUsername() + "' already exists");
+                }
+                existingMerchantUser.setUsername(request.getUsername());
+                userRepository.save(existingMerchantUser);
+            }
+        }
+
+        // 7. PHONE UNIQUENESS CHECK
+        if (request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
+            if (!merchant.getPhone().equals(request.getPhone()) &&
                 merchantRepository.existsByPhone(request.getPhone())) {
                 throw new MerchantAlreadyExistsException("A merchant with phone number " + maskPhone(request.getPhone()) + " already exists. Please use a different phone number.");
             }
+        }
+
+        // 8. UPDATE LOGIC - Only after all validations pass
+        merchant.setMerchantName(request.getMerchantName());
+
+        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+            merchant.setEmail(request.getEmail());
+        }
+
+        if (request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
             merchant.setPhone(request.getPhone());
         }
-        
+
+        if (request.getAddress() != null && !request.getAddress().trim().isEmpty()) {
+            merchant.setAddress(request.getAddress());
+        }
+
+        if (request.getGstin() != null && !request.getGstin().trim().isEmpty()) {
+            merchant.setGstin(request.getGstin());
+        }
+
+        if (request.getFssaiLicense() != null && !request.getFssaiLicense().trim().isEmpty()) {
+            merchant.setFssaiLicense(request.getFssaiLicense());
+        }
+
+        // Update password for associated merchant user if provided
+        if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
+            userRepository.findByMerchantAndUserType(merchant, "merchant")
+                    .ifPresent(user -> {
+                        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+                        userRepository.save(user);
+                    });
+        }
+
         merchant = merchantRepository.save(merchant);
         return mapToResponse(merchant);
+    }
+
+    private boolean isEmptyRequest(MerchantRequest request) {
+        return (request.getMerchantName() == null || request.getMerchantName().trim().isEmpty()) &&
+               (request.getEmail() == null || request.getEmail().trim().isEmpty()) &&
+               (request.getPhone() == null || request.getPhone().trim().isEmpty()) &&
+               (request.getAddress() == null || request.getAddress().trim().isEmpty()) &&
+               (request.getGstin() == null || request.getGstin().trim().isEmpty()) &&
+               (request.getFssaiLicense() == null || request.getFssaiLicense().trim().isEmpty()) &&
+               (request.getUsername() == null || request.getUsername().trim().isEmpty()) &&
+               (request.getPassword() == null || request.getPassword().trim().isEmpty());
     }
 
     @Override

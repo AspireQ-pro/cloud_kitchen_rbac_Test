@@ -2,6 +2,8 @@ package com.cloudkitchen.rbac.controller;
 
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
 import com.cloudkitchen.rbac.dto.auth.AuthRequest;
 import com.cloudkitchen.rbac.dto.auth.AuthResponse;
 import com.cloudkitchen.rbac.dto.auth.OtpRequest;
@@ -18,14 +21,11 @@ import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.security.JwtTokenProvider;
 import com.cloudkitchen.rbac.service.AuthService;
 import com.cloudkitchen.rbac.service.ValidationService;
-import com.cloudkitchen.rbac.util.ResponseBuilder;
-
 import com.cloudkitchen.rbac.util.HttpResponseUtil;
+import com.cloudkitchen.rbac.util.ResponseBuilder;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -125,18 +125,46 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Map<String, Object>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ResponseBuilder.error(400, "Invalid Authorization header"));
+        // D001: Return 401 when Authorization header is missing
+        if (authHeader == null || authHeader.trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
         }
+        
+        if (!authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
+        }
+        
         try {
-            String token = authHeader.substring(7);
+            String token = authHeader.substring(7).trim();
+            
+            // D003 & D004: Validate token format to prevent SQL injection and XSS
+            validationService.validateTokenFormat(token);
+            
+            // D002: Validate token properly - this will throw exception for invalid/tampered tokens
+            if (!jwt.validateAccessToken(token)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
+            }
+            
             Integer userId = jwt.getUserIdFromToken(token);
             auth.logout(userId);
             return ResponseEntity.ok(ResponseBuilder.success(200, "Logged out successfully"));
+        } catch (IllegalArgumentException e) {
+            // Token format validation failed (D003, D004)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(400, "Bad Request"));
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
+        } catch (io.jsonwebtoken.MalformedJwtException | io.jsonwebtoken.security.SignatureException | 
+                 io.jsonwebtoken.UnsupportedJwtException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(401, "Invalid token"));
+                    .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
         }
     }
     

@@ -10,10 +10,15 @@ import com.cloudkitchen.rbac.service.ValidationService;
 
 @Service
 public class ValidationServiceImpl implements ValidationService {
-    
+
     private static final Pattern PHONE_PATTERN = Pattern.compile("^[6-9]\\d{9}$");
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$");
+    private static final Pattern GSTIN_PATTERN = Pattern.compile("^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$");
+    private static final Pattern FSSAI_PATTERN = Pattern.compile("^\\d{14}$");
+
+    private static final int MAX_ADDRESS_LENGTH = 255;
+    private static final int MAX_MERCHANT_NAME_LENGTH = 100;
     
     @Override
     public void validateRegistration(RegisterRequest request) {
@@ -158,5 +163,86 @@ public class ValidationServiceImpl implements ValidationService {
     @Override
     public void validateMobileForLogin(String mobile) {
         validatePhone(mobile);
+    }
+    
+    @Override
+    public void validateTokenFormat(String token) {
+        if (token == null || token.trim().isEmpty()) {
+            throw new IllegalArgumentException("Token cannot be null or empty");
+        }
+
+        String trimmedToken = token.trim();
+
+        // JWT tokens should only contain alphanumeric characters, dots, hyphens, and underscores
+        // This prevents SQL injection and XSS attempts
+        if (!trimmedToken.matches("^[A-Za-z0-9._-]+$")) {
+            throw new IllegalArgumentException("Invalid token format");
+        }
+
+        // JWT tokens have 3 parts separated by dots
+        String[] parts = trimmedToken.split("\\.");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Invalid token format");
+        }
+
+        // Each part should be base64url encoded (no padding)
+        for (String part : parts) {
+            if (part.isEmpty() || !part.matches("^[A-Za-z0-9_-]+$")) {
+                throw new IllegalArgumentException("Invalid token format");
+            }
+        }
+
+        // Additional length validation to prevent extremely long tokens
+        if (trimmedToken.length() > 2048) {
+            throw new IllegalArgumentException("Token too long");
+        }
+    }
+
+    @Override
+    public void validateMerchantName(String merchantName) {
+        if (merchantName == null || merchantName.trim().isEmpty()) {
+            throw new IllegalArgumentException("merchantName is required");
+        }
+
+        if (merchantName.trim().length() > MAX_MERCHANT_NAME_LENGTH) {
+            throw new IllegalArgumentException("Merchant name must not exceed 100 characters");
+        }
+    }
+
+    @Override
+    public void validateGstin(String gstin) {
+        if (gstin == null || gstin.trim().isEmpty()) {
+            return;
+        }
+
+        String trimmedGstin = gstin.trim();
+
+        if (!GSTIN_PATTERN.matcher(trimmedGstin).matches()) {
+            throw new IllegalArgumentException("Invalid GSTIN format");
+        }
+    }
+
+    @Override
+    public void validateFssaiLicense(String fssaiLicense) {
+        if (fssaiLicense == null || fssaiLicense.trim().isEmpty()) {
+            return;
+        }
+
+        String trimmedFssai = fssaiLicense.trim();
+
+        if (!FSSAI_PATTERN.matcher(trimmedFssai).matches()) {
+            throw new IllegalArgumentException("Invalid FSSAI license number format");
+        }
+    }
+
+    @Override
+    public void validateAddress(String address) {
+        if (address == null || address.trim().isEmpty()) {
+            return;
+        }
+
+        if (address.length() > MAX_ADDRESS_LENGTH) {
+            throw new IllegalArgumentException("Address must not exceed 255 characters");
+        }
     }
 }
