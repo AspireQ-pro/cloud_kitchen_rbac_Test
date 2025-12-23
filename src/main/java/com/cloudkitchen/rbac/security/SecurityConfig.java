@@ -22,6 +22,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.cloudkitchen.rbac.filter.ContentTypeValidationFilter;
+
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
@@ -65,7 +67,8 @@ public class SecurityConfig {
     };
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter,
+            ContentTypeValidationFilter contentTypeValidationFilter)
             throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -102,6 +105,8 @@ public class SecurityConfig {
                             response.getWriter()
                                     .write("{\"error\":\"Unauthorized\",\"message\":\"Authentication required\"}");
                         }))
+                .addFilterBefore(contentTypeValidationFilter,
+                        org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter,
                         org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class);
         return http.build();

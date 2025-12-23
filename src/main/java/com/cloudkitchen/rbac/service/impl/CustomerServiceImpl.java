@@ -101,6 +101,8 @@ public class CustomerServiceImpl implements CustomerService {
         if (request.getAddress() != null) customer.setAddress(request.getAddress());
         if (request.getCity() != null) customer.setCity(request.getCity());
         if (request.getState() != null) customer.setState(request.getState());
+        if (request.getCountry() != null) customer.setCountry(request.getCountry());
+        if (request.getPincode() != null) customer.setPincode(request.getPincode());
         if (request.getDob() != null) customer.setDob(request.getDob());
         if (request.getFavoriteFood() != null) customer.setFavoriteFood(request.getFavoriteFood());
         
@@ -184,21 +186,6 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     private CustomerResponse convertToResponse(Customer customer) {
-        // Get order statistics from database
-        Object[] orderStats = customerRepository.findOrderStatsByCustomerId(customer.getCustomerId());
-        
-        LocalDateTime lastOrderAt = null;
-        Integer totalOrders = 0;
-        
-        if (orderStats != null && orderStats.length >= 2) {
-            if (orderStats[0] != null) {
-                lastOrderAt = ((java.sql.Timestamp) orderStats[0]).toLocalDateTime();
-            }
-            if (orderStats[1] != null) {
-                totalOrders = ((Number) orderStats[1]).intValue();
-            }
-        }
-        
         CustomerResponse response = new CustomerResponse();
         response.setId(customer.getCustomerId());
         response.setFirstName(customer.getFirstName());
@@ -212,8 +199,6 @@ public class CustomerServiceImpl implements CustomerService {
         response.setPincode(customer.getPincode());
         response.setDob(customer.getDob());
         response.setFavoriteFood(customer.getFavoriteFood());
-        response.setLastOrderAt(lastOrderAt);
-        response.setTotalOrders(totalOrders);
         response.setActive(customer.getIsActive());
         response.setCreatedAt(customer.getCreatedOn());
         response.setUpdatedAt(customer.getUpdatedOn());
