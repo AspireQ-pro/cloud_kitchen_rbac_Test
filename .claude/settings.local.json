@@ -4,7 +4,9 @@
       "Bash(python -m json.tool:*)",
       "Bash(./mvnw clean compile:*)",
       "Bash(mvn clean compile:*)",
-      "Bash(mvn compile:*)"
+      "Bash(mvn compile:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)"
     ]
   }
 }

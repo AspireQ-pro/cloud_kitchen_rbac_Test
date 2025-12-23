@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cloudkitchen.rbac.constants.ResponseMessages;
 import com.cloudkitchen.rbac.dto.auth.AuthRequest;
 import com.cloudkitchen.rbac.dto.auth.AuthResponse;
 import com.cloudkitchen.rbac.dto.auth.OtpRequest;
@@ -55,24 +56,44 @@ public class AuthController {
             
             AuthResponse authResponse = auth.registerUser(req);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ResponseBuilder.success(HttpResponseUtil.CREATED, "Customer registration successful", authResponse));
+                    .body(ResponseBuilder.success(HttpResponseUtil.CREATED, ResponseMessages.Auth.REGISTRATION_SUCCESS, authResponse));
         } catch (IllegalArgumentException e) {
-            log.warn("Registration validation failed");
+            log.warn("Registration validation failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ResponseBuilder.error(400, e.getMessage()));
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, e.getMessage()));
         } catch (RuntimeException e) {
-            log.error("Registration failed");
+            log.error("Registration failed: {}", e.getMessage());
             
+            // Handle specific merchant not found error
+            if (e.getMessage().contains("Merchant with ID") && e.getMessage().contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, e.getMessage()));
+            }
+            
+            // Handle user already exists error
             if (e.getMessage().contains("already registered")) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
-                        .body(ResponseBuilder.error(409, e.getMessage()));
+                        .body(ResponseBuilder.error(HttpResponseUtil.CONFLICT, e.getMessage()));
             }
+            
+            // Handle phone already exists error
+            if (e.getMessage().contains("already exists")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ResponseBuilder.error(HttpResponseUtil.CONFLICT, e.getMessage()));
+            }
+            
+            // Handle validation errors
+            if (e.getMessage().contains("Invalid") || e.getMessage().contains("required")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, e.getMessage()));
+            }
+            
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Registration failed"));
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR, "Registration failed: " + e.getMessage()));
         } catch (Exception e) {
-            log.error("Unexpected registration error occurred");
+            log.error("Unexpected registration error occurred: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Registration failed"));
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR, "Registration failed due to unexpected error"));
         }
     }
 
@@ -84,11 +105,11 @@ public class AuthController {
         // Validate merchantId for customer login
         if (req.getMerchantId() == null || req.getMerchantId() <= 0) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ResponseBuilder.error(400, "Valid merchantId (>0) is required for customer login"));
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, ResponseMessages.Auth.CUSTOMER_MERCHANT_ID_REQUIRED));
         }
         
         AuthResponse authResponse = auth.login(req);
-        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, "Customer login successful", authResponse));
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Auth.CUSTOMER_LOGIN_SUCCESS, authResponse));
     }
 
     @PostMapping(value = "/login", consumes = "application/json")
@@ -104,25 +125,25 @@ public class AuthController {
         // Validate merchantId restriction for merchant login
         if (req.getMerchantId() != null && req.getMerchantId() != 0) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ResponseBuilder.error(403, "Only merchant (0) login allowed"));
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Auth.MERCHANT_LOGIN_ONLY));
         }
         
         AuthResponse authResponse = auth.login(req);
-        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, "Login successful", authResponse));
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Auth.LOGIN_SUCCESS, authResponse));
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<Map<String, Object>> refresh(@Valid @RequestBody RefreshTokenRequest req) {
         try {
             AuthResponse authResponse = auth.refresh(req);
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Token refreshed successfully", authResponse));
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Auth.TOKEN_REFRESH_SUCCESS, authResponse));
         } catch (RuntimeException e) {
             if (e.getMessage().contains("Invalid refresh token") || e.getMessage().contains("revoked")) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ResponseBuilder.error(401, "Invalid or expired refresh token"));
+                        .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Invalid or expired refresh token"));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Token refresh failed"));
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR, "Token refresh failed"));
         }
     }
 
@@ -131,12 +152,12 @@ public class AuthController {
         // D001: Return 401 when Authorization header is missing
         if (authHeader == null || authHeader.trim().isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
         }
         
         if (!authHeader.startsWith("Bearer ")) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
         }
         
         try {
@@ -148,26 +169,26 @@ public class AuthController {
             // D002: Validate token properly - this will throw exception for invalid/tampered tokens
             if (!jwt.validateAccessToken(token)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
+                        .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
             }
             
             Integer userId = jwt.getUserIdFromToken(token);
             auth.logout(userId);
-            return ResponseEntity.ok(ResponseBuilder.success(200, "Logged out successfully"));
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Auth.LOGOUT_SUCCESS));
         } catch (IllegalArgumentException e) {
             // Token format validation failed (D003, D004)
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ResponseBuilder.error(400, "Bad Request"));
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, "Bad Request"));
         } catch (io.jsonwebtoken.ExpiredJwtException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
         } catch (io.jsonwebtoken.MalformedJwtException | io.jsonwebtoken.security.SignatureException | 
                  io.jsonwebtoken.UnsupportedJwtException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
         }
     }
 
@@ -179,7 +200,7 @@ public class AuthController {
             // Validate phone number first
             if (req.getPhone() == null || req.getPhone().trim().isEmpty()) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "Phone number is required"));
+                        .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, ResponseMessages.Otp.PHONE_REQUIRED));
             }
             
             // Validate phone format
@@ -188,13 +209,13 @@ public class AuthController {
             // Validate merchantId is provided
             if (req.getMerchantId() == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "MerchantId is required (use 0 for OTP by phone number)"));
+                        .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, ResponseMessages.Otp.MERCHANT_ID_REQUIRED_OTP));
             }
             
             // Check if phone number exists in database
             if (!auth.isPhoneNumberExists(req.getPhone(), req.getMerchantId())) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ResponseBuilder.error(404, "Phone number not registered. Please register first."));
+                        .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Otp.PHONE_NOT_REGISTERED));
             }
             
             // Set default otpType if not provided
@@ -204,37 +225,37 @@ public class AuthController {
             
             auth.requestOtp(req);
             String message = getSuccessMessageByType(req.getOtpType());
-            return ResponseEntity.ok(ResponseBuilder.success(200, message));
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, message));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ResponseBuilder.error(400, e.getMessage()));
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, e.getMessage()));
         } catch (RuntimeException e) {
             if (e.getMessage().contains("Access denied")) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ResponseBuilder.error(403, e.getMessage()));
+                        .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, e.getMessage()));
             }
             if (e.getMessage().contains("Phone is blocked")) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(ResponseBuilder.error(429, e.getMessage()));
+                        .body(ResponseBuilder.error(HttpResponseUtil.TOO_MANY_REQUESTS, e.getMessage()));
             }
             if (e.getMessage().contains("Too many OTP requests")) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(ResponseBuilder.error(429, "Rate limit exceeded: " + e.getMessage()));
+                        .body(ResponseBuilder.error(HttpResponseUtil.TOO_MANY_REQUESTS, "Rate limit exceeded: " + e.getMessage()));
             }
             if (e.getMessage().contains("Too many")) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(ResponseBuilder.error(429, e.getMessage()));
+                        .body(ResponseBuilder.error(HttpResponseUtil.TOO_MANY_REQUESTS, e.getMessage()));
             }
             if (e.getMessage().contains("User not found")) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ResponseBuilder.error(404, "Phone number not registered"));
+                        .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Otp.PHONE_NOT_REGISTERED));
             }
             if (e.getMessage().contains("SMS service")) {
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                        .body(ResponseBuilder.error(503, "SMS service temporarily unavailable"));
+                        .body(ResponseBuilder.error(HttpResponseUtil.SERVICE_UNAVAILABLE, ResponseMessages.Otp.SMS_SERVICE_UNAVAILABLE));
             }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "OTP request failed"));
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR, ResponseMessages.Otp.OTP_REQUEST_FAILED));
         }
     }
     
@@ -248,19 +269,19 @@ public class AuthController {
         AuthResponse authResponse = auth.verifyOtpAndGenerateToken(req);
 
         String message = "password_reset".equals(req.getOtpType()) ?
-            "OTP verified. Default password has been set. Please change it in your profile." :
-            "Verification successful";
+            ResponseMessages.Otp.OTP_PASSWORD_RESET_SUCCESS :
+            ResponseMessages.Otp.OTP_VERIFIED;
 
         log.info("OTP verification successful for request");
-        return ResponseEntity.ok(ResponseBuilder.success(200, message, authResponse));
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, message, authResponse));
     }
     
     private String getSuccessMessageByType(String otpType) {
         return switch (otpType) {
-            case "password_reset" -> "Password reset OTP sent to your phone. Valid for 5 minutes.";
-            case "phone_verification" -> "Phone verification OTP sent. Valid for 10 minutes.";
-            case "account_verification" -> "Account verification OTP sent. Valid for 15 minutes.";
-            default -> "OTP sent to your phone successfully.";
+            case "password_reset" -> ResponseMessages.Otp.PASSWORD_RESET_OTP;
+            case "phone_verification" -> ResponseMessages.Otp.PHONE_VERIFICATION_OTP;
+            case "account_verification" -> ResponseMessages.Otp.ACCOUNT_VERIFICATION_OTP;
+            default -> ResponseMessages.Otp.OTP_SENT;
         };
     }
 }
