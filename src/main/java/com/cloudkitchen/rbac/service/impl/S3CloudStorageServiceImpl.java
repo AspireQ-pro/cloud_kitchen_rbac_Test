@@ -2,10 +2,12 @@ package com.cloudkitchen.rbac.service.impl;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.cloudkitchen.rbac.config.S3Properties;
@@ -82,7 +84,19 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
         logger.info("✅ Merchant folders created - merchantId: {}, folders: {}, duration: {}ms",
             merchantId, success, System.currentTimeMillis() - start);
     }
-    
+
+    @Async("s3Executor")
+    @Override
+    public CompletableFuture<Void> createMerchantFolderStructureAsync(String merchantId) {
+        try {
+            createMerchantFolderStructure(merchantId);
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            logger.warn("Async S3 folder creation failed for merchant {}: {}", merchantId, e.getMessage());
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
     @Override
     public void createCustomerFolderStructure(String merchantId, String customerId) {
         validateId(merchantId, "merchantId");

@@ -244,12 +244,9 @@ public class AuthController {
     public ResponseEntity<Map<String, Object>> verifyOtp(@Valid @RequestBody OtpVerifyRequest req) {
         log.info("OTP verification request received for merchantId: {}", req.getMerchantId());
 
-        // All validations and business logic are handled in the service layer
-        // The service will throw specific exceptions that are caught by GlobalExceptionHandler
-        auth.verifyOtpWithStatus(req);
+        // Optimized: Single call that validates and generates token
+        AuthResponse authResponse = auth.verifyOtpAndGenerateToken(req);
 
-        // If we reach here, OTP verification was successful
-        AuthResponse authResponse = auth.verifyOtp(req);
         String message = "password_reset".equals(req.getOtpType()) ?
             "OTP verified. Default password has been set. Please change it in your profile." :
             "Verification successful";
