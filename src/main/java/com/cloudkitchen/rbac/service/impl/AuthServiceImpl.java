@@ -176,26 +176,42 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse login(AuthRequest req) {
         log.info("Login attempt for merchantId: {}", req.getMerchantId());
-        validateLoginRequest(req);
+        
+        // 1. INPUT VALIDATION FIRST (before any business logic)
+        validateLoginInputs(req);
+        
+        // 2. BUSINESS VALIDATION
         User user = findUserForLogin(req);
         verifyPassword(user, req.getPassword());
         Integer customerId = getCustomerId(user, req.getMerchantId());
+        
         log.info("Login successful for user: {} (type: {})", user.getUserId(), user.getUserType());
         return buildTokens(user, req.getMerchantId(), customerId);
     }
-
-    private void validateLoginRequest(AuthRequest req) {
-        if (req.getUsername() == null && req.getPassword() == null && req.getMerchantId() == null) {
-            throw new IllegalArgumentException("Missing required fields: merchantId, username, password");
-        }
-        if (req.getUsername() == null || req.getUsername().trim().isEmpty()) {
-            throw new IllegalArgumentException("Username is required");
-        }
-        if (req.getPassword() == null || req.getPassword().trim().isEmpty()) {
-            throw new IllegalArgumentException("Password is required");
-        }
+    
+    private void validateLoginInputs(AuthRequest req) {
+        // Validate merchantId first
         if (req.getMerchantId() == null) {
-            throw new IllegalArgumentException("MerchantId is required: use 0 for admin/merchant, >0 for customers");
+            throw new ValidationException("MerchantId is required: use 0 for admin/merchant, >0 for customers");
+        }
+        
+        // Validate username/mobile
+        if (req.getUsername() == null || req.getUsername().trim().isEmpty()) {
+            throw new ValidationException("Username is required");
+        }
+        
+        // For customer login (merchantId > 0), validate mobile format
+        if (req.getMerchantId() > 0) {
+            try {
+                validationService.validateMobileForLogin(req.getUsername());
+            } catch (IllegalArgumentException e) {
+                throw new ValidationException(e.getMessage());
+            }
+        }
+        
+        // Validate password
+        if (req.getPassword() == null || req.getPassword().trim().isEmpty()) {
+            throw new ValidationException("Password is required");
         }
     }
 
@@ -204,10 +220,10 @@ public class AuthServiceImpl implements AuthService {
             return findMerchantOrAdminUser(req.getUsername());
         } else if (req.getMerchantId() > 0) {
             return users.findByPhoneAndMerchant_MerchantId(req.getUsername(), req.getMerchantId())
-                    .orElseThrow(() -> new UserNotFoundException(
-                            "Customer not found for this merchant. Please check your phone number."));
+                    .orElseThrow(() -> new MobileNotRegisteredException(
+                            "Mobile number not registered"));
         } else {
-            throw new IllegalArgumentException("Invalid merchantId. Use 0 for admin/merchant, >0 for customers");
+            throw new ValidationException("Invalid merchantId. Use 0 for admin/merchant, >0 for customers");
         }
     }
 

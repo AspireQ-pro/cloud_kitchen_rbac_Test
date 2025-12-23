@@ -81,75 +81,31 @@ public class AuthController {
 
     @PostMapping("/customer/login")
     @Operation(summary = "Customer Login", description = "Login for customers with merchantId > 0")
-    public ResponseEntity<Map<String, Object>> customerLogin(@Valid @RequestBody AuthRequest req) {
-        try {
-            log.info("Customer login request for merchantId: {}", req.getMerchantId());
-            
-            // Validate merchantId for customer login
-            if (req.getMerchantId() == null || req.getMerchantId() <= 0) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "Valid merchantId (>0) is required for customer login"));
-            }
-            
-            AuthResponse authResponse = auth.login(req);
-            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, "Customer login successful", authResponse));
-        } catch (IllegalArgumentException e) {
-            log.warn("Customer login validation failed: {}", e.getMessage());
+    public ResponseEntity<Map<String, Object>> customerLogin(@RequestBody AuthRequest req) {
+        log.info("Customer login request for merchantId: {}", req.getMerchantId());
+        
+        // Validate merchantId for customer login
+        if (req.getMerchantId() == null || req.getMerchantId() <= 0) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ResponseBuilder.error(400, e.getMessage()));
-        } catch (RuntimeException e) {
-            log.warn("Customer login failed: {}", e.getMessage());
-            if (e.getMessage().contains("User not found") || 
-                e.getMessage().contains("Invalid password") ||
-                e.getMessage().contains("Invalid credentials") || 
-                e.getMessage().contains("Customer not found") ||
-                e.getMessage().contains("Access denied")) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ResponseBuilder.error(401, "Invalid username or password"));
-            }
-            if (e.getMessage().contains("inactive") || e.getMessage().contains("disabled")) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ResponseBuilder.error(403, "Account is inactive"));
-            }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Login failed"));
-        } catch (Exception e) {
-            log.error("Unexpected error during customer login", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Login failed"));
+                    .body(ResponseBuilder.error(400, "Valid merchantId (>0) is required for customer login"));
         }
+        
+        AuthResponse authResponse = auth.login(req);
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, "Customer login successful", authResponse));
     }
 
     @PostMapping(value = "/login", consumes = "application/json")
-    public ResponseEntity<Map<String, Object>> merchantAdminLogin(@Valid @RequestBody AuthRequest req) {
-        try {
-            log.info("Login request received for merchantId: {}", req.getMerchantId());
-            
-            // Validate merchantId restriction for merchant login
-            if (req.getMerchantId() != null && req.getMerchantId() != 0) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ResponseBuilder.error(403, "Only merchant (0) login allowed"));
-            }
-            
-            AuthResponse authResponse = auth.login(req);
-            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, "Login successful", authResponse));
-        } catch (IllegalArgumentException e) {
-            log.warn("Login validation failed");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ResponseBuilder.error(400, e.getMessage()));
-        } catch (RuntimeException e) {
-            log.warn("Login failed");
-            if (e.getMessage().contains("User not found") || 
-                e.getMessage().contains("Invalid password") ||
-                e.getMessage().contains("Invalid credentials") || 
-                e.getMessage().contains("Customer not found") ||
-                e.getMessage().contains("Access denied")) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ResponseBuilder.error(401, "Invalid username or password"));
-            }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "Login failed"));
+    public ResponseEntity<Map<String, Object>> merchantAdminLogin(@RequestBody AuthRequest req) {
+        log.info("Login request received for merchantId: {}", req.getMerchantId());
+        
+        // Validate merchantId restriction for merchant login
+        if (req.getMerchantId() != null && req.getMerchantId() != 0) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(403, "Only merchant (0) login allowed"));
         }
+        
+        AuthResponse authResponse = auth.login(req);
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, "Login successful", authResponse));
     }
 
     @PostMapping("/refresh")

@@ -50,4 +50,11 @@ public interface ValidationService {
      * @throws IllegalArgumentException if mobile is invalid
      */
     void validateMobileForOtp(String mobile);
+    
+    /**
+     * Validates mobile number format specifically for login operations.
+     * @param mobile the mobile number to validate
+     * @throws IllegalArgumentException if mobile is invalid
+     */
+    void validateMobileForLogin(String mobile);
 }

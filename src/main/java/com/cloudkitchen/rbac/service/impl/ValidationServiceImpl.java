@@ -76,27 +76,24 @@ public class ValidationServiceImpl implements ValidationService {
         
         String trimmedPhone = phone.trim();
         
-        // Check for alphabetic characters in phone
-        if (trimmedPhone.matches(".*[a-zA-Z].*")) {
-            throw new IllegalArgumentException("Invalid mobile number");
+        // Reject any non-numeric characters (spaces, dashes, alphabets)
+        if (!trimmedPhone.matches("^\\d+$")) {
+            throw new IllegalArgumentException("Mobile number must be 10 digits");
         }
-        
-        // Remove all non-digit characters for validation
-        String cleanPhone = trimmedPhone.replaceAll("[^0-9]", "");
         
         // Check if phone has exactly 10 digits
-        if (cleanPhone.length() != 10) {
-            throw new IllegalArgumentException("Mobile number must be exactly 10 digits");
+        if (trimmedPhone.length() != 10) {
+            throw new IllegalArgumentException("Mobile number must be 10 digits");
         }
         
-        // Validate Indian mobile number format
-        if (!PHONE_PATTERN.matcher(cleanPhone).matches()) {
-            throw new IllegalArgumentException("Invalid mobile number format");
+        // Reject leading zero and country codes
+        if (trimmedPhone.startsWith("0") || trimmedPhone.startsWith("91")) {
+            throw new IllegalArgumentException("Mobile number must be 10 digits");
         }
         
-        // Additional check: if original contains non-digits other than spaces/hyphens, reject
-        if (!trimmedPhone.matches("^[0-9\\s\\-+()]*$")) {
-            throw new IllegalArgumentException("Invalid mobile number");
+        // Validate Indian mobile number format (starts with 6-9)
+        if (!PHONE_PATTERN.matcher(trimmedPhone).matches()) {
+            throw new IllegalArgumentException("Mobile number must be 10 digits");
         }
     }
     
@@ -155,28 +152,11 @@ public class ValidationServiceImpl implements ValidationService {
 
     @Override
     public void validateMobileForOtp(String mobile) {
-        if (mobile == null || mobile.trim().isEmpty()) {
-            throw new IllegalArgumentException("Mobile number is required");
-        }
-
-        String trimmedMobile = mobile.trim();
-
-        // Remove all non-digit characters for validation
-        String cleanMobile = trimmedMobile.replaceAll("[^0-9]", "");
-
-        // Check for alphabetic characters in mobile
-        if (trimmedMobile.matches(".*[a-zA-Z].*")) {
-            throw new IllegalArgumentException("Invalid mobile number format");
-        }
-
-        // Check if mobile has exactly 10 digits
-        if (cleanMobile.length() != 10) {
-            throw new IllegalArgumentException("Invalid mobile number format");
-        }
-
-        // Validate Indian mobile number format
-        if (!PHONE_PATTERN.matcher(cleanMobile).matches()) {
-            throw new IllegalArgumentException("Invalid mobile number format");
-        }
+        validatePhone(mobile);
+    }
+    
+    @Override
+    public void validateMobileForLogin(String mobile) {
+        validatePhone(mobile);
     }
 }
