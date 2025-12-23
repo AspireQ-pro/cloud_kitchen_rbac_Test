@@ -1,8 +1,8 @@
 package com.cloudkitchen.rbac.dto.auth;
 
 import jakarta.validation.constraints.*;
-import org.hibernate.validator.constraints.Length;
 import io.swagger.v3.oas.annotations.media.Schema;
+import com.cloudkitchen.rbac.constants.ResponseMessages;
 
 @Schema(description = "OTP verification request")
 public class OtpVerifyRequest {
@@ -10,20 +10,20 @@ public class OtpVerifyRequest {
     @Min(value = 0, message = "Merchant ID must be 0 or positive")
     @Schema(description = "Merchant ID (0 for phone-based verification, >0 for merchant-specific)", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
     private Integer merchantId;
-    
+
     @NotBlank(message = "Mobile number is required")
     @Pattern(regexp = "^[6-9]\\d{9}$", message = "Mobile number is required")
-    @Length(min = 10, max = 13, message = "Mobile number is required")
+    @Size(min = 10, max = 13, message = "Mobile number is required")
     @Schema(description = "Phone number (10-digit Indian mobile)", example = "9075027004", requiredMode = Schema.RequiredMode.REQUIRED)
     private String phone;
     
     @NotBlank(message = "OTP is required")
-    @Pattern(regexp = "^\\d{4}$", message = "OTP must be 4 digits")
-    @Length(min = 4, max = 4, message = "OTP must be exactly 4 digits")
+    @Pattern(regexp = "^\\d{4}$", message = ResponseMessages.Validation.OTP_MUST_BE_NUMERIC)
+    @Size(min = 4, max = 4, message = "OTP must be exactly 4 digits")
     @Schema(description = "4-digit OTP code", example = "1234", requiredMode = Schema.RequiredMode.REQUIRED)
     private String otp;
-    
-    @Pattern(regexp = "^(login|password_reset|phone_verification|account_verification)$", 
+
+    @Pattern(regexp = "^(login|password_reset|phone_verification|account_verification)$",
              message = "OTP type must be one of: login, password_reset, phone_verification, account_verification")
     @Schema(description = "Type of OTP verification", example = "login", allowableValues = {"login", "password_reset", "phone_verification", "account_verification"})
     private String otpType = "login"; // login, password_reset, phone_verification, account_verification
