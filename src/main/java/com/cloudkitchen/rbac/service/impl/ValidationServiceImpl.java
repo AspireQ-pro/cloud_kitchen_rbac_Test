@@ -23,50 +23,79 @@ public class ValidationServiceImpl implements ValidationService {
         validatePhone(request.getPhone());
         validatePassword(request.getPassword());
         
-        if (request.getFirstName() == null || request.getFirstName().trim().isEmpty()) {
+        // Validate firstName
+        if (request.getFirstName() == null) {
             throw new IllegalArgumentException("First name is required");
         }
         
+        if (request.getFirstName().trim().isEmpty()) {
+            if (request.getFirstName().length() > 0) {
+                throw new IllegalArgumentException("First name cannot be empty or whitespace only");
+            } else {
+                throw new IllegalArgumentException("First name is required");
+            }
+        }
+        
         // Validate name contains only valid characters
-        if (!request.getFirstName().matches("^[a-zA-Z\\s-]+$")) {
-            throw new IllegalArgumentException("Invalid characters in name");
+        if (!request.getFirstName().trim().matches("^[a-zA-Z\\s-]+$")) {
+            throw new IllegalArgumentException("Invalid characters in first name");
         }
         
-        if (request.getFirstName().length() > 100) {
-            throw new IllegalArgumentException("Name too long");
+        if (request.getFirstName().trim().length() > 100) {
+            throw new IllegalArgumentException("First name too long");
         }
         
-        // LastName is optional but validate if provided
-        if (request.getLastName() != null && !request.getLastName().trim().isEmpty()) {
-            if (!request.getLastName().matches("^[a-zA-Z\\s-]+$")) {
-                throw new IllegalArgumentException("Invalid characters in name");
+        // Validate lastName - now mandatory
+        if (request.getLastName() == null) {
+            throw new IllegalArgumentException("Last name is required");
+        }
+        
+        if (request.getLastName().trim().isEmpty()) {
+            if (request.getLastName().length() > 0) {
+                throw new IllegalArgumentException("Last name cannot be empty or whitespace only");
+            } else {
+                throw new IllegalArgumentException("Last name is required");
             }
-            if (request.getLastName().length() > 100) {
-                throw new IllegalArgumentException("Name too long");
-            }
+        }
+        
+        if (!request.getLastName().trim().matches("^[a-zA-Z\\s-]+$")) {
+            throw new IllegalArgumentException("Invalid characters in last name");
+        }
+        
+        if (request.getLastName().trim().length() > 100) {
+            throw new IllegalArgumentException("Last name too long");
         }
     }
     
     @Override
     public void validatePhone(String phone) {
         if (phone == null || phone.trim().isEmpty()) {
-            throw new IllegalArgumentException("Phone number is required");
+            throw new IllegalArgumentException("Mobile number is required");
         }
         
-        String cleanPhone = phone.trim().replaceAll("[^0-9]", "");
+        String trimmedPhone = phone.trim();
         
-        // Check for alphabetic characters in original phone
-        if (phone.matches(".*[a-zA-Z].*")) {
-            throw new IllegalArgumentException("Invalid phone number");
+        // Check for alphabetic characters in phone
+        if (trimmedPhone.matches(".*[a-zA-Z].*")) {
+            throw new IllegalArgumentException("Invalid mobile number");
         }
         
-        // Check for international format
-        if (phone.contains("+") || phone.contains(" ") || cleanPhone.length() != 10) {
-            throw new IllegalArgumentException("Invalid phone number format");
+        // Remove all non-digit characters for validation
+        String cleanPhone = trimmedPhone.replaceAll("[^0-9]", "");
+        
+        // Check if phone has exactly 10 digits
+        if (cleanPhone.length() != 10) {
+            throw new IllegalArgumentException("Mobile number must be exactly 10 digits");
         }
         
+        // Validate Indian mobile number format
         if (!PHONE_PATTERN.matcher(cleanPhone).matches()) {
-            throw new IllegalArgumentException("Invalid phone number format");
+            throw new IllegalArgumentException("Invalid mobile number format");
+        }
+        
+        // Additional check: if original contains non-digits other than spaces/hyphens, reject
+        if (!trimmedPhone.matches("^[0-9\\s\\-+()]*$")) {
+            throw new IllegalArgumentException("Invalid mobile number");
         }
     }
     
@@ -89,6 +118,10 @@ public class ValidationServiceImpl implements ValidationService {
     public void validatePassword(String password) {
         if (password == null || password.trim().isEmpty()) {
             throw new IllegalArgumentException("Password is required");
+        }
+        
+        if (password.length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters with uppercase, lowercase, and digit");
         }
         
         if (!PASSWORD_PATTERN.matcher(password).matches()) {

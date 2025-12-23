@@ -74,11 +74,7 @@ public class Customer {
     @Column(name = "favorite_food", length = 255)
     private String favoriteFood;
 
-    @Column(name = "last_order_at")
-    private LocalDateTime lastOrderAt;
 
-    @Column(name = "total_orders")
-    private Integer totalOrders = 0;
 
     // Getters and Setters
     public Integer getCustomerId() { return customerId; }
@@ -141,9 +137,5 @@ public class Customer {
     public String getFavoriteFood() { return favoriteFood; }
     public void setFavoriteFood(String favoriteFood) { this.favoriteFood = favoriteFood; }
 
-    public LocalDateTime getLastOrderAt() { return lastOrderAt; }
-    public void setLastOrderAt(LocalDateTime lastOrderAt) { this.lastOrderAt = lastOrderAt; }
 
-    public Integer getTotalOrders() { return totalOrders; }
-    public void setTotalOrders(Integer totalOrders) { this.totalOrders = totalOrders; }
 }

@@ -16,8 +16,7 @@ public class CustomerResponse {
     private String pincode;
     private LocalDate dob;
     private String favoriteFood;
-    private LocalDateTime lastOrderAt;
-    private Integer totalOrders;
+
     private Integer merchantId;
     private String merchantName;
     private Boolean active;
@@ -61,11 +60,7 @@ public class CustomerResponse {
     public String getFavoriteFood() { return favoriteFood; }
     public void setFavoriteFood(String favoriteFood) { this.favoriteFood = favoriteFood; }
 
-    public LocalDateTime getLastOrderAt() { return lastOrderAt; }
-    public void setLastOrderAt(LocalDateTime lastOrderAt) { this.lastOrderAt = lastOrderAt; }
 
-    public Integer getTotalOrders() { return totalOrders; }
-    public void setTotalOrders(Integer totalOrders) { this.totalOrders = totalOrders; }
 
     public Integer getMerchantId() { return merchantId; }
     public void setMerchantId(Integer merchantId) { this.merchantId = merchantId; }

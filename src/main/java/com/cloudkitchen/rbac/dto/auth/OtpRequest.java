@@ -22,6 +22,7 @@ public class OtpRequest {
     @Schema(description = "User's phone number", example = "9876543210")
     private String phone;
     
+    @NotBlank(message = "OTP type is required")
     @Pattern(regexp = "^(login|password_reset|registration|phone_verification|account_verification)$", 
              message = "Invalid OTP type")
     @Schema(description = "Type of OTP request", 
@@ -41,7 +42,16 @@ public class OtpRequest {
     
     public String getPhone() { return phone; }
     public void setPhone(String phone) { 
-        this.phone = phone != null ? phone.trim().replaceAll("\\s+", "") : null; 
+        if (phone != null) {
+            // Normalize phone number by removing +91 prefix and whitespace
+            String normalized = phone.trim().replaceAll("\\s+", "");
+            if (normalized.startsWith("+91")) {
+                normalized = normalized.substring(3);
+            }
+            this.phone = normalized;
+        } else {
+            this.phone = null;
+        }
     }
     
     public String getOtpType() { return otpType; }

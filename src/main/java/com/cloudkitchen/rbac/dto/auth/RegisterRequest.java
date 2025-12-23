@@ -30,7 +30,8 @@ public class RegisterRequest {
     @JsonProperty("firstName")
     private String firstName;
     
-    @Schema(description = "Last name", example = "Doe")
+    @Schema(description = "Last name", example = "Doe", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "Last name is required")
     @JsonProperty("lastName")
     private String lastName;
     
@@ -45,7 +46,7 @@ public class RegisterRequest {
 
     public String getPhone() { return phone; }
     public void setPhone(String phone) { 
-        this.phone = phone != null ? phone.trim().replaceAll("[^0-9]", "") : null; 
+        this.phone = phone != null ? phone.trim() : null; 
     }
 
     public String getPassword() { return password; }
@@ -53,12 +54,12 @@ public class RegisterRequest {
 
     public String getFirstName() { return firstName; }
     public void setFirstName(String firstName) { 
-        this.firstName = firstName != null ? firstName.trim() : null; 
+        this.firstName = firstName; 
     }
 
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { 
-        this.lastName = lastName != null ? lastName.trim() : null; 
+        this.lastName = lastName; 
     }
     
     public String getAddress() { return address; }

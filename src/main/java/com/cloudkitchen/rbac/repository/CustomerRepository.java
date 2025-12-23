@@ -45,8 +45,5 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
     
     // Additional methods for service implementation
     List<Customer> findAllByDeletedAtIsNull();
-    
-    @Query(value = "SELECT MAX(o.placed_at) as lastOrderAt, COUNT(o.order_id) as totalOrders " +
-           "FROM orders o WHERE o.customer_id = :customerId", nativeQuery = true)
-    Object[] findOrderStatsByCustomerId(@Param("customerId") Integer customerId);
+
 }

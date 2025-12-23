@@ -11,9 +11,9 @@ public class OtpVerifyRequest {
     @Schema(description = "Merchant ID (0 for phone-based verification, >0 for merchant-specific)", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
     private Integer merchantId;
     
-    @NotBlank(message = "Phone number is required")
-    @Pattern(regexp = "^[6-9]\\d{9}$", message = "Invalid phone number format")
-    @Length(min = 10, max = 13, message = "Phone number must be 10-13 characters")
+    @NotBlank(message = "Mobile number is required")
+    @Pattern(regexp = "^[6-9]\\d{9}$", message = "Mobile number is required")
+    @Length(min = 10, max = 13, message = "Mobile number is required")
     @Schema(description = "Phone number (10-digit Indian mobile)", example = "9075027004", requiredMode = Schema.RequiredMode.REQUIRED)
     private String phone;
     
