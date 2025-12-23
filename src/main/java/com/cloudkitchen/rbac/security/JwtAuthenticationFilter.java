@@ -5,7 +5,6 @@ import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.slf4j.Logger;
@@ -44,6 +43,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7).trim();
 
+            // Remove surrounding quotes if present (common mistake in API clients)
+            if (token.startsWith("\"") && token.endsWith("\"")) {
+                token = token.substring(1, token.length() - 1);
+            }
+
             try {
                 // Validate token format first to prevent injection attacks
                 validationService.validateTokenFormat(token);
@@ -67,10 +71,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
 
                 if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    // Extract merchantId from claims
+                    Integer merchantId = extractInteger(claims, "merchantId");
+
                     UsernamePasswordAuthenticationToken auth =
                             new UsernamePasswordAuthenticationToken(
                                     userId, null, authorities);
-                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    auth.setDetails(new JwtAuthenticationDetails(request, merchantId));
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
             } catch (IllegalArgumentException e) {
@@ -99,5 +106,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .collect(Collectors.toList());
         }
         return Collections.emptyList();
+    }
+
+    private Integer extractInteger(Claims claims, String key) {
+        Object value = claims.get(key);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Integer) {
+            return (Integer) value;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        return null;
     }
 }
