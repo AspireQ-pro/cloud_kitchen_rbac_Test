@@ -12,6 +12,7 @@ import com.cloudkitchen.rbac.dto.common.PageResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerUpdateRequest;
 import com.cloudkitchen.rbac.repository.CustomerRepository;
+import com.cloudkitchen.rbac.security.JwtAuthenticationDetails;
 import com.cloudkitchen.rbac.service.CustomerService;
 import com.cloudkitchen.rbac.util.AccessControlUtil;
 
@@ -61,6 +62,8 @@ public class CustomerServiceImpl implements CustomerService {
         } else if (accessControlUtil.isMerchant(authentication)) {
             Integer merchantId = getMerchantIdFromAuth(authentication);
             return getCustomersByMerchantIdWithFilters(merchantId, pageRequest);
+        } else if (accessControlUtil.isCustomer(authentication)) {
+            throw new RuntimeException("Customers cannot access customer lists");
         }
         throw new RuntimeException("Access denied");
     }
@@ -86,8 +89,11 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse getCustomerProfile(Authentication authentication) {
-        Integer customerId = getCustomerIdFromAuth(authentication);
-        return getCustomerById(customerId);
+        Integer userId = getCustomerIdFromAuth(authentication);
+        Integer merchantId = getMerchantIdFromAuth(authentication);
+        Customer customer = customerRepository.findByUser_UserIdAndMerchant_MerchantId(userId, merchantId)
+                .orElseThrow(() -> new RuntimeException("Customer profile not found"));
+        return convertToResponse(customer);
     }
 
     @Override
@@ -114,8 +120,11 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse updateCustomerProfile(Authentication authentication, CustomerUpdateRequest request) {
-        Integer customerId = getCustomerIdFromAuth(authentication);
-        return updateCustomer(customerId, request, customerId);
+        Integer userId = getCustomerIdFromAuth(authentication);
+        Integer merchantId = getMerchantIdFromAuth(authentication);
+        Customer customer = customerRepository.findByUser_UserIdAndMerchant_MerchantId(userId, merchantId)
+                .orElseThrow(() -> new RuntimeException("Customer profile not found"));
+        return updateCustomer(customer.getCustomerId(), request, userId);
     }
 
     @Override
@@ -137,7 +146,10 @@ public class CustomerServiceImpl implements CustomerService {
             return true;
         }
         if (accessControlUtil.isCustomer(authentication)) {
-            return customerId.equals(getCustomerIdFromAuth(authentication));
+            // For customers, check if the customerId belongs to their userId
+            Integer userId = getCustomerIdFromAuth(authentication);
+            Customer customer = customerRepository.findById(customerId).orElse(null);
+            return customer != null && customer.getUser() != null && userId.equals(customer.getUser().getUserId());
         }
         if (accessControlUtil.isMerchant(authentication)) {
             Customer customer = customerRepository.findById(customerId).orElse(null);
@@ -154,12 +166,29 @@ public class CustomerServiceImpl implements CustomerService {
         if (accessControlUtil.isMerchant(authentication)) {
             return merchantId.equals(getMerchantIdFromAuth(authentication));
         }
+        // Customers should not be able to access merchant customer lists
+        // They can only access their own profile through individual customer endpoints
         return false;
     }
 
     @Override
     public Integer getMerchantIdFromAuth(Authentication authentication) {
-        return accessControlUtil.getUserId(authentication);
+        if (authentication == null) {
+            return null;
+        }
+
+        // For merchant role, userId is the merchantId
+        if (accessControlUtil.isMerchant(authentication)) {
+            return accessControlUtil.getUserId(authentication);
+        }
+
+        // For customer role, extract merchantId from authentication details
+        if (authentication.getDetails() instanceof JwtAuthenticationDetails) {
+            JwtAuthenticationDetails details = (JwtAuthenticationDetails) authentication.getDetails();
+            return details.getMerchantId();
+        }
+
+        return null;
     }
 
     @Override

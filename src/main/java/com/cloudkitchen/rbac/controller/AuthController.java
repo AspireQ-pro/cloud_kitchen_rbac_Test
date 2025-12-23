@@ -75,10 +75,6 @@ public class AuthController {
                     .body(ResponseBuilder.error(500, "Registration failed"));
         }
     }
-    
-
-
-
 
     @PostMapping("/customer/login")
     @Operation(summary = "Customer Login", description = "Login for customers with merchantId > 0")
@@ -97,6 +93,12 @@ public class AuthController {
 
     @PostMapping(value = "/login", consumes = "application/json")
     public ResponseEntity<Map<String, Object>> merchantAdminLogin(@RequestBody AuthRequest req) {
+/**
+         * Handle login requests: enforce that only merchantId 0 (or null) is allowed, authenticate, and return the result.
+         * @param {LoginRequest} req - Login request containing credentials and an optional merchantId.
+         * @return {ResponseEntity<?>} - 403 FORBIDDEN if merchantId is non-null and non-zero; otherwise 200 OK with AuthResponse payload.
+         */
+
         log.info("Login request received for merchantId: {}", req.getMerchantId());
         
         // Validate merchantId restriction for merchant login
@@ -124,7 +126,7 @@ public class AuthController {
         }
     }
 
-    @PostMapping("/logout")
+    @PostMapping(value = "/logout", consumes = {"application/json", "*/*"})
     public ResponseEntity<Map<String, Object>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         // D001: Return 401 when Authorization header is missing
         if (authHeader == null || authHeader.trim().isEmpty()) {
@@ -168,14 +170,11 @@ public class AuthController {
                     .body(ResponseBuilder.error(401, "Unauthorized - Authentication required."));
         }
     }
-    
 
-    
     @PostMapping("/otp/request")
     @Operation(summary = "Request OTP", 
                description = "Send OTP by phone number. Use merchantId=0 for general OTP (any user), >0 for specific merchant customers")
     public ResponseEntity<Map<String, Object>> requestOtp(@Valid @RequestBody OtpRequest req) {
-
         try {
             // Validate phone number first
             if (req.getPhone() == null || req.getPhone().trim().isEmpty()) {
@@ -258,14 +257,6 @@ public class AuthController {
         log.info("OTP verification successful for request");
         return ResponseEntity.ok(ResponseBuilder.success(200, message, authResponse));
     }
-    
-
-    
-
-    
-
-    
-
     
     private String getSuccessMessageByType(String otpType) {
         return switch (otpType) {
