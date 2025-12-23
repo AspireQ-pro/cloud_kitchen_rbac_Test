@@ -4,6 +4,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 
+import com.cloudkitchen.rbac.constants.AppConstants;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.service.ValidationService;
 
@@ -119,17 +120,63 @@ public class ValidationServiceImpl implements ValidationService {
         if (password == null || password.trim().isEmpty()) {
             throw new IllegalArgumentException("Password is required");
         }
-        
+
         if (password.length() < 8) {
             throw new IllegalArgumentException("Password must be at least 8 characters with uppercase, lowercase, and digit");
         }
-        
+
         if (!PASSWORD_PATTERN.matcher(password).matches()) {
             throw new IllegalArgumentException("Password must be at least 8 characters with uppercase, lowercase, and digit");
         }
-        
+
         if (password.length() > 128) {
             throw new IllegalArgumentException("Password must be 128 characters or less");
+        }
+    }
+
+    @Override
+    public void validateOtp(String otp) {
+        if (otp == null || otp.trim().isEmpty()) {
+            throw new IllegalArgumentException("OTP is required");
+        }
+
+        String trimmedOtp = otp.trim();
+
+        // Check if OTP contains only numeric characters
+        if (!trimmedOtp.matches("^\\d+$")) {
+            throw new IllegalArgumentException("Invalid OTP format");
+        }
+
+        // Check if OTP is exactly the configured length
+        if (trimmedOtp.length() != AppConstants.OTP_LENGTH) {
+            throw new IllegalArgumentException("Invalid OTP format");
+        }
+    }
+
+    @Override
+    public void validateMobileForOtp(String mobile) {
+        if (mobile == null || mobile.trim().isEmpty()) {
+            throw new IllegalArgumentException("Mobile number is required");
+        }
+
+        String trimmedMobile = mobile.trim();
+
+        // Remove all non-digit characters for validation
+        String cleanMobile = trimmedMobile.replaceAll("[^0-9]", "");
+
+        // Check for alphabetic characters in mobile
+        if (trimmedMobile.matches(".*[a-zA-Z].*")) {
+            throw new IllegalArgumentException("Invalid mobile number format");
+        }
+
+        // Check if mobile has exactly 10 digits
+        if (cleanMobile.length() != 10) {
+            throw new IllegalArgumentException("Invalid mobile number format");
+        }
+
+        // Validate Indian mobile number format
+        if (!PHONE_PATTERN.matcher(cleanMobile).matches()) {
+            throw new IllegalArgumentException("Invalid mobile number format");
         }
     }
 }

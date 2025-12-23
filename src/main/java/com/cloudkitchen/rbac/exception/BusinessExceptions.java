@@ -88,4 +88,39 @@ public class BusinessExceptions {
             super(message);
         }
     }
+
+    public static class OtpNotFoundException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        public OtpNotFoundException(String message) {
+            super(message);
+        }
+    }
+
+    public static class OtpExpiredException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        public OtpExpiredException(String message) {
+            super(message);
+        }
+    }
+
+    public static class InvalidOtpException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        public InvalidOtpException(String message) {
+            super(message);
+        }
+    }
+
+    public static class OtpAttemptsExceededException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        public OtpAttemptsExceededException(String message) {
+            super(message);
+        }
+    }
+
+    public static class MobileNotRegisteredException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        public MobileNotRegisteredException(String message) {
+            super(message);
+        }
+    }
 }

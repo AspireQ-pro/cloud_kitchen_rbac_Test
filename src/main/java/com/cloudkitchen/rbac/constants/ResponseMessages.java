@@ -36,13 +36,18 @@ public final class ResponseMessages {
         public static final String OTP_EXPIRED = "OTP expired";
         public static final String OTP_INVALID = "Invalid OTP";
         public static final String OTP_ALREADY_USED = "OTP already used";
-        public static final String NO_OTP_REQUEST = "No OTP request found";
-        public static final String PHONE_NOT_REGISTERED = "Phone number not registered. Please register first.";
+        public static final String NO_OTP_REQUEST = "OTP not requested";
+        public static final String PHONE_NOT_REGISTERED = "Mobile number not registered";
         public static final String PHONE_REQUIRED = "Phone number is required";
+        public static final String MOBILE_REQUIRED = "Mobile number is required";
+        public static final String OTP_REQUIRED = "OTP is required";
+        public static final String INVALID_OTP_FORMAT = "Invalid OTP format";
+        public static final String INVALID_MOBILE_FORMAT = "Invalid mobile number format";
         public static final String MERCHANT_ID_REQUIRED_OTP = "MerchantId is required (use 0 for OTP by phone number)";
         public static final String SMS_SERVICE_UNAVAILABLE = "SMS service temporarily unavailable";
         public static final String OTP_REQUEST_FAILED = "OTP request failed";
         public static final String OTP_VERIFICATION_FAILED = "OTP verification failed";
+        public static final String OTP_ATTEMPTS_EXCEEDED = "OTP verification attempts exceeded";
     }
     
     // Merchant Messages
@@ -105,6 +110,11 @@ public final class ResponseMessages {
         public static final String PASSWORD_TOO_WEAK = "Password does not meet security requirements";
         public static final String INVALID_DATE = "Invalid date format";
         public static final String VALUE_OUT_OF_RANGE = "Value is out of acceptable range";
+        public static final String FIELD_CANNOT_BE_EMPTY = "Field cannot be empty or contain only whitespace";
+        public static final String MERCHANT_NAME_WHITESPACE = "Merchant name cannot be empty or contain only whitespace";
+        public static final String USERNAME_WHITESPACE = "Username cannot be empty or contain only whitespace";
+        public static final String EMAIL_WHITESPACE = "Email cannot be empty or contain only whitespace";
+        public static final String OTP_MUST_BE_NUMERIC = "OTP must be numeric";
     }
     
     // System Messages

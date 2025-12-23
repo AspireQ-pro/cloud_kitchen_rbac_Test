@@ -256,21 +256,68 @@ public class GlobalExceptionHandler {
     
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<Map<String, Object>> handleValidationException(ValidationException ex, WebRequest request) {
-        Map<String, Object> response = ResponseBuilder.error(400, "Validation failed");
-        response.put("details", sanitizeErrorMessage(ex.getMessage()) != null && !sanitizeErrorMessage(ex.getMessage()).isEmpty() 
-            ? sanitizeErrorMessage(ex.getMessage()) : "The provided data failed validation. Please check your input.");
+        Map<String, Object> response = ResponseBuilder.error(400, sanitizeErrorMessage(ex.getMessage()));
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
-        
+
         logger.warn("Validation failed: {}", sanitizeLogMessage(ex.getMessage()));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(MobileNotRegisteredException.class)
+    public ResponseEntity<Map<String, Object>> handleMobileNotRegisteredException(MobileNotRegisteredException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(404, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("Mobile not registered for request");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(OtpNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpNotFoundException(OtpNotFoundException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(404, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("OTP not found for request");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(OtpExpiredException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpExpiredException(OtpExpiredException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(401, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("OTP expired for request");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(InvalidOtpException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidOtpException(InvalidOtpException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(401, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("Invalid OTP for request");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(OtpAttemptsExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpAttemptsExceededException(OtpAttemptsExceededException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(429, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("OTP attempts exceeded for request");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
     }
     
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex, WebRequest request) {
-        Map<String, Object> response = ResponseBuilder.error(400, "Invalid argument");
-        response.put("details", sanitizeErrorMessage(ex.getMessage()) != null && !sanitizeErrorMessage(ex.getMessage()).isEmpty() 
-            ? sanitizeErrorMessage(ex.getMessage()) : "Invalid argument provided");
+        String message = sanitizeErrorMessage(ex.getMessage());
+        Map<String, Object> response = ResponseBuilder.error(400, message != null && !message.isEmpty() ? message : "Invalid argument provided");
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
 
@@ -289,6 +336,11 @@ public class GlobalExceptionHandler {
             ex instanceof BusinessExceptions.InvalidCredentialsException ||
             ex instanceof BusinessExceptions.AccessDeniedException ||
             ex instanceof BusinessExceptions.OtpException ||
+            ex instanceof BusinessExceptions.OtpNotFoundException ||
+            ex instanceof BusinessExceptions.OtpExpiredException ||
+            ex instanceof BusinessExceptions.InvalidOtpException ||
+            ex instanceof BusinessExceptions.OtpAttemptsExceededException ||
+            ex instanceof BusinessExceptions.MobileNotRegisteredException ||
             ex instanceof BusinessExceptions.RateLimitExceededException ||
             ex instanceof BusinessExceptions.TokenExpiredException ||
             ex instanceof BusinessExceptions.ServiceUnavailableException ||
@@ -297,12 +349,12 @@ public class GlobalExceptionHandler {
             // Re-throw to be handled by specific handlers
             throw ex;
         }
-        
+
         Map<String, Object> response = ResponseBuilder.error(500, "An unexpected error occurred");
         response.put("details", "An error occurred while processing your request. Please try again later.");
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
-        
+
         logger.error("Runtime exception occurred: {}", sanitizeLogMessage(ex.getMessage()), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }

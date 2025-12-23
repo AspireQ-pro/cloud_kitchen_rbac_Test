@@ -7,6 +7,7 @@ public final class AppConstants {
     }
     
     // OTP Configuration
+    public static final int OTP_LENGTH = 4;
     public static final int OTP_MAX_ATTEMPTS = 3;
     public static final int OTP_RATE_LIMIT_REQUESTS = 3;
     public static final int OTP_RATE_LIMIT_WINDOW_MINUTES = 30;
@@ -62,5 +63,12 @@ public final class AppConstants {
         public static final String ALLOWED_CONTENT_TYPE_PREFIX = "image/";
         public static final String VALID_ID_PATTERN = "^[a-zA-Z0-9_-]+$";
         public static final String FOLDER_PLACEHOLDER_TEXT = "# folder placeholder";
+    }
+    
+    // Input Validation
+    public static class InputValidation {
+        public static final boolean AUTO_TRIM_ENABLED = true;
+        public static final String WHITESPACE_PATTERN = "^\\s+|\\s+$";
+        public static final String EMPTY_OR_WHITESPACE_PATTERN = "^\\s*$";
     }
 }

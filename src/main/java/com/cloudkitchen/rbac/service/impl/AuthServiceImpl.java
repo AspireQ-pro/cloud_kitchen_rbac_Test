@@ -22,7 +22,12 @@ import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.AccessDeniedException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.InvalidCredentialsException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.InvalidOtpException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.MerchantNotFoundException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.MobileNotRegisteredException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpAttemptsExceededException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpExpiredException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpNotFoundException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.ServiceUnavailableException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.UserAlreadyExistsException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.UserNotFoundException;
@@ -49,7 +54,6 @@ public class AuthServiceImpl implements AuthService {
     private static final String ROLE_MERCHANT = "merchant";
     private static final String ROLE_SUPER_ADMIN = "super_admin";
     private static final String OTP_TYPE_PASSWORD_RESET = "password_reset";
-    private static final String STATUS_INVALID = "INVALID";
 
     private final UserRepository users;
     private final MerchantRepository merchants;
@@ -637,51 +641,72 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public String verifyOtpWithStatus(OtpVerifyRequest req) {
         String maskedPhone = maskPhone(req.getPhone());
-        log.info("OTP verification status check for phone: {}, otpType: {}", maskedPhone, req.getOtpType());
+        log.info("OTP verification for phone: {}, otpType: {}", maskedPhone, req.getOtpType());
+
+        // 1. INPUT VALIDATION FIRST (before any business logic)
+        try {
+            validationService.validateMobileForOtp(req.getPhone());
+        } catch (IllegalArgumentException e) {
+            log.warn("Mobile validation failed: {}", e.getMessage());
+            throw new ValidationException(e.getMessage());
+        }
 
         try {
-            User user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
-
-            if (user.getOtpCode() == null) {
-                log.warn("No active OTP found for phone: {}", maskedPhone);
-                return "NO_OTP_REQUEST";
-            }
-
-            if (Boolean.TRUE.equals(user.getOtpUsed())) {
-                log.warn("OTP already used for phone: {}", maskedPhone);
-                return "ALREADY_USED";
-            }
-
-            if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
-                log.warn("Expired OTP verification attempt for phone: {}", maskedPhone);
-                return "EXPIRED";
-            }
-
-            Integer otpAttempts = user.getOtpAttempts();
-            int currentAttempts = otpAttempts != null ? otpAttempts : 0;
-            if (currentAttempts >= AppConstants.OTP_MAX_ATTEMPTS) {
-                log.warn("Max OTP attempts exceeded for phone: {}", maskedPhone);
-                return STATUS_INVALID;
-            }
-
-            // Check for leading zeros handling
-            String inputOtp = req.getOtp();
-            String storedOtp = user.getOtpCode();
-
-            if (!isOtpValid(inputOtp, storedOtp)) {
-                log.warn("Invalid OTP attempt {} for phone: {}", currentAttempts + 1, maskedPhone);
-                return STATUS_INVALID;
-            }
-
-            log.info("OTP verification status: SUCCESS for phone: {}", maskedPhone);
-            return "SUCCESS";
-
-        } catch (RuntimeException e) {
-            log.warn("OTP verification status check failed");
-            return STATUS_INVALID;
+            validationService.validateOtp(req.getOtp());
+        } catch (IllegalArgumentException e) {
+            log.warn("OTP format validation failed: {}", e.getMessage());
+            throw new ValidationException(e.getMessage());
         }
+
+        // 2. CHECK IF MOBILE IS REGISTERED
+        User user;
+        try {
+            user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
+        } catch (UserNotFoundException e) {
+            log.warn("Mobile number not registered: {}", maskedPhone);
+            throw new MobileNotRegisteredException("Mobile number not registered");
+        }
+
+        // 3. CHECK IF OTP REQUEST EXISTS
+        if (user.getOtpCode() == null) {
+            log.warn("No OTP request found for phone: {}", maskedPhone);
+            throw new OtpNotFoundException("OTP not requested");
+        }
+
+        // 4. CHECK IF OTP IS EXPIRED (before checking attempts or validity)
+        if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
+            log.warn("OTP expired for phone: {}", maskedPhone);
+            otpAuditService.updateOtpExpired(req.getPhone());
+            clearOtpData(user);
+            throw new OtpExpiredException("OTP expired");
+        }
+
+        // 5. CHECK ATTEMPT LIMIT
+        Integer otpAttempts = user.getOtpAttempts();
+        int currentAttempts = otpAttempts != null ? otpAttempts : 0;
+        if (currentAttempts >= AppConstants.OTP_MAX_ATTEMPTS) {
+            log.warn("OTP attempts exceeded for phone: {}", maskedPhone);
+            otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts);
+            clearOtpData(user);
+            throw new OtpAttemptsExceededException("OTP verification attempts exceeded");
+        }
+
+        // 6. VERIFY OTP
+        if (!isOtpValid(req.getOtp(), user.getOtpCode())) {
+            // Increment attempt counter
+            user.setOtpAttempts(currentAttempts + 1);
+            users.save(user);
+            otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
+            log.warn("Invalid OTP attempt {} for phone: {}", currentAttempts + 1, maskedPhone);
+            throw new InvalidOtpException("Invalid OTP");
+        }
+
+        // 7. SUCCESS - Mark as used but don't clear yet (verifyOtp will handle that)
+        log.info("OTP verification successful for phone: {}", maskedPhone);
+        return "SUCCESS";
     }
 
     @Override

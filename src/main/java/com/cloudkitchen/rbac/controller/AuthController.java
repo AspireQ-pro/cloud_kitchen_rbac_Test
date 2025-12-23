@@ -255,61 +255,23 @@ public class AuthController {
     }
     
     @PostMapping("/otp/verify")
-    @Operation(summary = "Verify OTP", 
+    @Operation(summary = "Verify OTP",
                description = "Verify OTP by phone number. Use merchantId=0 for phone-based verification (any user), merchantId>0 for merchant-specific customer verification. OTP types: login, password_reset, phone_verification, account_verification")
     public ResponseEntity<Map<String, Object>> verifyOtp(@Valid @RequestBody OtpVerifyRequest req) {
-        try {
-            // Validate phone number first
-            if (req.getPhone() == null || req.getPhone().trim().isEmpty()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "Mobile number is required"));
-            }
-            
-            // Validate merchantId is provided
-            if (req.getMerchantId() == null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "MerchantId is required (use 0 for OTP by phone number)"));
-            }
-            
-            String verificationResult = auth.verifyOtpWithStatus(req);
+        log.info("OTP verification request received for merchantId: {}", req.getMerchantId());
 
-            return switch (verificationResult) {
-                case "SUCCESS" -> {
-                    AuthResponse authResponse = auth.verifyOtp(req);
-                    String message = "password_reset".equals(req.getOtpType()) ? 
-                        "OTP verified. Default password has been set. Please change it in your profile." : 
-                        "Verification successful";
-                    yield ResponseEntity.ok(ResponseBuilder.success(200, message, authResponse));
-                }
-                case "NO_OTP_REQUEST" -> ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "No OTP request found"));
-                case "EXPIRED" -> ResponseEntity.status(HttpStatus.GONE)
-                        .body(ResponseBuilder.error(410, "OTP expired"));
-                case "ALREADY_USED" -> ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "OTP already used"));
-                case "INVALID" -> ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ResponseBuilder.error(401, "Invalid OTP"));
-                default -> ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ResponseBuilder.error(400, "Invalid or expired OTP"));
-            };
-        } catch (IllegalArgumentException e) {
-            log.warn("OTP verification validation failed: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ResponseBuilder.error(400, e.getMessage()));
-        } catch (RuntimeException e) {
-            log.warn("OTP verification failed for request");
-            
-            if (e.getMessage() != null && e.getMessage().contains("User not found")) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ResponseBuilder.error(404, "User not found"));
-            }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "OTP verification failed"));
-        } catch (Exception e) {
-            log.warn("Unexpected error during OTP verification");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseBuilder.error(500, "OTP verification failed"));
-        }
+        // All validations and business logic are handled in the service layer
+        // The service will throw specific exceptions that are caught by GlobalExceptionHandler
+        auth.verifyOtpWithStatus(req);
+
+        // If we reach here, OTP verification was successful
+        AuthResponse authResponse = auth.verifyOtp(req);
+        String message = "password_reset".equals(req.getOtpType()) ?
+            "OTP verified. Default password has been set. Please change it in your profile." :
+            "Verification successful";
+
+        log.info("OTP verification successful for request");
+        return ResponseEntity.ok(ResponseBuilder.success(200, message, authResponse));
     }
     
 

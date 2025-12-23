@@ -36,4 +36,18 @@ public interface ValidationService {
      * @throws IllegalArgumentException if password is weak
      */
     void validatePassword(String password);
+
+    /**
+     * Validates OTP format and constraints.
+     * @param otp the OTP to validate
+     * @throws IllegalArgumentException if OTP is invalid
+     */
+    void validateOtp(String otp);
+
+    /**
+     * Validates mobile number format specifically for OTP operations.
+     * @param mobile the mobile number to validate
+     * @throws IllegalArgumentException if mobile is invalid
+     */
+    void validateMobileForOtp(String mobile);
 }
