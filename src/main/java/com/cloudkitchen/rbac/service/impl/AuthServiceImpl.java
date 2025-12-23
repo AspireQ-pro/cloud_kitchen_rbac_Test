@@ -336,16 +336,21 @@ public class AuthServiceImpl implements AuthService {
         return response;
     }
 
+    /**
+     * Determine the effective merchant ID based on the supplied merchantId and the user's associated merchant.
+     * @param user - The user whose associated merchant may be used as a fallback.
+     * @param merchantId - The requested merchant ID; 0 means use the user's merchant ID if present else 0, null means use the user's merchant ID if present else null.
+     * @return The resolved merchant ID: returns merchantId when non-null (0 handled as above), otherwise returns the user's merchant ID or the appropriate fallback (0 or null).
+     */
     private Integer determineActualMerchantId(User user, Integer merchantId) {
-        if (merchantId != null && Integer.valueOf(0).equals(merchantId)) {
-            return user.getMerchant() != null ? user.getMerchant().getMerchantId() : 0;
-        }
         if (merchantId != null) {
+            if (Integer.valueOf(0).equals(merchantId)) {
+                return user.getMerchant() != null ? user.getMerchant().getMerchantId() : 0;
+            }
             return merchantId;
         }
         return user.getMerchant() != null ? user.getMerchant().getMerchantId() : null;
     }
-
     private boolean isOtpValid(String inputOtp, String storedOtp) {
         if (inputOtp == null || storedOtp == null)
             return false;
@@ -812,6 +817,97 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    @Override
+    @Transactional
+    public AuthResponse verifyOtpAndGenerateToken(OtpVerifyRequest req) {
+        String maskedPhone = maskPhone(req.getPhone());
+        log.info("OTP verification and token generation for phone: {}, otpType: {}", maskedPhone, req.getOtpType());
+
+        // 1. INPUT VALIDATION FIRST (before any business logic)
+        try {
+            validationService.validateMobileForOtp(req.getPhone());
+        } catch (IllegalArgumentException e) {
+            log.warn("Mobile validation failed: {}", e.getMessage());
+            throw new ValidationException(e.getMessage());
+        }
+
+        try {
+            validationService.validateOtp(req.getOtp());
+        } catch (IllegalArgumentException e) {
+            log.warn("OTP format validation failed: {}", e.getMessage());
+            throw new ValidationException(e.getMessage());
+        }
+
+        // 2. CHECK IF MOBILE IS REGISTERED
+        User user;
+        try {
+            user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
+        } catch (UserNotFoundException e) {
+            log.warn("Mobile number not registered: {}", maskedPhone);
+            throw new MobileNotRegisteredException("Mobile number not registered");
+        }
+
+        // 3. CHECK IF OTP REQUEST EXISTS
+        if (user.getOtpCode() == null) {
+            log.warn("No OTP request found for phone: {}", maskedPhone);
+            throw new OtpNotFoundException("OTP not requested");
+        }
+
+        // 4. CHECK IF OTP IS EXPIRED (before checking attempts or validity)
+        if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
+            log.warn("OTP expired for phone: {}", maskedPhone);
+            otpAuditService.updateOtpExpired(req.getPhone());
+            clearOtpData(user);
+            throw new OtpExpiredException("OTP expired");
+        }
+
+        // 5. CHECK ATTEMPT LIMIT
+        Integer otpAttempts = user.getOtpAttempts();
+        int currentAttempts = otpAttempts != null ? otpAttempts : 0;
+        if (currentAttempts >= AppConstants.OTP_MAX_ATTEMPTS) {
+            log.warn("OTP attempts exceeded for phone: {}", maskedPhone);
+            otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts);
+            clearOtpData(user);
+            throw new OtpAttemptsExceededException("OTP verification attempts exceeded");
+        }
+
+        // 6. VERIFY OTP
+        if (!isOtpValid(req.getOtp(), user.getOtpCode())) {
+            // Increment attempt counter
+            user.setOtpAttempts(currentAttempts + 1);
+            users.save(user);
+            otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
+            log.warn("Invalid OTP attempt {} for phone: {}", currentAttempts + 1, maskedPhone);
+            throw new InvalidOtpException("Invalid OTP");
+        }
+
+        // 7. SUCCESS - Log audit and generate tokens
+        Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
+        otpAuditService.logOtpVerified(req.getPhone(), merchantId);
+
+        // Mark OTP as used and clear
+        user.setOtpUsed(true);
+        users.save(user);
+        clearOtpData(user);
+
+        Integer customerId = getCustomerId(user, merchantId);
+
+        // Handle password reset
+        if (OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())) {
+            String randomPassword = generateRandomPassword();
+            user.setPasswordHash(encoder.encode(randomPassword));
+            users.save(user);
+            log.info("Password reset with random password for user: {}", maskedPhone);
+        }
+
+        log.info("OTP verified successfully for phone: {}", maskedPhone);
+        return buildTokens(user, req.getMerchantId(), customerId);
+    }
+
+/**
+     * Returns the total number of users.
+     * @return long - The count of user records.
+     */
     @Override
     public long getUserCount() {
         return users.count();
