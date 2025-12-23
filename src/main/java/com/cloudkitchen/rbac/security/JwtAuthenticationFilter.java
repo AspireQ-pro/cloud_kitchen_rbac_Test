@@ -44,6 +44,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7).trim();
 
+            // Remove surrounding quotes if present (common mistake in API clients)
+            if (token.startsWith("\"") && token.endsWith("\"")) {
+                token = token.substring(1, token.length() - 1);
+            }
+
             try {
                 // Validate token format first to prevent injection attacks
                 validationService.validateTokenFormat(token);

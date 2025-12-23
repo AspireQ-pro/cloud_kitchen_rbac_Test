@@ -1,8 +1,10 @@
 package com.cloudkitchen.rbac.service;
 
-import java.util.List;
+import com.cloudkitchen.rbac.dto.common.PageRequest;
+import com.cloudkitchen.rbac.dto.common.PageResponse;
+import com.cloudkitchen.rbac.dto.user.UserResponse;
 
 public interface UserService {
-    List<Object> getAllUsers();
-    Object getUserById(Integer id);
+    PageResponse<UserResponse> getAllUsers(PageRequest pageRequest, String role, String search);
+    UserResponse getUserById(Integer id);
 }
