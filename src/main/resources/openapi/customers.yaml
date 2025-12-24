@@ -17,21 +17,26 @@ tags:
 
 paths:
   /api/customers/{id}:
-    put:
+    patch:
       tags:
         - Customer Management
-      summary: Update Customer
+      summary: Update Customer Profile
       description: |
-        Update customer profile.
+        Update customer profile with optional profile image upload.
 
         **RBAC Rules:**
         - Authenticated user required
         - User can only update their own customer profile OR
         - User with appropriate merchant permissions can update customers in their merchant
 
+        **Request Format:**
+        - Content-Type: multipart/form-data
+        - Part 'data': JSON with customer update fields (optional)
+        - Part 'profileImage': Image file (optional, jpg/jpeg/png only, max 2MB)
+
         **HTTP Status Codes:**
         - 200: Success
-        - 400: Validation failed
+        - 400: Validation failed or image validation failed
         - 401: Not authenticated
         - 403: Access denied
       operationId: updateCustomer
@@ -46,11 +51,24 @@ paths:
             type: integer
             example: 456
       requestBody:
-        required: true
+        required: false
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: '#/components/schemas/CustomerUpdateRequest'
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/CustomerUpdateRequest'
+                  description: Customer profile data (JSON)
+                profileImage:
+                  type: string
+                  format: binary
+                  description: Profile image file (jpg, jpeg, png only, max 2MB)
+            encoding:
+              data:
+                contentType: application/json
+              profileImage:
+                contentType: image/jpeg, image/png
       responses:
         '200':
           description: Customer updated successfully
@@ -558,6 +576,11 @@ components:
           nullable: true
           description: Favorite food
           example: "Pizza"
+        profileImageKey:
+          type: string
+          nullable: true
+          description: S3 key for profile image
+          example: "1/customer/456/profile_img/profile.jpg"
         merchantId:
           type: integer
           nullable: true

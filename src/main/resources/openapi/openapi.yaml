@@ -78,7 +78,7 @@ info:
     url: https://cloudkitchen.com/license
 
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:8081
     description: Local development server
   - url: https://api-dev.cloudkitchen.com
     description: Development server

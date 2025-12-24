@@ -54,6 +54,7 @@ public class AuthServiceImpl implements AuthService {
     private static final String ROLE_MERCHANT = "merchant";
     private static final String ROLE_SUPER_ADMIN = "super_admin";
     private static final String OTP_TYPE_PASSWORD_RESET = "password_reset";
+    private static final String INVALID_OTP_ATTEMPT_LOG = "Invalid OTP attempt {} for phone: {}";
 
     private final UserRepository users;
     private final MerchantRepository merchants;
@@ -344,7 +345,7 @@ public class AuthServiceImpl implements AuthService {
      */
     private Integer determineActualMerchantId(User user, Integer merchantId) {
         if (merchantId != null) {
-            if (Integer.valueOf(0).equals(merchantId)) {
+            if (merchantId == 0) {
                 return user.getMerchant() != null ? user.getMerchant().getMerchantId() : 0;
             }
             return merchantId;
@@ -358,8 +359,10 @@ public class AuthServiceImpl implements AuthService {
         // Constant-time comparison to prevent timing attacks
         try {
             // Normalize both OTPs to same format
-            String normalizedInput = String.format("%06d", Integer.parseInt(inputOtp));
-            String normalizedStored = String.format("%06d", Integer.parseInt(storedOtp));
+            int inputNum = Integer.parseInt(inputOtp);
+            int storedNum = Integer.parseInt(storedOtp);
+            String normalizedInput = String.format("%06d", inputNum);
+            String normalizedStored = String.format("%06d", storedNum);
 
             // Use constant-time comparison
             return java.security.MessageDigest.isEqual(
@@ -591,9 +594,6 @@ public class AuthServiceImpl implements AuthService {
         } catch (RuntimeException e) {
             log.warn("OTP request failed for otpType: {}", otpType);
             throw e;
-        } catch (Exception e) {
-            log.warn("OTP request processing failed for otpType: {}", otpType);
-            throw new ServiceUnavailableException("Failed to process OTP request");
         }
     }
 
@@ -671,15 +671,17 @@ public class AuthServiceImpl implements AuthService {
         try {
             validationService.validateMobileForOtp(req.getPhone());
         } catch (IllegalArgumentException e) {
-            log.warn("Mobile validation failed: {}", e.getMessage());
-            throw new ValidationException(e.getMessage());
+            String errorMsg = "Mobile validation failed for phone " + maskedPhone + ": " + e.getMessage();
+            log.warn(errorMsg);
+            throw new ValidationException(e.getMessage(), e);
         }
 
         try {
             validationService.validateOtp(req.getOtp());
         } catch (IllegalArgumentException e) {
-            log.warn("OTP format validation failed: {}", e.getMessage());
-            throw new ValidationException(e.getMessage());
+            String errorMsg = "OTP format validation failed for phone " + maskedPhone + ": " + e.getMessage();
+            log.warn(errorMsg);
+            throw new ValidationException(e.getMessage(), e);
         }
 
         // 2. CHECK IF MOBILE IS REGISTERED
@@ -721,7 +723,7 @@ public class AuthServiceImpl implements AuthService {
             user.setOtpAttempts(currentAttempts + 1);
             users.save(user);
             otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
-            log.warn("Invalid OTP attempt {} for phone: {}", currentAttempts + 1, maskedPhone);
+            log.warn(INVALID_OTP_ATTEMPT_LOG, currentAttempts + 1, maskedPhone);
             throw new InvalidOtpException("Invalid OTP");
         }
 
@@ -763,7 +765,7 @@ public class AuthServiceImpl implements AuthService {
                 user.setOtpAttempts(currentAttempts + 1);
                 users.save(user);
                 otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
-                log.warn("Invalid OTP attempt {} for phone: {}", currentAttempts + 1, maskedPhone);
+                log.warn(INVALID_OTP_ATTEMPT_LOG, currentAttempts + 1, maskedPhone);
                 return null;
             }
 
@@ -827,15 +829,17 @@ public class AuthServiceImpl implements AuthService {
         try {
             validationService.validateMobileForOtp(req.getPhone());
         } catch (IllegalArgumentException e) {
-            log.warn("Mobile validation failed: {}", e.getMessage());
-            throw new ValidationException(e.getMessage());
+            String errorMsg = "Mobile validation failed for phone " + maskedPhone + " during token generation: " + e.getMessage();
+            log.warn(errorMsg);
+            throw new ValidationException(e.getMessage(), e);
         }
 
         try {
             validationService.validateOtp(req.getOtp());
         } catch (IllegalArgumentException e) {
-            log.warn("OTP format validation failed: {}", e.getMessage());
-            throw new ValidationException(e.getMessage());
+            String errorMsg = "OTP format validation failed for phone " + maskedPhone + " during token generation: " + e.getMessage();
+            log.warn(errorMsg);
+            throw new ValidationException(e.getMessage(), e);
         }
 
         // 2. CHECK IF MOBILE IS REGISTERED
@@ -877,7 +881,7 @@ public class AuthServiceImpl implements AuthService {
             user.setOtpAttempts(currentAttempts + 1);
             users.save(user);
             otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
-            log.warn("Invalid OTP attempt {} for phone: {}", currentAttempts + 1, maskedPhone);
+            log.warn(INVALID_OTP_ATTEMPT_LOG, currentAttempts + 1, maskedPhone);
             throw new InvalidOtpException("Invalid OTP");
         }
 

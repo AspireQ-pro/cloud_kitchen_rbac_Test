@@ -47,4 +47,12 @@ public interface CloudStorageService {
      * @throws com.cloudkitchen.rbac.exception.BusinessExceptions.ServiceUnavailableException if S3 operation fails
      */
     void uploadFile(String key, InputStream inputStream, long contentLength, String contentType);
+    
+    /**
+     * Generates a presigned URL for accessing a file.
+     * 
+     * @param key the S3 object key (path)
+     * @return the presigned URL string
+     */
+    String generatePresignedUrl(String key);
 }
