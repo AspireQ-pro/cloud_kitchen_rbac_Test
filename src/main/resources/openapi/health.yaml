@@ -1,0 +1,57 @@
+openapi: 3.0.3
+info:
+  title: Health Check API
+  description: |
+    Health check and monitoring endpoints for Cloud Kitchen RBAC Service.
+  version: 1.0.0
+
+tags:
+  - name: Health
+    description: Service health and monitoring operations
+
+paths:
+  /api/v1/health/users:
+    get:
+      tags:
+        - Health
+      summary: Get User Count
+      description: |
+        Get total count of registered users in the system.
+
+        **RBAC:** Public endpoint (no authentication required)
+
+        **Use Case:**
+        - System health monitoring
+        - Basic statistics
+        - Service availability check
+
+        **HTTP Status Codes:**
+        - 200: Success
+      operationId: getUserCount
+      responses:
+        '200':
+          description: User count retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    description: HTTP status code
+                    example: 200
+                  message:
+                    type: string
+                    description: Success message
+                    example: "User count"
+                  data:
+                    type: object
+                    properties:
+                      userCount:
+                        type: integer
+                        format: int64
+                        description: Total number of users in the system
+                        example: 1523
+
+components:
+  schemas: {}

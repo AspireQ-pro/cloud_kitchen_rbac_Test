@@ -1,0 +1,86 @@
+components:
+  schemas:
+    SuccessResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+          example: 200
+        message:
+          type: string
+          description: Success message
+          example: "Operation successful"
+        data:
+          type: object
+          nullable: true
+          description: Response data
+
+    PageResponse:
+      type: object
+      required:
+        - content
+        - page
+        - size
+        - totalElements
+        - totalPages
+        - first
+        - last
+      properties:
+        content:
+          type: array
+          items:
+            type: object
+          description: List of items for current page
+        page:
+          type: integer
+          description: Current page number (0-indexed)
+          example: 0
+        size:
+          type: integer
+          description: Number of items per page
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total number of items
+          example: 100
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 5
+        first:
+          type: boolean
+          description: Whether this is the first page
+          example: true
+        last:
+          type: boolean
+          description: Whether this is the last page
+          example: false
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT authentication token.
+
+        **How to obtain a token:**
+        1. Login via `/api/v1/auth/login` (merchant/admin) or `/api/v1/auth/customer/login` (customer)
+        2. Or signup via `/api/v1/auth/signup` (customer registration)
+        3. Or verify OTP via `/api/v1/auth/otp/verify`
+
+        **Token format:** `Bearer <your_jwt_token>`
+
+        **Token contains:**
+        - User ID
+        - Merchant ID
+        - Roles and permissions
+
+        **RBAC Rules:**
+        - **401 Unauthorized**: Missing or invalid token
+        - **403 Forbidden**: Valid token but insufficient permissions

@@ -1,0 +1,143 @@
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+          example: 400
+        message:
+          type: string
+          description: Error message
+          example: "Validation failed"
+        data:
+          type: object
+          nullable: true
+          description: Additional error data
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+          example: 400
+        message:
+          type: string
+          description: Validation error message
+          example: "Invalid input data"
+        data:
+          type: object
+          nullable: true
+
+    UnauthorizedErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+          example: 401
+        message:
+          type: string
+          description: Unauthorized error message
+          example: "Unauthorized - Authentication required"
+
+    ForbiddenErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+          example: 403
+        message:
+          type: string
+          description: Forbidden error message
+          example: "Access denied"
+
+    NotFoundErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+          example: 404
+        message:
+          type: string
+          description: Not found error message
+          example: "Resource not found"
+
+    ConflictErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+          example: 409
+        message:
+          type: string
+          description: Conflict error message
+          example: "Resource already exists"
+
+    TooManyRequestsErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+          example: 429
+        message:
+          type: string
+          description: Rate limit error message
+          example: "Too many requests. Please try again later"
+
+    InternalServerErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+          example: 500
+        message:
+          type: string
+          description: Internal server error message
+          example: "Internal server error"
+
+    ServiceUnavailableErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: integer
+          description: HTTP status code
+          example: 503
+        message:
+          type: string
+          description: Service unavailable error message
+          example: "Service temporarily unavailable"
