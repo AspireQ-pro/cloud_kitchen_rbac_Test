@@ -27,6 +27,11 @@ import com.cloudkitchen.rbac.util.ResponseBuilder;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import jakarta.validation.Valid;
 
 @RestController
@@ -45,8 +50,27 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
-    @Operation(summary = "Customer Registration",
-               description = "Register new customer. MerchantId must be > 0 to specify which merchant the customer belongs to")
+    @Operation(
+        summary = "Customer Registration",
+        description = "**QA Testing Guide:**\n\n" +
+                     "1. **Request Body:** JSON with name, email, phone, password, merchantId\n" +
+                     "2. **MerchantId:** Must be > 0 to specify which merchant the customer belongs to\n" +
+                     "3. **Validation:** All fields are required and must be valid\n\n" +
+                     "**Test Scenarios:**\n" +
+                     "- Valid registration with all fields\n" +
+                     "- Invalid merchantId (404)\n" +
+                     "- Duplicate email/phone (409)\n" +
+                     "- Invalid email format (400)\n" +
+                     "- Missing required fields (400)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "201", description = "Registration successful",
+            content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = "{\"status\":201,\"message\":\"Registration successful\",\"data\":{\"accessToken\":\"jwt_token\",\"refreshToken\":\"refresh_token\",\"user\":{\"userId\":1,\"name\":\"John Doe\"}}}"))),
+        @ApiResponse(responseCode = "400", description = "Invalid request data"),
+        @ApiResponse(responseCode = "404", description = "Merchant not found"),
+        @ApiResponse(responseCode = "409", description = "User already exists")
+    })
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest req) {
         try {
             log.info("Registration request received for merchantId: {}", req.getMerchantId());
@@ -98,7 +122,26 @@ public class AuthController {
     }
 
     @PostMapping("/customer/login")
-    @Operation(summary = "Customer Login", description = "Login for customers with merchantId > 0")
+    @Operation(
+        summary = "Customer Login",
+        description = "**QA Testing Guide:**\n\n" +
+                     "1. **Request Body:** JSON with email, password, merchantId\n" +
+                     "2. **MerchantId:** Must be > 0 for customer login\n" +
+                     "3. **Authentication:** Valid customer credentials required\n\n" +
+                     "**Test Scenarios:**\n" +
+                     "- Valid customer credentials with merchantId > 0\n" +
+                     "- Invalid credentials (401)\n" +
+                     "- Missing merchantId (400)\n" +
+                     "- MerchantId = 0 or null (400)\n" +
+                     "- Non-existent customer (401)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Customer login successful",
+            content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"Customer login successful\",\"data\":{\"accessToken\":\"jwt_token\",\"refreshToken\":\"refresh_token\",\"user\":{\"userId\":1,\"role\":\"CUSTOMER\"}}}"))),
+        @ApiResponse(responseCode = "400", description = "Invalid request - merchantId required"),
+        @ApiResponse(responseCode = "401", description = "Invalid credentials")
+    })
     public ResponseEntity<Map<String, Object>> customerLogin(@RequestBody AuthRequest req) {
         log.info("Customer login request for merchantId: {}", req.getMerchantId());
         
@@ -113,6 +156,26 @@ public class AuthController {
     }
 
     @PostMapping(value = "/login", consumes = "application/json")
+    @Operation(
+        summary = "Merchant/Admin Login",
+        description = "**QA Testing Guide:**\n\n" +
+                     "1. **Request Body:** JSON with email, password\n" +
+                     "2. **MerchantId:** Must be 0 or null for merchant/admin login\n" +
+                     "3. **Authentication:** Valid merchant/admin credentials required\n\n" +
+                     "**Test Scenarios:**\n" +
+                     "- Valid merchant credentials with merchantId = 0\n" +
+                     "- Valid admin credentials\n" +
+                     "- Invalid credentials (401)\n" +
+                     "- MerchantId > 0 (403)\n" +
+                     "- Missing credentials (400)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Login successful",
+            content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"Login successful\",\"data\":{\"accessToken\":\"jwt_token\",\"refreshToken\":\"refresh_token\",\"user\":{\"userId\":1,\"role\":\"MERCHANT\"}}}"))),
+        @ApiResponse(responseCode = "401", description = "Invalid credentials"),
+        @ApiResponse(responseCode = "403", description = "Forbidden - Invalid merchantId for merchant login")
+    })
     public ResponseEntity<Map<String, Object>> merchantAdminLogin(@RequestBody AuthRequest req) {
 /**
          * Handle login requests: enforce that only merchantId 0 (or null) is allowed, authenticate, and return the result.
@@ -133,6 +196,26 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
+    @Operation(
+        summary = "Refresh Token",
+        description = "**QA Testing Guide:**\n\n" +
+                     "1. **Request Body:** JSON with refreshToken\n" +
+                     "2. **Token:** Valid refresh token required\n" +
+                     "3. **Response:** New access and refresh tokens\n\n" +
+                     "**Test Scenarios:**\n" +
+                     "- Valid refresh token\n" +
+                     "- Invalid refresh token (401)\n" +
+                     "- Expired refresh token (401)\n" +
+                     "- Revoked refresh token (401)\n" +
+                     "- Missing refresh token (400)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Token refresh successful",
+            content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"Token refresh successful\",\"data\":{\"accessToken\":\"new_jwt_token\",\"refreshToken\":\"new_refresh_token\"}}"))),
+        @ApiResponse(responseCode = "400", description = "Invalid request"),
+        @ApiResponse(responseCode = "401", description = "Invalid or expired refresh token")
+    })
     public ResponseEntity<Map<String, Object>> refresh(@Valid @RequestBody RefreshTokenRequest req) {
         try {
             AuthResponse authResponse = auth.refresh(req);
@@ -148,6 +231,27 @@ public class AuthController {
     }
 
     @PostMapping(value = "/logout", consumes = {"application/json", "*/*"})
+    @Operation(
+        summary = "Logout",
+        description = "**QA Testing Guide:**\n\n" +
+                     "1. **Authentication:** Bearer token in Authorization header\n" +
+                     "2. **Header:** Authorization: Bearer {your_jwt_token}\n" +
+                     "3. **Action:** Invalidates current session and tokens\n\n" +
+                     "**Test Scenarios:**\n" +
+                     "- Valid JWT token\n" +
+                     "- Invalid JWT token (401)\n" +
+                     "- Expired JWT token (401)\n" +
+                     "- Missing Authorization header (401)\n" +
+                     "- Malformed token (401)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Logout successful",
+            content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"Logout successful\"}"))),
+        @ApiResponse(responseCode = "400", description = "Bad request - Invalid token format"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token")
+    })
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<Map<String, Object>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         // D001: Return 401 when Authorization header is missing
         if (authHeader == null || authHeader.trim().isEmpty()) {
@@ -193,8 +297,28 @@ public class AuthController {
     }
 
     @PostMapping("/otp/request")
-    @Operation(summary = "Request OTP", 
-               description = "Send OTP by phone number. Use merchantId=0 for general OTP (any user), >0 for specific merchant customers")
+    @Operation(
+        summary = "Request OTP",
+        description = "**QA Testing Guide:**\n\n" +
+                     "1. **Request Body:** JSON with phone, merchantId, otpType\n" +
+                     "2. **MerchantId:** 0 for general OTP, >0 for specific merchant customers\n" +
+                     "3. **OTP Types:** login, password_reset, phone_verification, account_verification\n\n" +
+                     "**Test Scenarios:**\n" +
+                     "- Valid phone number with merchantId\n" +
+                     "- Invalid phone format (400)\n" +
+                     "- Phone not registered (404)\n" +
+                     "- Too many requests (429)\n" +
+                     "- Missing merchantId (400)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "OTP sent successfully",
+            content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"OTP sent successfully\"}"))),
+        @ApiResponse(responseCode = "400", description = "Invalid request data"),
+        @ApiResponse(responseCode = "404", description = "Phone number not registered"),
+        @ApiResponse(responseCode = "429", description = "Too many requests - Rate limit exceeded"),
+        @ApiResponse(responseCode = "503", description = "SMS service unavailable")
+    })
     public ResponseEntity<Map<String, Object>> requestOtp(@Valid @RequestBody OtpRequest req) {
         try {
             // Validate phone number first
@@ -260,8 +384,27 @@ public class AuthController {
     }
     
     @PostMapping("/otp/verify")
-    @Operation(summary = "Verify OTP",
-               description = "Verify OTP by phone number. Use merchantId=0 for phone-based verification (any user), merchantId>0 for merchant-specific customer verification. OTP types: login, password_reset, phone_verification, account_verification")
+    @Operation(
+        summary = "Verify OTP",
+        description = "**QA Testing Guide:**\n\n" +
+                     "1. **Request Body:** JSON with phone, otp, merchantId, otpType\n" +
+                     "2. **MerchantId:** 0 for phone-based verification, >0 for merchant-specific\n" +
+                     "3. **OTP Types:** login, password_reset, phone_verification, account_verification\n\n" +
+                     "**Test Scenarios:**\n" +
+                     "- Valid OTP with correct phone/merchantId\n" +
+                     "- Invalid OTP code (401)\n" +
+                     "- Expired OTP (401)\n" +
+                     "- Wrong phone number (404)\n" +
+                     "- Missing required fields (400)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "OTP verified successfully",
+            content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"OTP verified successfully\",\"data\":{\"accessToken\":\"jwt_token\",\"refreshToken\":\"refresh_token\"}}"))),
+        @ApiResponse(responseCode = "400", description = "Invalid request data"),
+        @ApiResponse(responseCode = "401", description = "Invalid or expired OTP"),
+        @ApiResponse(responseCode = "404", description = "Phone number not found")
+    })
     public ResponseEntity<Map<String, Object>> verifyOtp(@Valid @RequestBody OtpVerifyRequest req) {
         log.info("OTP verification request received for merchantId: {}", req.getMerchantId());
 

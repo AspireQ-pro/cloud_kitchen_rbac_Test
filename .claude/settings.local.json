@@ -6,7 +6,9 @@
       "Bash(mvn clean compile:*)",
       "Bash(mvn compile:*)",
       "Bash(git add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(tree:*)",
+      "Bash(dir /S /B \"c:\\\\Aspireq\\\\cloud-kitchen-rbac-service\\\\src\\\\main\\\\resources\\\\openapi\\\\*.yaml\" \"c:\\\\Aspireq\\\\cloud-kitchen-rbac-service\\\\src\\\\main\\\\resources\\\\openapi\\\\*.md\")"
     ]
   }
 }

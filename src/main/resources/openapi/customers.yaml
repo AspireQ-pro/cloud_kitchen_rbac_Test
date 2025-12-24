@@ -1,0 +1,591 @@
+openapi: 3.0.3
+info:
+  title: Customer Management API
+  description: |
+    Customer management endpoints for Cloud Kitchen RBAC Service.
+
+    **RBAC Rules:**
+    - All endpoints require authentication
+    - Access control based on merchantId and user permissions
+    - Returns 401 if not authenticated
+    - Returns 403 if access denied
+  version: 1.0.0
+
+tags:
+  - name: Customer Management
+    description: Customer profile and management operations
+
+paths:
+  /api/customers/{id}:
+    put:
+      tags:
+        - Customer Management
+      summary: Update Customer
+      description: |
+        Update customer profile.
+
+        **RBAC Rules:**
+        - Authenticated user required
+        - User can only update their own customer profile OR
+        - User with appropriate merchant permissions can update customers in their merchant
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 400: Validation failed
+        - 401: Not authenticated
+        - 403: Access denied
+      operationId: updateCustomer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Customer ID
+          required: true
+          schema:
+            type: integer
+            example: 456
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdateRequest'
+      responses:
+        '200':
+          description: Customer updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Customer profile updated successfully"
+                  data:
+                    $ref: '#/components/schemas/CustomerResponse'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+              example:
+                status: 403
+                message: "Access denied: You can only update your own profile"
+
+    get:
+      tags:
+        - Customer Management
+      summary: Get Customer by ID
+      description: |
+        Get customer details by ID.
+
+        **RBAC Rules:**
+        - Authenticated user required
+        - User can only view their own customer profile OR
+        - User with appropriate merchant permissions can view customers in their merchant
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 401: Not authenticated
+        - 403: Access denied
+        - 404: Customer not found
+      operationId: getCustomerById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Customer ID
+          required: true
+          schema:
+            type: integer
+            example: 456
+      responses:
+        '200':
+          description: Customer retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Customer profile retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/CustomerResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+              example:
+                status: 403
+                message: "Access denied: You can only view your own profile"
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
+
+  /api/customers:
+    get:
+      tags:
+        - Customer Management
+      summary: Get All Customers
+      description: |
+        Get all customers with pagination, filtering, and search.
+
+        **RBAC Rules:**
+        - Authenticated user required
+        - Users can only see customers within their merchant scope
+        - Super admins can see all customers
+
+        **Features:**
+        - Pagination support
+        - Filter by status
+        - Search functionality
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 401: Not authenticated
+        - 403: Access denied
+      operationId: getAllCustomers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number (0-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 0
+        - name: size
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+            example: 10
+        - name: status
+          in: query
+          description: Filter by customer status
+          required: false
+          schema:
+            type: string
+            example: "active"
+        - name: search
+          in: query
+          description: Search by customer name, phone, or email
+          required: false
+          schema:
+            type: string
+            example: "john"
+      responses:
+        '200':
+          description: Customers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Customers retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CustomerResponse'
+                      page:
+                        type: integer
+                        example: 0
+                      size:
+                        type: integer
+                        example: 10
+                      totalElements:
+                        type: integer
+                        format: int64
+                        example: 50
+                      totalPages:
+                        type: integer
+                        example: 5
+                      first:
+                        type: boolean
+                        example: true
+                      last:
+                        type: boolean
+                        example: false
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+              example:
+                status: 403
+                message: "Access denied: Cannot access customer list"
+
+  /api/customers/profile:
+    get:
+      tags:
+        - Customer Management
+      summary: Get Current Customer Profile
+      description: |
+        Get authenticated customer's own profile.
+
+        **RBAC Rules:**
+        - Authenticated customer user required
+        - Returns the profile of the currently logged-in customer
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 401: Not authenticated
+        - 404: Customer profile not found
+      operationId: getCustomerProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Customer profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Customer profile retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/CustomerResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '404':
+          description: Customer profile not found
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
+              example:
+                status: 404
+                message: "Customer profile not found"
+
+  /api/customers/merchant/{merchantId}:
+    get:
+      tags:
+        - Customer Management
+      summary: Get Customers by Merchant ID
+      description: |
+        Get all customers for a specific merchant.
+
+        **RBAC Rules:**
+        - Authenticated user required
+        - User must have access to the specified merchant
+        - Merchant users can only access their own merchant's customers
+        - Super admins can access any merchant's customers
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 401: Not authenticated
+        - 403: Access denied
+      operationId: getCustomersByMerchantId
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: merchantId
+          in: path
+          description: Merchant ID
+          required: true
+          schema:
+            type: integer
+            example: 1
+        - name: page
+          in: query
+          description: Page number (0-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 0
+        - name: size
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+            example: 10
+      responses:
+        '200':
+          description: Merchant customers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Merchant customers retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CustomerResponse'
+                      page:
+                        type: integer
+                        example: 0
+                      size:
+                        type: integer
+                        example: 10
+                      totalElements:
+                        type: integer
+                        format: int64
+                        example: 30
+                      totalPages:
+                        type: integer
+                        example: 3
+                      first:
+                        type: boolean
+                        example: true
+                      last:
+                        type: boolean
+                        example: false
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+              example:
+                status: 403
+                message: "Access denied: Cannot access merchant customers"
+
+components:
+  schemas:
+    CustomerUpdateRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: First name
+          example: "John"
+        lastName:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Last name
+          example: "Doe"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          nullable: true
+          description: Email address
+          example: "john@example.com"
+        address:
+          type: string
+          nullable: true
+          description: Street address
+          example: "123 Main Street"
+        city:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: City
+          example: "Mumbai"
+        state:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: State
+          example: "Maharashtra"
+        country:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Country
+          example: "India"
+        pincode:
+          type: string
+          maxLength: 10
+          nullable: true
+          description: Postal code
+          example: "400001"
+        dob:
+          type: string
+          format: date
+          nullable: true
+          description: Date of birth (must be in the past)
+          example: "1990-01-15"
+        favoriteFood:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: Favorite food
+          example: "Pizza"
+
+    CustomerResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Customer ID
+          example: 456
+        firstName:
+          type: string
+          nullable: true
+          description: First name
+          example: "John"
+        lastName:
+          type: string
+          nullable: true
+          description: Last name
+          example: "Doe"
+        phone:
+          type: string
+          nullable: true
+          description: Phone number
+          example: "9876543210"
+        email:
+          type: string
+          nullable: true
+          description: Email address
+          example: "john@example.com"
+        address:
+          type: string
+          nullable: true
+          description: Street address
+          example: "123 Main Street"
+        city:
+          type: string
+          nullable: true
+          description: City
+          example: "Mumbai"
+        state:
+          type: string
+          nullable: true
+          description: State
+          example: "Maharashtra"
+        country:
+          type: string
+          nullable: true
+          description: Country
+          example: "India"
+        pincode:
+          type: string
+          nullable: true
+          description: Postal code
+          example: "400001"
+        dob:
+          type: string
+          format: date
+          nullable: true
+          description: Date of birth
+          example: "1990-01-15"
+        favoriteFood:
+          type: string
+          nullable: true
+          description: Favorite food
+          example: "Pizza"
+        merchantId:
+          type: integer
+          nullable: true
+          description: Associated merchant ID
+          example: 1
+        merchantName:
+          type: string
+          nullable: true
+          description: Associated merchant name
+          example: "Yogesh Kitchen"
+        active:
+          type: boolean
+          nullable: true
+          description: Whether customer is active
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Creation timestamp
+          example: "2024-01-15T10:30:00"
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last update timestamp
+          example: "2024-12-23T15:45:00"
+
+  securitySchemes:
+    bearerAuth:
+      $ref: './common/schemas.yaml#/components/securitySchemes/bearerAuth'

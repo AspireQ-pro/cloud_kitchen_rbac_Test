@@ -1,0 +1,260 @@
+openapi: 3.0.3
+info:
+  title: Cloud Kitchen RBAC Service API
+  description: |
+    # Cloud Kitchen Role-Based Access Control (RBAC) Service
+
+    Complete API documentation for the Cloud Kitchen RBAC Service, providing authentication, authorization, and user management capabilities.
+
+    ## Features
+    - **Multi-tenant Architecture**: Support for multiple merchants and their customers
+    - **Role-Based Access Control**: Fine-grained permission system
+    - **JWT Authentication**: Secure token-based authentication
+    - **OTP Verification**: Phone number-based authentication
+    - **Customer Management**: Customer profiles and access control
+    - **Merchant Management**: Merchant onboarding and management
+
+    ## Authentication Types
+
+    ### 1. Merchant/Admin Login
+    - **Endpoint**: `POST /api/v1/auth/login`
+    - **MerchantId**: Must be 0 or null
+    - **Credentials**: Username + Password
+    - **Use Case**: Merchant owners and super admins
+
+    ### 2. Customer Login
+    - **Endpoint**: `POST /api/v1/auth/customer/login`
+    - **MerchantId**: Must be > 0
+    - **Credentials**: Phone + Password
+    - **Use Case**: Customers of a specific merchant
+
+    ### 3. OTP-Based Authentication
+    - **Request**: `POST /api/v1/auth/otp/request`
+    - **Verify**: `POST /api/v1/auth/otp/verify`
+    - **Use Case**: Phone verification, password reset, login
+
+    ## Authorization & RBAC
+
+    ### HTTP Status Codes for Access Control
+    - **401 Unauthorized**: Missing or invalid authentication token
+    - **403 Forbidden**: Valid token but insufficient permissions
+
+    ### Roles
+    - **ROLE_SUPER_ADMIN**: Full system access
+    - **ROLE_MERCHANT**: Merchant owner access
+    - **ROLE_CUSTOMER**: Customer access to own data
+
+    ### Permissions
+    - **merchants.create**: Create new merchants
+    - **merchants.read**: View merchant data
+    - **merchants.update**: Update merchant data
+    - **users.read**: View user data
+
+    ## MerchantId Convention
+    - **null**: Super admin operations
+    - **0**: Merchant/admin operations
+    - **> 0**: Customer operations for specific merchant
+
+    ## Security
+    All protected endpoints require JWT Bearer token in Authorization header:
+    ```
+    Authorization: Bearer <your_jwt_token>
+    ```
+
+    ## API Organization
+    This API is organized into the following domains:
+    - **Authentication**: User registration, login, logout, OTP verification
+    - **User Management**: User CRUD operations (Super Admin only)
+    - **Customer Management**: Customer profile and data management
+    - **Merchant Management**: Merchant CRUD operations
+    - **Health**: Service health checks and monitoring
+
+  version: 1.0.0
+  contact:
+    name: Cloud Kitchen RBAC Service
+    email: support@cloudkitchen.com
+  license:
+    name: Proprietary
+    url: https://cloudkitchen.com/license
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api-dev.cloudkitchen.com
+    description: Development server
+  - url: https://api-staging.cloudkitchen.com
+    description: Staging server
+  - url: https://api.cloudkitchen.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication and registration operations
+  - name: User Management
+    description: User read operations - Super Admin only
+  - name: Customer Management
+    description: Customer profile and management operations
+  - name: Merchant Management
+    description: Merchant CRUD operations
+  - name: Health
+    description: Service health and monitoring operations
+
+paths:
+  # Authentication endpoints
+  /api/v1/auth/signup:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1signup'
+
+  /api/v1/auth/login:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1login'
+
+  /api/v1/auth/customer/login:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1customer~1login'
+
+  /api/v1/auth/refresh:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1refresh'
+
+  /api/v1/auth/logout:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1logout'
+
+  /api/v1/auth/otp/request:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1otp~1request'
+
+  /api/v1/auth/otp/verify:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1otp~1verify'
+
+  # User Management endpoints
+  /api/v1/users:
+    $ref: './users.yaml#/paths/~1api~1v1~1users'
+
+  /api/v1/users/{id}:
+    $ref: './users.yaml#/paths/~1api~1v1~1users~1{id}'
+
+  # Customer Management endpoints
+  /api/customers/{id}:
+    $ref: './customers.yaml#/paths/~1api~1customers~1{id}'
+
+  /api/customers:
+    $ref: './customers.yaml#/paths/~1api~1customers'
+
+  /api/customers/profile:
+    $ref: './customers.yaml#/paths/~1api~1customers~1profile'
+
+  /api/customers/merchant/{merchantId}:
+    $ref: './customers.yaml#/paths/~1api~1customers~1merchant~1{merchantId}'
+
+  # Merchant Management endpoints
+  /api/v1/merchants:
+    $ref: './merchants.yaml#/paths/~1api~1v1~1merchants'
+
+  /api/v1/merchants/{id}:
+    $ref: './merchants.yaml#/paths/~1api~1v1~1merchants~1{id}'
+
+  # Health endpoints
+  /api/v1/health/users:
+    $ref: './health.yaml#/paths/~1api~1v1~1health~1users'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT authentication token.
+
+        **How to obtain a token:**
+        1. Login via `/api/v1/auth/login` (merchant/admin) or `/api/v1/auth/customer/login` (customer)
+        2. Or signup via `/api/v1/auth/signup` (customer registration)
+        3. Or verify OTP via `/api/v1/auth/otp/verify`
+
+        **Token format:** `Bearer <your_jwt_token>`
+
+        **Token contains:**
+        - User ID
+        - Merchant ID
+        - Roles and permissions
+
+        **RBAC Rules:**
+        - **401 Unauthorized**: Missing or invalid token
+        - **403 Forbidden**: Valid token but insufficient permissions
+
+  schemas:
+    # Reference common schemas
+    SuccessResponse:
+      $ref: './common/schemas.yaml#/components/schemas/SuccessResponse'
+
+    PageResponse:
+      $ref: './common/schemas.yaml#/components/schemas/PageResponse'
+
+    ErrorResponse:
+      $ref: './common/errors.yaml#/components/schemas/ErrorResponse'
+
+    ValidationErrorResponse:
+      $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+
+    UnauthorizedErrorResponse:
+      $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+
+    ForbiddenErrorResponse:
+      $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+
+    NotFoundErrorResponse:
+      $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
+
+    ConflictErrorResponse:
+      $ref: './common/errors.yaml#/components/schemas/ConflictErrorResponse'
+
+    TooManyRequestsErrorResponse:
+      $ref: './common/errors.yaml#/components/schemas/TooManyRequestsErrorResponse'
+
+    InternalServerErrorResponse:
+      $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
+
+    ServiceUnavailableErrorResponse:
+      $ref: './common/errors.yaml#/components/schemas/ServiceUnavailableErrorResponse'
+
+    # Authentication schemas
+    RegisterRequest:
+      $ref: './auth.yaml#/components/schemas/RegisterRequest'
+
+    AuthRequest:
+      $ref: './auth.yaml#/components/schemas/AuthRequest'
+
+    CustomerAuthRequest:
+      $ref: './auth.yaml#/components/schemas/CustomerAuthRequest'
+
+    RefreshTokenRequest:
+      $ref: './auth.yaml#/components/schemas/RefreshTokenRequest'
+
+    OtpRequest:
+      $ref: './auth.yaml#/components/schemas/OtpRequest'
+
+    OtpVerifyRequest:
+      $ref: './auth.yaml#/components/schemas/OtpVerifyRequest'
+
+    AuthResponse:
+      $ref: './auth.yaml#/components/schemas/AuthResponse'
+
+    # User Management schemas
+    UserResponse:
+      $ref: './users.yaml#/components/schemas/UserResponse'
+
+    # Customer Management schemas
+    CustomerUpdateRequest:
+      $ref: './customers.yaml#/components/schemas/CustomerUpdateRequest'
+
+    CustomerResponse:
+      $ref: './customers.yaml#/components/schemas/CustomerResponse'
+
+    # Merchant Management schemas
+    MerchantRequest:
+      $ref: './merchants.yaml#/components/schemas/MerchantRequest'
+
+    MerchantUpdateRequest:
+      $ref: './merchants.yaml#/components/schemas/MerchantUpdateRequest'
+
+    MerchantResponse:
+      $ref: './merchants.yaml#/components/schemas/MerchantResponse'
+
+security:
+  - bearerAuth: []

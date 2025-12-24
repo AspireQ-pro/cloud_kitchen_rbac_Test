@@ -1,0 +1,626 @@
+openapi: 3.0.3
+info:
+  title: Merchant Management API
+  description: |
+    Merchant management endpoints for Cloud Kitchen RBAC Service.
+
+    **RBAC Rules:**
+    - Create/List operations require ROLE_SUPER_ADMIN or merchants.create/merchants.read permissions
+    - Update/Get/Delete operations have specific access control rules
+    - Returns 401 if not authenticated
+    - Returns 403 if access denied
+  version: 1.0.0
+
+tags:
+  - name: Merchant Management
+    description: Merchant CRUD operations
+
+paths:
+  /api/v1/merchants:
+    post:
+      tags:
+        - Merchant Management
+      summary: Create Merchant
+      description: |
+        Create a new merchant with associated user account.
+
+        **RBAC Rules:**
+        - Requires ROLE_SUPER_ADMIN OR merchants.create permission
+
+        **Creates:**
+        - Merchant record
+        - Associated user account for merchant login
+
+        **HTTP Status Codes:**
+        - 201: Merchant created successfully
+        - 400: Validation failed
+        - 401: Not authenticated
+        - 403: Not authorized
+        - 409: Merchant already exists (duplicate email/phone/username)
+      operationId: createMerchant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantRequest'
+      responses:
+        '201':
+          description: Merchant created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "Merchant 'Yogesh Kitchen' created successfully with ID: 1"
+                  data:
+                    $ref: '#/components/schemas/MerchantResponse'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+        '409':
+          description: Merchant already exists
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ConflictErrorResponse'
+
+    get:
+      tags:
+        - Merchant Management
+      summary: Get All Merchants
+      description: |
+        Get all merchants with pagination, filtering, and sorting.
+
+        **RBAC Rules:**
+        - Requires ROLE_SUPER_ADMIN OR merchants.read permission
+
+        **Features:**
+        - Pagination support
+        - Filter by status
+        - Search by name, email, phone
+        - Sort by any field
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 401: Not authenticated
+        - 403: Not authorized
+        - 500: Internal server error
+      operationId: getAllMerchants
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number (0-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 0
+        - name: size
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+            example: 20
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          required: false
+          schema:
+            type: string
+            example: "createdAt"
+        - name: sortDirection
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: "asc"
+            example: "asc"
+        - name: status
+          in: query
+          description: Filter by merchant status
+          required: false
+          schema:
+            type: string
+            example: "active"
+        - name: search
+          in: query
+          description: Search by merchant name, email, or phone
+          required: false
+          schema:
+            type: string
+            example: "kitchen"
+      responses:
+        '200':
+          description: Merchants retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Merchants retrieved successfully. Page 1 of 3, Total: 50"
+                  data:
+                    type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MerchantResponse'
+                      page:
+                        type: integer
+                        example: 0
+                      size:
+                        type: integer
+                        example: 20
+                      totalElements:
+                        type: integer
+                        format: int64
+                        example: 50
+                      totalPages:
+                        type: integer
+                        example: 3
+                      first:
+                        type: boolean
+                        example: true
+                      last:
+                        type: boolean
+                        example: false
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
+
+  /api/v1/merchants/{id}:
+    get:
+      tags:
+        - Merchant Management
+      summary: Get Merchant by ID
+      description: |
+        Get merchant details by ID.
+
+        **RBAC Rules:**
+        - Super admins can view any merchant
+        - Users with merchants.read permission can view any merchant
+        - Merchant users can only view their own merchant data
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 401: Not authenticated
+        - 403: Access denied
+        - 404: Merchant not found
+        - 500: Internal server error
+      operationId: getMerchant
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Merchant ID
+          required: true
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Merchant profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Merchant profile retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/MerchantResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+              example:
+                status: 403
+                message: "Access denied: You can only view your own merchant data"
+        '404':
+          description: Merchant not found
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
+              example:
+                status: 404
+                message: "Merchant not found with ID: 1"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
+
+    patch:
+      tags:
+        - Merchant Management
+      summary: Update Merchant
+      description: |
+        Update merchant details (partial update).
+
+        **RBAC Rules:**
+        - Super admins can update any merchant
+        - Merchant users can only update their own merchant data
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 400: Validation failed
+        - 401: Not authenticated
+        - 403: Access denied
+        - 404: Merchant not found
+      operationId: updateMerchant
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Merchant ID
+          required: true
+          schema:
+            type: integer
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantUpdateRequest'
+      responses:
+        '200':
+          description: Merchant updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Merchant ID 1 updated successfully"
+                  data:
+                    $ref: '#/components/schemas/MerchantResponse'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+              example:
+                status: 403
+                message: "Access denied: You can only update your own merchant data"
+        '404':
+          description: Merchant not found
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
+
+    delete:
+      tags:
+        - Merchant Management
+      summary: Delete Merchant
+      description: |
+        Delete merchant by ID.
+
+        **RBAC Rules:**
+        - Requires ROLE_SUPER_ADMIN (Super Admin only)
+
+        **HTTP Status Codes:**
+        - 200: Merchant deleted successfully
+        - 401: Not authenticated
+        - 403: Not authorized (requires ROLE_SUPER_ADMIN)
+        - 404: Merchant not found
+        - 409: Cannot delete merchant (has dependencies)
+        - 500: Internal server error
+      operationId: deleteMerchant
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Merchant ID
+          required: true
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Merchant deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Merchant ID 1 deleted successfully"
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Not authorized - ROLE_SUPER_ADMIN required
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+        '404':
+          description: Merchant not found
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
+              example:
+                status: 404
+                message: "Merchant not found with ID: 1"
+        '409':
+          description: Cannot delete merchant
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ConflictErrorResponse'
+              example:
+                status: 409
+                message: "Merchant cannot be deleted: Has active customers"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
+
+components:
+  schemas:
+    MerchantRequest:
+      type: object
+      required:
+        - merchantName
+        - email
+        - username
+        - password
+        - phone
+      properties:
+        merchantName:
+          type: string
+          maxLength: 100
+          description: Merchant business name
+          example: "Yogesh Kitchen"
+        email:
+          type: string
+          format: email
+          maxLength: 100
+          description: Merchant email address
+          example: "yogesh@gmail.com"
+        gstin:
+          type: string
+          pattern: '^$|^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$'
+          maxLength: 15
+          nullable: true
+          description: GST Identification Number (15 characters)
+          example: "29ABCDE1234F1Z5"
+        username:
+          type: string
+          maxLength: 50
+          description: Username for merchant login
+          example: "yogesh_kitchen"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,100}$'
+          description: Strong password with uppercase, lowercase, digit, and special character
+          example: "SecurePass123!"
+        phone:
+          type: string
+          pattern: '^[6-9]\d{9}$'
+          description: 10-digit Indian mobile number
+          example: "8095242733"
+        address:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: Complete business address
+          example: "123 Main Street, Mumbai, Maharashtra 400001"
+        fssaiLicense:
+          type: string
+          maxLength: 50
+          nullable: true
+          description: FSSAI License Number (14 digits)
+          example: "12345678901234"
+
+    MerchantUpdateRequest:
+      type: object
+      properties:
+        merchantName:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Merchant business name
+          example: "Yogesh Kitchen"
+        email:
+          type: string
+          format: email
+          maxLength: 100
+          nullable: true
+          description: Merchant email address
+          example: "yogesh@gmail.com"
+        gstin:
+          type: string
+          pattern: '^$|^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$'
+          maxLength: 15
+          nullable: true
+          description: GST Identification Number (15 characters)
+          example: "29ABCDE1234F1Z5"
+        phone:
+          type: string
+          pattern: '^[6-9]\d{9}$'
+          nullable: true
+          description: 10-digit Indian mobile number
+          example: "8095242733"
+        address:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: Complete business address
+          example: "123 Main Street, Mumbai, Maharashtra 400001"
+        fssaiLicense:
+          type: string
+          maxLength: 50
+          nullable: true
+          description: FSSAI License Number
+          example: "12345678901234"
+
+    MerchantResponse:
+      type: object
+      properties:
+        merchantId:
+          type: integer
+          description: Merchant ID
+          example: 1
+        merchantName:
+          type: string
+          nullable: true
+          description: Merchant business name
+          example: "Yogesh Kitchen"
+        phone:
+          type: string
+          nullable: true
+          description: Phone number
+          example: "8095242733"
+        email:
+          type: string
+          nullable: true
+          description: Email address
+          example: "yogesh@gmail.com"
+        address:
+          type: string
+          nullable: true
+          description: Business address
+          example: "123 Main Street, Mumbai, Maharashtra 400001"
+        gstin:
+          type: string
+          nullable: true
+          description: GST Identification Number
+          example: "29ABCDE1234F1Z5"
+        fssaiLicense:
+          type: string
+          nullable: true
+          description: FSSAI License Number
+          example: "12345678901234"
+        active:
+          type: boolean
+          nullable: true
+          description: Whether merchant is active
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Creation timestamp
+          example: "2024-01-15T10:30:00"
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last update timestamp
+          example: "2024-12-23T15:45:00"
+        username:
+          type: string
+          nullable: true
+          description: Merchant login username
+          example: "yogesh_kitchen"
+        userId:
+          type: integer
+          nullable: true
+          description: Associated user ID
+          example: 10
+
+  securitySchemes:
+    bearerAuth:
+      $ref: './common/schemas.yaml#/components/securitySchemes/bearerAuth'
