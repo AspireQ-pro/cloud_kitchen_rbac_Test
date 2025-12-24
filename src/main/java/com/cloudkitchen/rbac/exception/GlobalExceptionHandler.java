@@ -12,11 +12,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.validation.FieldError;
 
 import com.cloudkitchen.rbac.util.ResponseBuilder;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
@@ -31,28 +31,30 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex, WebRequest request) {
         
-        List<Map<String, Object>> fieldErrors = ex.getBindingResult().getAllErrors().stream()
-            .map(err -> {
-                FieldError fieldError = (FieldError) err;
-                Map<String, Object> error = new HashMap<>();
-                error.put("field", fieldError.getField());
-                error.put("message", fieldError.getDefaultMessage());
-                error.put("rejectedValue", sanitizeRejectedValue(fieldError.getRejectedValue()));
-                return error;
-            })
+        // Collect all required field errors
+        List<String> requiredFields = ex.getBindingResult().getAllErrors().stream()
+            .filter(err -> err.getDefaultMessage() != null && err.getDefaultMessage().contains("required"))
+            .filter(err -> err instanceof FieldError)
+            .map(err -> ((FieldError) err).getField())
+            .distinct()
             .collect(Collectors.toList());
         
-        // Return the first validation error message directly
-        String errorMessage = fieldErrors.isEmpty() ? "Validation failed" : 
-            fieldErrors.get(0).get("message").toString();
+        String errorMessage;
+        if (requiredFields.size() > 1) {
+            errorMessage = String.join(" and ", requiredFields) + " are required";
+        } else if (requiredFields.size() == 1) {
+            errorMessage = requiredFields.get(0) + " is required";
+        } else {
+            // Fallback to first validation error
+            errorMessage = ex.getBindingResult().getAllErrors().stream()
+                .findFirst()
+                .map(err -> err.getDefaultMessage())
+                .orElse("Validation failed");
+        }
             
         Map<String, Object> response = ResponseBuilder.error(400, errorMessage);
-        response.put("fieldErrors", fieldErrors);
-        response.put("path", request.getDescription(false).replace("uri=", ""));
-        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
         
-        String traceId = response.get("traceId").toString();
-        logger.warn("Validation failed [{}] with {} field errors", traceId, fieldErrors.size());
+        logger.warn("Validation failed: {}", errorMessage);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
@@ -254,21 +256,68 @@ public class GlobalExceptionHandler {
     
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<Map<String, Object>> handleValidationException(ValidationException ex, WebRequest request) {
-        Map<String, Object> response = ResponseBuilder.error(400, "Validation failed");
-        response.put("details", sanitizeErrorMessage(ex.getMessage()) != null && !sanitizeErrorMessage(ex.getMessage()).isEmpty() 
-            ? sanitizeErrorMessage(ex.getMessage()) : "The provided data failed validation. Please check your input.");
+        Map<String, Object> response = ResponseBuilder.error(400, sanitizeErrorMessage(ex.getMessage()));
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
-        
+
         logger.warn("Validation failed: {}", sanitizeLogMessage(ex.getMessage()));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(MobileNotRegisteredException.class)
+    public ResponseEntity<Map<String, Object>> handleMobileNotRegisteredException(MobileNotRegisteredException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(404, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("Mobile not registered for request");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(OtpNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpNotFoundException(OtpNotFoundException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(404, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("OTP not found for request");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(OtpExpiredException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpExpiredException(OtpExpiredException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(401, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("OTP expired for request");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(InvalidOtpException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidOtpException(InvalidOtpException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(401, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("Invalid OTP for request");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(OtpAttemptsExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpAttemptsExceededException(OtpAttemptsExceededException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(429, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("OTP attempts exceeded for request");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
     }
     
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex, WebRequest request) {
-        Map<String, Object> response = ResponseBuilder.error(400, "Invalid argument");
-        response.put("details", sanitizeErrorMessage(ex.getMessage()) != null && !sanitizeErrorMessage(ex.getMessage()).isEmpty() 
-            ? sanitizeErrorMessage(ex.getMessage()) : "Invalid argument provided");
+        String message = sanitizeErrorMessage(ex.getMessage());
+        Map<String, Object> response = ResponseBuilder.error(400, message != null && !message.isEmpty() ? message : "Invalid argument provided");
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
 
@@ -287,6 +336,11 @@ public class GlobalExceptionHandler {
             ex instanceof BusinessExceptions.InvalidCredentialsException ||
             ex instanceof BusinessExceptions.AccessDeniedException ||
             ex instanceof BusinessExceptions.OtpException ||
+            ex instanceof BusinessExceptions.OtpNotFoundException ||
+            ex instanceof BusinessExceptions.OtpExpiredException ||
+            ex instanceof BusinessExceptions.InvalidOtpException ||
+            ex instanceof BusinessExceptions.OtpAttemptsExceededException ||
+            ex instanceof BusinessExceptions.MobileNotRegisteredException ||
             ex instanceof BusinessExceptions.RateLimitExceededException ||
             ex instanceof BusinessExceptions.TokenExpiredException ||
             ex instanceof BusinessExceptions.ServiceUnavailableException ||
@@ -295,12 +349,12 @@ public class GlobalExceptionHandler {
             // Re-throw to be handled by specific handlers
             throw ex;
         }
-        
+
         Map<String, Object> response = ResponseBuilder.error(500, "An unexpected error occurred");
         response.put("details", "An error occurred while processing your request. Please try again later.");
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
-        
+
         logger.error("Runtime exception occurred: {}", sanitizeLogMessage(ex.getMessage()), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
@@ -317,24 +371,42 @@ public class GlobalExceptionHandler {
                 errorMessage = "Invalid field: " + fieldName;
             } else if (message.contains("JSON parse error")) {
                 if (message.contains("merchantId")) {
-                    errorMessage = "Invalid data type for merchantId (must be numeric)";
+                    errorMessage = "Invalid data type for merchantId";
                 } else {
                     errorMessage = "Invalid JSON format in request body";
                 }
             } else if (message.contains("Required request body is missing")) {
-                errorMessage = "Request body is required";
+                errorMessage = "Missing required fields";
             } else if (message.contains("Content type")) {
                 return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
                         .body(ResponseBuilder.error(415, "Content-Type must be application/json"));
             }
         }
         
+        // Check if it's an empty JSON body case
+        if (message != null && (message.contains("No content to map") || 
+            message.contains("Required request body is missing") ||
+            ex.getCause() != null && ex.getCause().getMessage() != null && 
+            ex.getCause().getMessage().contains("No content"))) {
+            errorMessage = "Missing required fields";
+        }
+        
         Map<String, Object> response = ResponseBuilder.error(400, errorMessage);
         response.put("path", request.getDescription(false).replace("uri=", ""));
         response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
         
-        logger.warn("Invalid request format detected");
+        logger.warn("Invalid request format detected: {}", sanitizeLogMessage(message));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+    
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpMediaTypeNotSupported(org.springframework.web.HttpMediaTypeNotSupportedException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(415, "Content-Type must be application/json");
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+        
+        logger.warn("Unsupported media type: {}", ex.getContentType());
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(response);
     }
     
     @ExceptionHandler(Exception.class)

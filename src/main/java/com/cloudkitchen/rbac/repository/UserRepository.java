@@ -67,4 +67,15 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     @Modifying
     @Transactional
     void deleteByMerchant(Merchant merchant);
+
+    // User Management API methods
+    @Query("SELECT u FROM User u WHERE " +
+           "(:role IS NULL OR u.userType = :role) AND " +
+           "(:search IS NULL OR :search = '' OR " +
+           "LOWER(CAST(u.firstName AS string)) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "LOWER(CAST(u.lastName AS string)) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "LOWER(CAST(u.email AS string)) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "LOWER(CAST(u.username AS string)) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "CAST(u.phone AS string) LIKE CONCAT('%', :search, '%'))")
+    Page<User> findAllUsersWithFilters(@Param("role") String role, @Param("search") String search, Pageable pageable);
 }

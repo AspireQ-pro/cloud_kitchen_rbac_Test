@@ -163,5 +163,169 @@ class MerchantControllerTest {
                         .with(csrf()))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_SUPER_ADMIN")
+    void testCreateMerchant_MissingMerchantName() throws Exception {
+        // Given
+        MerchantRequest request = new MerchantRequest();
+        request.setPhone("8095242733");
+        request.setEmail("test@example.com");
+        request.setUsername("testuser");
+        request.setPassword("Password123!");
+        // merchantName is missing
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/merchants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("merchantName is required"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_SUPER_ADMIN")
+    void testCreateMerchant_MissingEmail() throws Exception {
+        // Given
+        MerchantRequest request = new MerchantRequest();
+        request.setMerchantName("Test Merchant");
+        request.setPhone("8095242733");
+        request.setUsername("testuser");
+        request.setPassword("Password123!");
+        // email is missing
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/merchants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("email is required"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_SUPER_ADMIN")
+    void testCreateMerchant_InvalidEmailFormat() throws Exception {
+        // Given
+        MerchantRequest request = new MerchantRequest();
+        request.setMerchantName("Test Merchant");
+        request.setPhone("8095242733");
+        request.setEmail("invalid-email");
+        request.setUsername("testuser");
+        request.setPassword("Password123!");
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/merchants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid email format"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_SUPER_ADMIN")
+    void testCreateMerchant_InvalidGSTIN() throws Exception {
+        // Given
+        MerchantRequest request = new MerchantRequest();
+        request.setMerchantName("Test Merchant");
+        request.setPhone("8095242733");
+        request.setEmail("test@example.com");
+        request.setUsername("testuser");
+        request.setPassword("Password123!");
+        request.setGstin("INVALID_GSTIN");
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/merchants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid GSTIN"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_SUPER_ADMIN")
+    void testCreateMerchant_WeakPassword() throws Exception {
+        // Given
+        MerchantRequest request = new MerchantRequest();
+        request.setMerchantName("Test Merchant");
+        request.setPhone("8095242733");
+        request.setEmail("test@example.com");
+        request.setUsername("testuser");
+        request.setPassword("weak");
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/merchants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Password does not meet complexity requirements"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_SUPER_ADMIN")
+    void testCreateMerchant_InvalidPhoneFormat() throws Exception {
+        // Given
+        MerchantRequest request = new MerchantRequest();
+        request.setMerchantName("Test Merchant");
+        request.setPhone("invalid_phone");
+        request.setEmail("test@example.com");
+        request.setUsername("testuser");
+        request.setPassword("Password123!");
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/merchants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid phone number"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_SUPER_ADMIN")
+    void testCreateMerchant_PhoneTooShort() throws Exception {
+        // Given
+        MerchantRequest request = new MerchantRequest();
+        request.setMerchantName("Test Merchant");
+        request.setPhone("12345");
+        request.setEmail("test@example.com");
+        request.setUsername("testuser");
+        request.setPassword("Password123!");
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/merchants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid phone length"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_SUPER_ADMIN")
+    void testCreateMerchant_WhitespaceFields() throws Exception {
+        // Given - JSON with whitespace fields
+        String requestJson = "{\"merchantName\":\"   \",\"phone\":\"8095242733\",\"email\":\"test@example.com\",\"username\":\"testuser\",\"password\":\"Password123!\"}";
+
+        // When & Then
+        mockMvc.perform(post("/api/v1/merchants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson)
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("merchantName is required"));
+    }
 }
 

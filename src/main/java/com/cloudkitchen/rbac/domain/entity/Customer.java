@@ -1,6 +1,7 @@
 package com.cloudkitchen.rbac.domain.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -67,6 +68,14 @@ public class Customer {
     @Column(name = "updated_on")
     private LocalDateTime updatedOn = LocalDateTime.now();
 
+    @Column(name = "dob")
+    private LocalDate dob;
+
+    @Column(name = "favorite_food", length = 255)
+    private String favoriteFood;
+
+
+
     // Getters and Setters
     public Integer getCustomerId() { return customerId; }
     public void setCustomerId(Integer customerId) { this.customerId = customerId; }
@@ -121,4 +130,12 @@ public class Customer {
 
     public LocalDateTime getUpdatedOn() { return updatedOn; }
     public void setUpdatedOn(LocalDateTime updatedOn) { this.updatedOn = updatedOn; }
+
+    public LocalDate getDob() { return dob; }
+    public void setDob(LocalDate dob) { this.dob = dob; }
+
+    public String getFavoriteFood() { return favoriteFood; }
+    public void setFavoriteFood(String favoriteFood) { this.favoriteFood = favoriteFood; }
+
+
 }

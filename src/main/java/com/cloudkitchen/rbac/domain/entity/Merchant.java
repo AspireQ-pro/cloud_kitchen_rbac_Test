@@ -1,12 +1,14 @@
 package com.cloudkitchen.rbac.domain.entity;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
@@ -77,6 +79,10 @@ public class Merchant {
     @Column(name = "updated_on")
     private LocalDateTime updatedOn = LocalDateTime.now();
 
+    // Relationships
+    @OneToMany(mappedBy = "merchant")
+    private List<User> users;
+
     // Getters and Setters
     public Integer getMerchantId() { return merchantId; }
     public void setMerchantId(Integer merchantId) { this.merchantId = merchantId; }
@@ -143,5 +149,7 @@ public class Merchant {
     public LocalDateTime getUpdatedOn() { return updatedOn; }
     public void setUpdatedOn(LocalDateTime updatedOn) { this.updatedOn = updatedOn; }
 
+    public List<User> getUsers() { return users; }
+    public void setUsers(List<User> users) { this.users = users; }
 
 }
