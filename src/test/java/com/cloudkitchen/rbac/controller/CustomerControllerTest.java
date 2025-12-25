@@ -88,7 +88,7 @@ class CustomerControllerTest {
         response.setId(1);
         response.setFirstName("John");
         response.setLastName("Doe");
-        response.setProfileImageKey("1/customer/1/profile_img/profile.jpg");
+        response.setProfileImageUrl("1/customer/1/profile_img/profile.jpg");
         response.setUpdatedAt(LocalDateTime.now());
 
         when(customerService.canAccessCustomer(any(), eq(1))).thenReturn(true);
@@ -112,7 +112,7 @@ class CustomerControllerTest {
                         }))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(1))
-                .andExpect(jsonPath("$.data.profileImageKey").value("1/customer/1/profile_img/profile.jpg"));
+                .andExpect(jsonPath("$.data.profileImageUrl").value("1/customer/1/profile_img/profile.jpg"));
     }
 
     @Test
@@ -131,7 +131,7 @@ class CustomerControllerTest {
         response.setLastName("Doe");
         response.setEmail("john@example.com");
         response.setDob(LocalDate.of(1990, 1, 15));
-        response.setProfileImageKey("1/customer/1/profile_img/profile.jpg");
+        response.setProfileImageUrl("1/customer/1/profile_img/profile.jpg");
         response.setUpdatedAt(LocalDateTime.now());
 
         when(customerService.canAccessCustomer(any(), eq(1))).thenReturn(true);
@@ -167,7 +167,7 @@ class CustomerControllerTest {
                 .andExpect(jsonPath("$.data.lastName").value("Doe"))
                 .andExpect(jsonPath("$.data.email").value("john@example.com"))
                 .andExpect(jsonPath("$.data.dob").value("1990-01-15"))
-                .andExpect(jsonPath("$.data.profileImageKey").value("1/customer/1/profile_img/profile.jpg"));
+                .andExpect(jsonPath("$.data.profileImageUrl").value("1/customer/1/profile_img/profile.jpg"));
     }
 
     @Test
@@ -259,7 +259,7 @@ class CustomerControllerTest {
         response.setFirstName("John");
         response.setLastName("Doe");
         response.setEmail("john@example.com");
-        response.setProfileImageKey("1/customer/1/profile_img/profile.jpg");
+        response.setProfileImageUrl("1/customer/1/profile_img/profile.jpg");
         response.setActive(true);
         response.setCreatedAt(LocalDateTime.now());
 
@@ -274,7 +274,7 @@ class CustomerControllerTest {
                 .andExpect(jsonPath("$.data.firstName").value("John"))
                 .andExpect(jsonPath("$.data.lastName").value("Doe"))
                 .andExpect(jsonPath("$.data.email").value("john@example.com"))
-                .andExpect(jsonPath("$.data.profileImageKey").value("1/customer/1/profile_img/profile.jpg"))
+                .andExpect(jsonPath("$.data.profileImageUrl").value("1/customer/1/profile_img/profile.jpg"))
                 .andExpect(jsonPath("$.data.active").value(true));
     }
 
@@ -287,7 +287,7 @@ class CustomerControllerTest {
         response.setFirstName("John");
         response.setLastName("Doe");
         response.setEmail("john@example.com");
-        response.setProfileImageKey("1/customer/1/profile_img/profile.jpg");
+        response.setProfileImageUrl("1/customer/1/profile_img/profile.jpg");
         response.setMerchantId(1);
         response.setMerchantName("Test Kitchen");
 
@@ -301,7 +301,7 @@ class CustomerControllerTest {
                 .andExpect(jsonPath("$.data.firstName").value("John"))
                 .andExpect(jsonPath("$.data.lastName").value("Doe"))
                 .andExpect(jsonPath("$.data.email").value("john@example.com"))
-                .andExpect(jsonPath("$.data.profileImageKey").value("1/customer/1/profile_img/profile.jpg"))
+                .andExpect(jsonPath("$.data.profileImageUrl").value("1/customer/1/profile_img/profile.jpg"))
                 .andExpect(jsonPath("$.data.merchantId").value(1))
                 .andExpect(jsonPath("$.data.merchantName").value("Test Kitchen"));
     }

@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.cloudkitchen.rbac.config.SecurityProperties;
 import com.cloudkitchen.rbac.constants.AppConstants;
 import com.cloudkitchen.rbac.domain.entity.Customer;
 import com.cloudkitchen.rbac.domain.entity.Merchant;
@@ -68,11 +69,13 @@ public class AuthServiceImpl implements AuthService {
     private final SmsService smsService;
     private final JwtTokenProvider jwt;
     private final ValidationService validationService;
+    private final SecurityProperties securityProperties;
 
     public AuthServiceImpl(UserRepository users, MerchantRepository merchants, RoleRepository roles,
             UserRoleRepository userRoles, CustomerRepository customers, PasswordEncoder encoder, OtpService otpService,
             OtpAuditService otpAuditService, SmsService smsService, JwtTokenProvider jwt,
-            OtpLogRepository otpLogRepository, ValidationService validationService) {
+            OtpLogRepository otpLogRepository, ValidationService validationService,
+            SecurityProperties securityProperties) {
         this.users = users;
         this.merchants = merchants;
         this.roles = roles;
@@ -85,6 +88,7 @@ public class AuthServiceImpl implements AuthService {
         this.jwt = jwt;
         this.otpLogRepository = otpLogRepository;
         this.validationService = validationService;
+        this.securityProperties = securityProperties;
     }
 
     private String maskPhone(String phone) {
@@ -566,14 +570,30 @@ public class AuthServiceImpl implements AuthService {
                 log.debug("Generated OTP for phone: {}, expires at: {}", maskedPhone, expiresAt);
             }
 
-            user.setOtpCode(otpCode);
+            // SECURITY: Environment-aware OTP storage
+            // DEVELOPMENT MODE: Store plaintext OTP (for easier testing/debugging)
+            // PRODUCTION MODE: Should hash OTP before storage (future enhancement)
+            if (securityProperties.isHashOtp()) {
+                // TODO: Production mode - hash OTP before storage
+                // user.setOtpCode(encoder.encode(otpCode));
+                log.warn("OTP hashing is enabled but not yet implemented. Storing plaintext for now.");
+                user.setOtpCode(otpCode);
+            } else {
+                // Development mode - store plaintext
+                if (securityProperties.isDevelopmentMode()) {
+                    log.debug("DEVELOPMENT MODE: Storing OTP in plaintext for phone: {}", maskedPhone);
+                }
+                user.setOtpCode(otpCode);
+            }
+
             user.setOtpExpiresAt(expiresAt);
             user.setOtpAttempts(0);
             user.setOtpUsed(false);
             users.save(user);
 
             if (log.isDebugEnabled()) {
-                log.debug("OTP stored successfully for user: {}", user.getUserId());
+                log.debug("OTP stored successfully for user: {} (hashOtp={})",
+                    user.getUserId(), securityProperties.isHashOtp());
             }
 
             boolean smsSent = sendOtpByType(req.getPhone(), otpCode);

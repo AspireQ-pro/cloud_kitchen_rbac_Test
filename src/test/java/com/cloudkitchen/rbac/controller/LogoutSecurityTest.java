@@ -3,7 +3,6 @@ package com.cloudkitchen.rbac.controller;
 import com.cloudkitchen.rbac.security.JwtTokenProvider;
 import com.cloudkitchen.rbac.service.AuthService;
 import com.cloudkitchen.rbac.service.ValidationService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -30,9 +29,6 @@ class LogoutSecurityTest {
 
     @MockBean
     private ValidationService validationService;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Test
     void testD001_LogoutWithoutAuthorizationHeader_Returns401() throws Exception {
