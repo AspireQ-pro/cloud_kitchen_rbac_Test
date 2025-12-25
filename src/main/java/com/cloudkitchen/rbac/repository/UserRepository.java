@@ -19,41 +19,41 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     
     // OPTIMIZED LOGIN QUERY - Single query with all login data
     @Cacheable(value = "loginUserData", key = "#phone + '_' + #merchantId", unless = "#result == null")
-    @Query("SELECT new com.cloudkitchen.rbac.dto.auth.LoginUserData(" +
-           "u.userId, u.phone, u.passwordHash, u.userType, " +
-           "CASE WHEN u.merchant IS NOT NULL THEN u.merchant.merchantId ELSE :merchantId END, " +
-           "c.customerId, " +
-           "COALESCE(STRING_AGG(DISTINCT r.roleName, ','), u.userType), " +
-           "COALESCE(STRING_AGG(DISTINCT p.permissionName, ','), ''), " +
-           "u.active) " +
-           "FROM User u " +
-           "LEFT JOIN UserRole ur ON u.userId = ur.user.userId " +
-           "LEFT JOIN Role r ON ur.role.roleId = r.roleId " +
-           "LEFT JOIN RolePermission rp ON r.roleId = rp.role.roleId " +
-           "LEFT JOIN Permission p ON rp.permission.permissionId = p.permissionId " +
-           "LEFT JOIN Customer c ON u.userId = c.user.userId AND (:merchantId IS NULL OR c.merchant.merchantId = :merchantId) " +
+    @Query(value = "SELECT u.user_id, u.phone, u.password_hash, u.user_type, " +
+           "CASE WHEN u.merchant_id IS NOT NULL THEN u.merchant_id ELSE :merchantId END, " +
+           "c.customer_id, " +
+           "COALESCE(STRING_AGG(DISTINCT r.role_name, ','), u.user_type) as roles, " +
+           "COALESCE(STRING_AGG(DISTINCT p.permission_name, ','), '') as permissions, " +
+           "u.active " +
+           "FROM users u " +
+           "LEFT JOIN user_roles ur ON u.user_id = ur.user_id " +
+           "LEFT JOIN roles r ON ur.role_id = r.role_id " +
+           "LEFT JOIN role_permissions rp ON r.role_id = rp.role_id " +
+           "LEFT JOIN permissions p ON rp.permission_id = p.permission_id " +
+           "LEFT JOIN customers c ON u.user_id = c.user_id AND (:merchantId IS NULL OR c.merchant_id = :merchantId) " +
            "WHERE u.phone = :phone AND " +
-           "(:merchantId = 0 AND (u.merchant IS NULL OR u.userType IN ('merchant', 'super_admin')) OR " +
-           ":merchantId > 0 AND u.merchant.merchantId = :merchantId) " +
-           "GROUP BY u.userId, u.phone, u.passwordHash, u.userType, u.merchant.merchantId, c.customerId, u.active")
+           "(:merchantId = 0 AND (u.merchant_id IS NULL OR u.user_type IN ('merchant', 'super_admin')) OR " +
+           ":merchantId > 0 AND u.merchant_id = :merchantId) " +
+           "GROUP BY u.user_id, u.phone, u.password_hash, u.user_type, u.merchant_id, c.customer_id, u.active",
+           nativeQuery = true)
     Optional<LoginUserData> findLoginUserData(@Param("phone") String phone, @Param("merchantId") Integer merchantId);
     
     // OPTIMIZED USERNAME LOGIN QUERY
     @Cacheable(value = "loginUserData", key = "#username + '_admin_0'", unless = "#result == null")
-    @Query("SELECT new com.cloudkitchen.rbac.dto.auth.LoginUserData(" +
-           "u.userId, u.phone, u.passwordHash, u.userType, " +
-           "CASE WHEN u.merchant IS NOT NULL THEN u.merchant.merchantId ELSE 0 END, " +
-           "null, " +
-           "COALESCE(STRING_AGG(DISTINCT r.roleName, ','), u.userType), " +
-           "COALESCE(STRING_AGG(DISTINCT p.permissionName, ','), ''), " +
-           "u.active) " +
-           "FROM User u " +
-           "LEFT JOIN UserRole ur ON u.userId = ur.user.userId " +
-           "LEFT JOIN Role r ON ur.role.roleId = r.roleId " +
-           "LEFT JOIN RolePermission rp ON r.roleId = rp.role.roleId " +
-           "LEFT JOIN Permission p ON rp.permission.permissionId = p.permissionId " +
-           "WHERE u.username = :username AND u.userType IN ('merchant', 'super_admin') " +
-           "GROUP BY u.userId, u.phone, u.passwordHash, u.userType, u.merchant.merchantId, u.active")
+    @Query(value = "SELECT u.user_id, u.phone, u.password_hash, u.user_type, " +
+           "CASE WHEN u.merchant_id IS NOT NULL THEN u.merchant_id ELSE 0 END, " +
+           "CAST(null AS INTEGER), " +
+           "COALESCE(STRING_AGG(DISTINCT r.role_name, ','), u.user_type) as roles, " +
+           "COALESCE(STRING_AGG(DISTINCT p.permission_name, ','), '') as permissions, " +
+           "u.active " +
+           "FROM users u " +
+           "LEFT JOIN user_roles ur ON u.user_id = ur.user_id " +
+           "LEFT JOIN roles r ON ur.role_id = r.role_id " +
+           "LEFT JOIN role_permissions rp ON r.role_id = rp.role_id " +
+           "LEFT JOIN permissions p ON rp.permission_id = p.permission_id " +
+           "WHERE u.username = :username AND u.user_type IN ('merchant', 'super_admin') " +
+           "GROUP BY u.user_id, u.phone, u.password_hash, u.user_type, u.merchant_id, u.active",
+           nativeQuery = true)
     Optional<LoginUserData> findAdminLoginUserData(@Param("username") String username);
     Optional<User> findByPhone(String phone);
     Optional<User> findByPhoneAndMerchantIsNull(String phone);
