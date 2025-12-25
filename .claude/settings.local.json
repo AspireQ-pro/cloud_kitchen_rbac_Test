@@ -1,6 +1,9 @@
 {
   "permissions": {
     "allow": [
+
+      "Bash(cat:*)"
+
       "Bash(python -m json.tool:*)",
       "Bash(./mvnw clean compile:*)",
       "Bash(mvn clean compile:*)",

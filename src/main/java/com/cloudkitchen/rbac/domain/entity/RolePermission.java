@@ -6,6 +6,10 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
     name = "role_permissions",
+    indexes = {
+        @Index(name = "idx_role_permissions_role_id", columnList = "role_id"),
+        @Index(name = "idx_role_permissions_permission_id", columnList = "permission_id")
+    },
     uniqueConstraints = @UniqueConstraint(columnNames = {"role_id", "permission_id"})
 )
 public class RolePermission {

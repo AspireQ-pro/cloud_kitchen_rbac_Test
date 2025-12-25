@@ -1,0 +1,17 @@
+[core]
+    autocrlf = false
+    safecrlf = false
+    ignorecase = true
+
+[pull]
+    rebase = false
+
+[merge]
+    ff = false
+
+[branch]
+    autosetupmerge = always
+    autosetuprebase = never
+
+[remote "origin"]
+    fetch = +refs/heads/*:refs/remotes/origin/*
