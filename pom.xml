@@ -18,6 +18,7 @@
 
     <properties>
         <java.version>21</java.version>
+        <jacoco.skip>false</jacoco.skip>
         <sonar.host.url>http://localhost:9000</sonar.host.url>
         <sonar.projectKey>cloud-kitchen-rbac</sonar.projectKey>
         <sonar.projectName>Cloud Kitchen RBAC Service</sonar.projectName>
@@ -194,6 +195,10 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <!-- Skip JaCoCo for spring-boot:run in development -->
+                    <skip>${jacoco.skip}</skip>
+                </configuration>
             </plugin>
 
             <!-- OWASP Dependency Check Plugin for Security Vulnerabilities -->
