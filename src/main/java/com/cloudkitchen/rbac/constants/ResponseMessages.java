@@ -68,10 +68,18 @@ public final class ResponseMessages {
         public static final String CREATED_SUCCESS = "Customer created successfully";
         public static final String UPDATED_SUCCESS = "Customer profile updated successfully";
         public static final String DELETED_SUCCESS = "Customer deleted successfully";
-        public static final String RETRIEVED_SUCCESS = "Customer profile retrieved successfully";
+        public static final String RETRIEVED_SUCCESS = "Customer details retrieved successfully";
+        public static final String PROFILE_RETRIEVED_SUCCESS = "Profile retrieved successfully";
         public static final String LIST_SUCCESS = "Customers retrieved successfully";
+        public static final String MERCHANT_CUSTOMERS_SUCCESS = "Merchant customers retrieved successfully";
         public static final String NOT_FOUND = "Customer not found";
-        public static final String ACCESS_DENIED = "Access denied: You can only access your own profile";
+        public static final String PROFILE_NOT_FOUND = "Profile not found";
+        public static final String ACCESS_DENIED_PROFILE = "Access denied. Customers can only update their own profile.";
+        public static final String ACCESS_DENIED_VIEW = "Access denied. Customers can only view their own profile.";
+        public static final String ACCESS_DENIED_LIST = "Access denied. Only merchants and admins can view customer lists.";
+        public static final String ACCESS_DENIED_MERCHANT_CUSTOMERS = "Access denied. Customers cannot view other customers. Merchants can only view their own customers.";
+        public static final String UPDATE_FAILED = "Failed to update customer";
+        public static final String RETRIEVE_FAILED = "Failed to retrieve customers";
         public static final String PROFILE_INCOMPLETE = "Please complete your profile";
     }
     

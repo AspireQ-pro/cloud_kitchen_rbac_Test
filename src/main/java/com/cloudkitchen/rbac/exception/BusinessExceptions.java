@@ -66,6 +66,9 @@ public class BusinessExceptions {
         public ValidationException(String message) {
             super(message);
         }
+        public ValidationException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
     
     public static class TokenExpiredException extends RuntimeException {

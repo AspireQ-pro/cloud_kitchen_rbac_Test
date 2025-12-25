@@ -16,6 +16,7 @@ public class CustomerResponse {
     private String pincode;
     private LocalDate dob;
     private String favoriteFood;
+    private String profileImageUrl;
 
     private Integer merchantId;
     private String merchantName;
@@ -59,6 +60,9 @@ public class CustomerResponse {
 
     public String getFavoriteFood() { return favoriteFood; }
     public void setFavoriteFood(String favoriteFood) { this.favoriteFood = favoriteFood; }
+
+    public String getProfileImageUrl() { return profileImageUrl; }
+    public void setProfileImageUrl(String profileImageUrl) { this.profileImageUrl = profileImageUrl; }
 
 
 

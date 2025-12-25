@@ -63,7 +63,8 @@ public class SecurityConfig {
             "/configuration/ui",
             "/configuration/security",
             "/webjars/**",
-            "/swagger-config"
+            "/swagger-config",
+            "/openapi/**" // OpenAPI YAML files
     };
 
     @Bean

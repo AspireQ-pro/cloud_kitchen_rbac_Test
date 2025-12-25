@@ -1,34 +1,24 @@
 package com.cloudkitchen.rbac.config;
 
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.info.Info;
-import io.swagger.v3.oas.models.info.Contact;
-import io.swagger.v3.oas.models.security.SecurityRequirement;
-import io.swagger.v3.oas.models.security.SecurityScheme;
-import io.swagger.v3.oas.models.Components;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * OpenAPI Configuration for Cloud Kitchen RBAC Service
+ *
+ * The OpenAPI specification is defined in YAML files located at:
+ * src/main/resources/openapi/
+ *
+ * Main specification: openapi.yaml (references all domain-specific YAML files)
+ *
+ * Access Swagger UI at: http://localhost:8081/swagger-ui.html
+ * Access OpenAPI JSON at: http://localhost:8081/v3/api-docs
+ *
+ * Configuration is managed via application.properties:
+ * - springdoc.api-docs.enabled=true
+ * - springdoc.swagger-ui.enabled=true
+ */
 @Configuration
 public class OpenApiConfig {
-
-    @Bean
-    public OpenAPI customOpenAPI() {
-        return new OpenAPI()
-                .info(new Info()
-                        .title("Cloud Kitchen RBAC Service API")
-                        .version("1.0.0")
-                        .description("Enterprise-grade Role-Based Access Control (RBAC) service for Cloud Kitchen applications")
-                        .contact(new Contact()
-                                .name("Development Team")
-                                .email("dev@cloudkitchen.com")))
-                .addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"))
-                .components(new Components()
-                        .addSecuritySchemes("Bearer Authentication",
-                                new SecurityScheme()
-                                        .type(SecurityScheme.Type.HTTP)
-                                        .scheme("bearer")
-                                        .bearerFormat("JWT")
-                                        .description("Enter JWT token")));
-    }
+    // Configuration is now fully managed by YAML files in src/main/resources/openapi/
+    // No programmatic configuration needed - SpringDoc will auto-discover the YAML files
 }

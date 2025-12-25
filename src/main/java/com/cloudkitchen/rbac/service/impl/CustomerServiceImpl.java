@@ -5,6 +5,8 @@ import java.util.List;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudkitchen.rbac.domain.entity.Customer;
 import com.cloudkitchen.rbac.dto.common.PageRequest;
@@ -12,6 +14,8 @@ import com.cloudkitchen.rbac.dto.common.PageResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerUpdateRequest;
 import com.cloudkitchen.rbac.repository.CustomerRepository;
+import com.cloudkitchen.rbac.security.JwtAuthenticationDetails;
+import com.cloudkitchen.rbac.service.CloudStorageService;
 import com.cloudkitchen.rbac.service.CustomerService;
 import com.cloudkitchen.rbac.util.AccessControlUtil;
 
@@ -20,10 +24,12 @@ public class CustomerServiceImpl implements CustomerService {
 
     private final CustomerRepository customerRepository;
     private final AccessControlUtil accessControlUtil;
+    private final CloudStorageService cloudStorageService;
     
-    public CustomerServiceImpl(CustomerRepository customerRepository, AccessControlUtil accessControlUtil) {
+    public CustomerServiceImpl(CustomerRepository customerRepository, AccessControlUtil accessControlUtil, CloudStorageService cloudStorageService) {
         this.customerRepository = customerRepository;
         this.accessControlUtil = accessControlUtil;
+        this.cloudStorageService = cloudStorageService;
     }
 
     @Override
@@ -61,6 +67,8 @@ public class CustomerServiceImpl implements CustomerService {
         } else if (accessControlUtil.isMerchant(authentication)) {
             Integer merchantId = getMerchantIdFromAuth(authentication);
             return getCustomersByMerchantIdWithFilters(merchantId, pageRequest);
+        } else if (accessControlUtil.isCustomer(authentication)) {
+            throw new RuntimeException("Customers cannot access customer lists");
         }
         throw new RuntimeException("Access denied");
     }
@@ -86,25 +94,43 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse getCustomerProfile(Authentication authentication) {
-        Integer customerId = getCustomerIdFromAuth(authentication);
-        return getCustomerById(customerId);
+        Integer userId = getCustomerIdFromAuth(authentication);
+        Integer merchantId = getMerchantIdFromAuth(authentication);
+        Customer customer = customerRepository.findByUser_UserIdAndMerchant_MerchantId(userId, merchantId)
+                .orElseThrow(() -> new RuntimeException("Customer profile not found"));
+        return convertToResponse(customer);
     }
 
     @Override
     public CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, Integer updatedBy) {
+        return updateCustomer(id, request, null, updatedBy);
+    }
+
+    @Override
+    @Transactional
+    public CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, MultipartFile profileImage, Integer updatedBy) {
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
         
-        if (request.getFirstName() != null) customer.setFirstName(request.getFirstName());
-        if (request.getLastName() != null) customer.setLastName(request.getLastName());
-        if (request.getEmail() != null) customer.setEmail(request.getEmail());
-        if (request.getAddress() != null) customer.setAddress(request.getAddress());
-        if (request.getCity() != null) customer.setCity(request.getCity());
-        if (request.getState() != null) customer.setState(request.getState());
-        if (request.getCountry() != null) customer.setCountry(request.getCountry());
-        if (request.getPincode() != null) customer.setPincode(request.getPincode());
-        if (request.getDob() != null) customer.setDob(request.getDob());
-        if (request.getFavoriteFood() != null) customer.setFavoriteFood(request.getFavoriteFood());
+        // Update customer fields if request is provided
+        if (request != null) {
+            if (request.getFirstName() != null) customer.setFirstName(request.getFirstName());
+            if (request.getLastName() != null) customer.setLastName(request.getLastName());
+            if (request.getEmail() != null) customer.setEmail(request.getEmail());
+            if (request.getAddress() != null) customer.setAddress(request.getAddress());
+            if (request.getCity() != null) customer.setCity(request.getCity());
+            if (request.getState() != null) customer.setState(request.getState());
+            if (request.getCountry() != null) customer.setCountry(request.getCountry());
+            if (request.getPincode() != null) customer.setPincode(request.getPincode());
+            if (request.getDob() != null) customer.setDob(request.getDob());
+            if (request.getFavoriteFood() != null) customer.setFavoriteFood(request.getFavoriteFood());
+        }
+        
+        // Handle profile image upload if provided
+        if (profileImage != null && !profileImage.isEmpty()) {
+            String imageKey = uploadProfileImage(customer, profileImage);
+            customer.setProfileImageUrl(imageKey);
+        }
         
         customer.setUpdatedBy(updatedBy);
         customer.setUpdatedOn(LocalDateTime.now());
@@ -114,8 +140,11 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse updateCustomerProfile(Authentication authentication, CustomerUpdateRequest request) {
-        Integer customerId = getCustomerIdFromAuth(authentication);
-        return updateCustomer(customerId, request, customerId);
+        Integer userId = getCustomerIdFromAuth(authentication);
+        Integer merchantId = getMerchantIdFromAuth(authentication);
+        Customer customer = customerRepository.findByUser_UserIdAndMerchant_MerchantId(userId, merchantId)
+                .orElseThrow(() -> new RuntimeException("Customer profile not found"));
+        return updateCustomer(customer.getCustomerId(), request, userId);
     }
 
     @Override
@@ -137,7 +166,10 @@ public class CustomerServiceImpl implements CustomerService {
             return true;
         }
         if (accessControlUtil.isCustomer(authentication)) {
-            return customerId.equals(getCustomerIdFromAuth(authentication));
+            // For customers, check if the customerId belongs to their userId
+            Integer userId = getCustomerIdFromAuth(authentication);
+            Customer customer = customerRepository.findById(customerId).orElse(null);
+            return customer != null && customer.getUser() != null && userId.equals(customer.getUser().getUserId());
         }
         if (accessControlUtil.isMerchant(authentication)) {
             Customer customer = customerRepository.findById(customerId).orElse(null);
@@ -154,12 +186,29 @@ public class CustomerServiceImpl implements CustomerService {
         if (accessControlUtil.isMerchant(authentication)) {
             return merchantId.equals(getMerchantIdFromAuth(authentication));
         }
+        // Customers should not be able to access merchant customer lists
+        // They can only access their own profile through individual customer endpoints
         return false;
     }
 
     @Override
     public Integer getMerchantIdFromAuth(Authentication authentication) {
-        return accessControlUtil.getUserId(authentication);
+        if (authentication == null) {
+            return null;
+        }
+
+        // For merchant role, userId is the merchantId
+        if (accessControlUtil.isMerchant(authentication)) {
+            return accessControlUtil.getUserId(authentication);
+        }
+
+        // For customer role, extract merchantId from authentication details
+        if (authentication.getDetails() instanceof JwtAuthenticationDetails) {
+            JwtAuthenticationDetails details = (JwtAuthenticationDetails) authentication.getDetails();
+            return details.getMerchantId();
+        }
+
+        return null;
     }
 
     @Override
@@ -199,6 +248,13 @@ public class CustomerServiceImpl implements CustomerService {
         response.setPincode(customer.getPincode());
         response.setDob(customer.getDob());
         response.setFavoriteFood(customer.getFavoriteFood());
+        
+        // Generate presigned URL if S3 key exists
+        if (customer.getProfileImageUrl() != null) {
+            String presignedUrl = cloudStorageService.generatePresignedUrl(customer.getProfileImageUrl());
+            response.setProfileImageUrl(presignedUrl);
+        }
+        
         response.setActive(customer.getIsActive());
         response.setCreatedAt(customer.getCreatedOn());
         response.setUpdatedAt(customer.getUpdatedOn());
@@ -209,5 +265,64 @@ public class CustomerServiceImpl implements CustomerService {
         }
         
         return response;
+    }
+    
+    private String uploadProfileImage(Customer customer, MultipartFile profileImage) {
+        // Validate image
+        validateProfileImage(profileImage);
+        
+        try {
+            // Get file extension
+            String originalFilename = profileImage.getOriginalFilename();
+            String extension = originalFilename != null && originalFilename.contains(".")
+                    ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                    : ".jpg";
+            
+            // Build S3 key: {merchantId}/customer/{customerId}/profile_img/profile.{extension}
+            String merchantId = customer.getMerchant().getMerchantId().toString();
+            String customerId = customer.getCustomerId().toString();
+            String s3Key = merchantId + "/customer/" + customerId + "/profile_img/profile" + extension;
+            
+            // Upload to S3
+            cloudStorageService.uploadFile(
+                s3Key,
+                profileImage.getInputStream(),
+                profileImage.getSize(),
+                profileImage.getContentType()
+            );
+            
+            return s3Key;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload profile image: " + e.getMessage(), e);
+        }
+    }
+    
+    private void validateProfileImage(MultipartFile profileImage) {
+        if (profileImage == null || profileImage.isEmpty()) {
+            throw new IllegalArgumentException("Profile image cannot be empty");
+        }
+        
+        // Check file size (2MB limit)
+        long maxSize = 2 * 1024 * 1024; // 2MB
+        if (profileImage.getSize() > maxSize) {
+            throw new IllegalArgumentException("Profile image size cannot exceed 2MB");
+        }
+        
+        // Check content type
+        String contentType = profileImage.getContentType();
+        if (contentType == null || (!contentType.equals("image/jpeg") && 
+                                   !contentType.equals("image/jpg") && 
+                                   !contentType.equals("image/png"))) {
+            throw new IllegalArgumentException("Only JPG, JPEG, and PNG images are allowed");
+        }
+        
+        // Check file extension
+        String filename = profileImage.getOriginalFilename();
+        if (filename != null) {
+            String extension = filename.toLowerCase();
+            if (!extension.endsWith(".jpg") && !extension.endsWith(".jpeg") && !extension.endsWith(".png")) {
+                throw new IllegalArgumentException("Only JPG, JPEG, and PNG files are allowed");
+            }
+        }
     }
 }

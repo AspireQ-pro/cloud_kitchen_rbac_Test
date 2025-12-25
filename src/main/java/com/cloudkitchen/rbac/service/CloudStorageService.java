@@ -1,21 +1,30 @@
 package com.cloudkitchen.rbac.service;
 
 import java.io.InputStream;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Cloud storage service abstraction for file and folder operations.
  * This interface provides a clean separation between business logic and storage implementation.
  */
 public interface CloudStorageService {
-    
+
     /**
      * Creates the complete folder structure for a merchant in cloud storage.
-     * 
+     *
      * @param merchantId the merchant identifier (must be numeric)
      * @throws IllegalArgumentException if merchantId is invalid
      * @throws com.cloudkitchen.rbac.exception.BusinessExceptions.ServiceUnavailableException if S3 operation fails
      */
     void createMerchantFolderStructure(String merchantId);
+
+    /**
+     * Creates the complete folder structure for a merchant in cloud storage asynchronously.
+     *
+     * @param merchantId the merchant identifier (must be numeric)
+     * @return CompletableFuture that completes when folders are created
+     */
+    CompletableFuture<Void> createMerchantFolderStructureAsync(String merchantId);
     
     /**
      * Creates customer-specific folder structure within a merchant's space.
@@ -38,4 +47,12 @@ public interface CloudStorageService {
      * @throws com.cloudkitchen.rbac.exception.BusinessExceptions.ServiceUnavailableException if S3 operation fails
      */
     void uploadFile(String key, InputStream inputStream, long contentLength, String contentType);
+    
+    /**
+     * Generates a presigned URL for accessing a file.
+     * 
+     * @param key the S3 object key (path)
+     * @return the presigned URL string
+     */
+    String generatePresignedUrl(String key);
 }

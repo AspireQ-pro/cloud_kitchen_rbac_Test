@@ -2,10 +2,12 @@ package com.cloudkitchen.rbac.service.impl;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.cloudkitchen.rbac.config.S3Properties;
@@ -15,8 +17,14 @@ import com.cloudkitchen.rbac.util.FilenameSanitizer;
 
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
+
+import java.time.Duration;
 
 @Service
 public class S3CloudStorageServiceImpl implements CloudStorageService {
@@ -27,10 +35,12 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
     private static final byte[] PLACEHOLDER_BYTES = FOLDER_PLACEHOLDER.getBytes(StandardCharsets.UTF_8);
     
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
     private final S3Properties properties;
     
-    public S3CloudStorageServiceImpl(S3Client s3Client, S3Properties properties) {
+    public S3CloudStorageServiceImpl(S3Client s3Client, S3Presigner s3Presigner, S3Properties properties) {
         this.s3Client = s3Client;
+        this.s3Presigner = s3Presigner;
         this.properties = properties;
     }
     
@@ -82,7 +92,19 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
         logger.info("✅ Merchant folders created - merchantId: {}, folders: {}, duration: {}ms",
             merchantId, success, System.currentTimeMillis() - start);
     }
-    
+
+    @Async("s3Executor")
+    @Override
+    public CompletableFuture<Void> createMerchantFolderStructureAsync(String merchantId) {
+        try {
+            createMerchantFolderStructure(merchantId);
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            logger.warn("Async S3 folder creation failed for merchant {}: {}", merchantId, e.getMessage());
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
     @Override
     public void createCustomerFolderStructure(String merchantId, String customerId) {
         validateId(merchantId, "merchantId");
@@ -188,6 +210,30 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
         }
         if (key.length() > 1024) {
             throw new IllegalArgumentException("S3 key exceeds max length of 1024");
+        }
+    }
+    
+    @Override
+    public String generatePresignedUrl(String key) {
+        validateKey(key);
+        
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(properties.getBucket())
+                .key(key)
+                .build();
+            
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofHours(24))
+                .getObjectRequest(getObjectRequest)
+                .build();
+            
+            PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+            return presignedRequest.url().toString();
+            
+        } catch (Exception e) {
+            logger.error("Failed to generate presigned URL for key: {}", key, e);
+            throw new ServiceUnavailableException("Failed to generate presigned URL: " + e.getMessage());
         }
     }
     

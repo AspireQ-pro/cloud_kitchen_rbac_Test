@@ -67,9 +67,9 @@ public class MerchantServiceImpl implements MerchantService {
         merchant.setFssaiLicense(request.getFssaiLicense());
         merchant.setActive(true);
         merchant.setCreatedBy(0); // System created
-        
-        merchant = merchantRepository.save(merchant);
-        
+
+        Merchant savedMerchant = merchantRepository.save(merchant);
+
         // Create user account for merchant
         User user = new User();
         user.setUsername(request.getUsername());
@@ -79,24 +79,25 @@ public class MerchantServiceImpl implements MerchantService {
         user.setFirstName(request.getMerchantName()); // Use merchant name as first name
         user.setLastName("Admin"); // Default last name
         user.setUserType("merchant");
-        user.setMerchant(merchant);
+        user.setMerchant(savedMerchant);
         user.setActive(true);
         user.setEmailVerified(true);
         user.setPhoneVerified(true);
         user.setCreatedBy(0); // System created
-        
+
         userRepository.save(user);
-        
-        // Create S3 folder structure for merchant (non-blocking)
+
+        // Create S3 folder structure for merchant (async - non-blocking)
         if (cloudStorageService != null) {
-            try {
-                cloudStorageService.createMerchantFolderStructure(merchant.getMerchantId().toString());
-            } catch (Exception e) {
-                log.warn("Failed to create S3 folders for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
-            }
+            final Integer merchantId = savedMerchant.getMerchantId();
+            cloudStorageService.createMerchantFolderStructureAsync(merchantId.toString())
+                .exceptionally(ex -> {
+                    log.warn("Async S3 folder creation failed for merchant {}: {}", merchantId, ex.getMessage());
+                    return null;
+                });
         }
-        
-        MerchantResponse response = mapToResponse(merchant);
+
+        MerchantResponse response = mapToResponse(savedMerchant);
         response.setUsername(request.getUsername());
         return response;
     }
@@ -246,8 +247,23 @@ public class MerchantServiceImpl implements MerchantService {
             merchantPage = merchantRepository.findAll(pageable);
         }
 
+        // Optimized: Fetch all merchants with their users in a single query to avoid N+1 problem
+        List<Integer> merchantIds = merchantPage.getContent().stream()
+                .map(Merchant::getMerchantId)
+                .collect(Collectors.toList());
+
+        // Fetch merchants with users eagerly loaded
+        List<Merchant> merchantsWithUsers = merchantIds.isEmpty() ?
+                List.of() :
+                merchantRepository.findByIdInWithUsers(merchantIds);
+
+        // Create a map for quick lookup
+        java.util.Map<Integer, Merchant> merchantMap = merchantsWithUsers.stream()
+                .collect(Collectors.toMap(Merchant::getMerchantId, m -> m));
+
+        // Map to response DTOs using the pre-fetched data
         List<MerchantResponse> content = merchantPage.getContent().stream()
-                .map(this::mapToResponse)
+                .map(merchant -> mapToResponseOptimized(merchantMap.getOrDefault(merchant.getMerchantId(), merchant)))
                 .collect(Collectors.toList());
 
         return new PageResponse<>(
@@ -256,6 +272,33 @@ public class MerchantServiceImpl implements MerchantService {
                 merchantPage.getSize(),
                 merchantPage.getTotalElements()
         );
+    }
+
+    private MerchantResponse mapToResponseOptimized(Merchant merchant) {
+        MerchantResponse response = new MerchantResponse();
+        response.setMerchantId(merchant.getMerchantId());
+        response.setMerchantName(merchant.getMerchantName());
+        response.setPhone(merchant.getPhone());
+        response.setEmail(merchant.getEmail());
+        response.setAddress(merchant.getAddress());
+        response.setGstin(merchant.getGstin() != null ? merchant.getGstin() : "");
+        response.setFssaiLicense(merchant.getFssaiLicense() != null ? merchant.getFssaiLicense() : "");
+        response.setActive(merchant.getActive());
+        response.setCreatedAt(merchant.getCreatedOn());
+        response.setUpdatedAt(merchant.getUpdatedOn());
+
+        // Find the merchant admin user from pre-fetched users collection
+        if (merchant.getUsers() != null) {
+            merchant.getUsers().stream()
+                    .filter(user -> "merchant".equals(user.getUserType()))
+                    .findFirst()
+                    .ifPresent(user -> {
+                        response.setUsername(user.getUsername());
+                        response.setUserId(user.getUserId());
+                    });
+        }
+
+        return response;
     }
 
     private Pageable createPageable(PageRequest pageRequest) {
