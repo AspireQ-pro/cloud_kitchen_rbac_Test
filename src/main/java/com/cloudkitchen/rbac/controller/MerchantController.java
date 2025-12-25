@@ -23,11 +23,11 @@ import com.cloudkitchen.rbac.util.AccessControlUtil;
 import com.cloudkitchen.rbac.util.ResponseBuilder;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 @RestController
@@ -36,7 +36,7 @@ import jakarta.validation.Valid;
 public class MerchantController {
     private static final String NOT_FOUND = "not found";
     private static final String MERCHANT_NOT_FOUND_MSG = "Merchant not found with ID: ";
-    
+
     private final MerchantService merchantService;
     private final AccessControlUtil accessControl;
 
@@ -234,7 +234,7 @@ public class MerchantController {
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<Map<String, Object>> deleteMerchant(@PathVariable Integer id, Authentication authentication) {
         try {
-            
+
             merchantService.deleteMerchant(id);
             return ResponseEntity.status(HttpStatus.OK)
                     .body(ResponseBuilder.success(200, "Merchant ID " + id + " deleted successfully"));

@@ -304,6 +304,15 @@ public class MerchantServiceImpl implements MerchantService {
                     });
         }
 
+        // Include folder creation status if S3 service is available
+        if (cloudStorageService != null) {
+            try {
+                response.setFolderCreationStatus(cloudStorageService.getFolderCreationStatus(merchant.getMerchantId()));
+            } catch (Exception e) {
+                log.warn("Error fetching folder creation status for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
+            }
+        }
+
         return response;
     }
 
@@ -370,7 +379,7 @@ public class MerchantServiceImpl implements MerchantService {
         response.setActive(merchant.getActive());
         response.setCreatedAt(merchant.getCreatedOn());
         response.setUpdatedAt(merchant.getUpdatedOn());
-        
+
         // Find the merchant admin user to get username and userId
         try {
             userRepository.findByMerchantAndUserType(merchant, "merchant")
@@ -381,7 +390,16 @@ public class MerchantServiceImpl implements MerchantService {
         } catch (Exception e) {
             log.warn("Error fetching merchant admin user for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
         }
-        
+
+        // Include folder creation status if S3 service is available
+        if (cloudStorageService != null) {
+            try {
+                response.setFolderCreationStatus(cloudStorageService.getFolderCreationStatus(merchant.getMerchantId()));
+            } catch (Exception e) {
+                log.warn("Error fetching folder creation status for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
+            }
+        }
+
         return response;
     }
 }

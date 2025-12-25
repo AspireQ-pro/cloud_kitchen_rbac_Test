@@ -2,6 +2,8 @@ package com.cloudkitchen.rbac.repository;
 
 import com.cloudkitchen.rbac.domain.entity.User;
 import com.cloudkitchen.rbac.domain.entity.Merchant;
+import com.cloudkitchen.rbac.dto.auth.LoginUserData;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,6 +16,45 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Integer> {
+    
+    // OPTIMIZED LOGIN QUERY - Single query with all login data
+    @Cacheable(value = "loginUserData", key = "#phone + '_' + #merchantId", unless = "#result == null")
+    @Query("SELECT new com.cloudkitchen.rbac.dto.auth.LoginUserData(" +
+           "u.userId, u.phone, u.passwordHash, u.userType, " +
+           "CASE WHEN u.merchant IS NOT NULL THEN u.merchant.merchantId ELSE :merchantId END, " +
+           "c.customerId, " +
+           "COALESCE(STRING_AGG(DISTINCT r.roleName, ','), u.userType), " +
+           "COALESCE(STRING_AGG(DISTINCT p.permissionName, ','), ''), " +
+           "u.active) " +
+           "FROM User u " +
+           "LEFT JOIN UserRole ur ON u.userId = ur.user.userId " +
+           "LEFT JOIN Role r ON ur.role.roleId = r.roleId " +
+           "LEFT JOIN RolePermission rp ON r.roleId = rp.role.roleId " +
+           "LEFT JOIN Permission p ON rp.permission.permissionId = p.permissionId " +
+           "LEFT JOIN Customer c ON u.userId = c.user.userId AND (:merchantId IS NULL OR c.merchant.merchantId = :merchantId) " +
+           "WHERE u.phone = :phone AND " +
+           "(:merchantId = 0 AND (u.merchant IS NULL OR u.userType IN ('merchant', 'super_admin')) OR " +
+           ":merchantId > 0 AND u.merchant.merchantId = :merchantId) " +
+           "GROUP BY u.userId, u.phone, u.passwordHash, u.userType, u.merchant.merchantId, c.customerId, u.active")
+    Optional<LoginUserData> findLoginUserData(@Param("phone") String phone, @Param("merchantId") Integer merchantId);
+    
+    // OPTIMIZED USERNAME LOGIN QUERY
+    @Cacheable(value = "loginUserData", key = "#username + '_admin_0'", unless = "#result == null")
+    @Query("SELECT new com.cloudkitchen.rbac.dto.auth.LoginUserData(" +
+           "u.userId, u.phone, u.passwordHash, u.userType, " +
+           "CASE WHEN u.merchant IS NOT NULL THEN u.merchant.merchantId ELSE 0 END, " +
+           "null, " +
+           "COALESCE(STRING_AGG(DISTINCT r.roleName, ','), u.userType), " +
+           "COALESCE(STRING_AGG(DISTINCT p.permissionName, ','), ''), " +
+           "u.active) " +
+           "FROM User u " +
+           "LEFT JOIN UserRole ur ON u.userId = ur.user.userId " +
+           "LEFT JOIN Role r ON ur.role.roleId = r.roleId " +
+           "LEFT JOIN RolePermission rp ON r.roleId = rp.role.roleId " +
+           "LEFT JOIN Permission p ON rp.permission.permissionId = p.permissionId " +
+           "WHERE u.username = :username AND u.userType IN ('merchant', 'super_admin') " +
+           "GROUP BY u.userId, u.phone, u.passwordHash, u.userType, u.merchant.merchantId, u.active")
+    Optional<LoginUserData> findAdminLoginUserData(@Param("username") String username);
     Optional<User> findByPhone(String phone);
     Optional<User> findByPhoneAndMerchantIsNull(String phone);
     Optional<User> findByPhoneAndMerchant_MerchantId(String phone, Integer merchantId);
