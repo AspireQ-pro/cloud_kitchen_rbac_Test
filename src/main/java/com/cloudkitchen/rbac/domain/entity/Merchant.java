@@ -7,10 +7,16 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "merchants")
+@Table(name = "merchants",
+    indexes = {
+        @Index(name = "idx_merchants_email", columnList = "email"),
+        @Index(name = "idx_merchants_active", columnList = "is_active")
+    }
+)
 public class Merchant {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
