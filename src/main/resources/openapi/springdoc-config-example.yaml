@@ -1,0 +1,51 @@
+# SpringDoc OpenAPI Configuration Example
+# Add this to your application.yml or application.properties
+
+springdoc:
+  # Enable API docs
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+
+  # Swagger UI configuration
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operationsSorter: alpha
+    tagsSorter: alpha
+    tryItOutEnabled: true
+    filter: true
+
+    # Custom OpenAPI spec URLs
+    urls:
+      - name: Cloud Kitchen RBAC API
+        url: /openapi/openapi.yaml
+
+    # Default spec to display
+    urls-primary-name: Cloud Kitchen RBAC API
+
+    # OAuth2 configuration (if needed)
+    oauth:
+      use-pkce-with-authorization-code-grant: true
+
+  # Package to scan for API controllers (optional, for annotation-based docs)
+  packages-to-scan: com.cloudkitchen.rbac.controller
+
+  # Paths to include (optional)
+  paths-to-match: /api/**
+
+  # Group configuration (optional, for multiple API versions)
+  group-configs:
+    - group: v1
+      paths-to-match: /api/v1/**
+      packages-to-scan: com.cloudkitchen.rbac.controller
+
+# Alternative: application.properties format
+#
+# springdoc.api-docs.enabled=true
+# springdoc.api-docs.path=/v3/api-docs
+# springdoc.swagger-ui.enabled=true
+# springdoc.swagger-ui.path=/swagger-ui.html
+# springdoc.swagger-ui.urls[0].name=Cloud Kitchen RBAC API
+# springdoc.swagger-ui.urls[0].url=/openapi/openapi.yaml
+# springdoc.swagger-ui.urls-primary-name=Cloud Kitchen RBAC API

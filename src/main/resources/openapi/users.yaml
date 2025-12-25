@@ -1,0 +1,299 @@
+openapi: 3.0.3
+info:
+  title: User Management API
+  description: |
+    User management endpoints for Cloud Kitchen RBAC Service.
+
+    **RBAC Rules:**
+    - All endpoints require **ROLE_SUPER_ADMIN** authority
+    - Returns 401 if not authenticated
+    - Returns 403 if user doesn't have ROLE_SUPER_ADMIN
+  version: 1.0.0
+
+tags:
+  - name: User Management
+    description: User read operations - Super Admin only
+
+paths:
+  /api/v1/users:
+    get:
+      tags:
+        - User Management
+      summary: Get All Users
+      description: |
+        Get all users with pagination, filtering by role, and search capabilities.
+
+        **RBAC:** Requires ROLE_SUPER_ADMIN
+
+        **Features:**
+        - Pagination support
+        - Filter by role
+        - Search by name, email, phone, username
+        - Sort by any field (ascending/descending)
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 400: Invalid parameters
+        - 401: Not authenticated
+        - 403: Not authorized (requires ROLE_SUPER_ADMIN)
+      operationId: getAllUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number (0-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 0
+        - name: size
+          in: query
+          description: Number of items per page (1-100)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          required: false
+          schema:
+            type: string
+            example: "createdAt"
+        - name: sortDirection
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: "asc"
+            example: "asc"
+        - name: role
+          in: query
+          description: Filter by role
+          required: false
+          schema:
+            type: string
+            example: "ROLE_MERCHANT"
+        - name: search
+          in: query
+          description: Search by name, email, phone, or username
+          required: false
+          schema:
+            type: string
+            example: "john"
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Users retrieved successfully. Page 1 of 5, Total: 100"
+                  data:
+                    type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/UserResponse'
+                      page:
+                        type: integer
+                        example: 0
+                      size:
+                        type: integer
+                        example: 20
+                      totalElements:
+                        type: integer
+                        format: int64
+                        example: 100
+                      totalPages:
+                        type: integer
+                        example: 5
+                      first:
+                        type: boolean
+                        example: true
+                      last:
+                        type: boolean
+                        example: false
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+              examples:
+                invalidPage:
+                  summary: Invalid page parameter
+                  value:
+                    status: 400
+                    message: "Invalid page parameter. Must be a non-negative integer"
+                invalidSize:
+                  summary: Invalid size parameter
+                  value:
+                    status: 400
+                    message: "Invalid size parameter. Must be between 1 and 100"
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Not authorized - ROLE_SUPER_ADMIN required
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+
+  /api/v1/users/{id}:
+    get:
+      tags:
+        - User Management
+      summary: Get User by ID
+      description: |
+        Get any user by ID.
+
+        **RBAC:** Requires ROLE_SUPER_ADMIN
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 401: Not authenticated
+        - 403: Not authorized (requires ROLE_SUPER_ADMIN)
+        - 404: User not found
+      operationId: getUserById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: User ID
+          required: true
+          schema:
+            type: integer
+            example: 123
+      responses:
+        '200':
+          description: User retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "User retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Not authorized - ROLE_SUPER_ADMIN required
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
+
+components:
+  schemas:
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: User ID
+          example: 123
+        firstName:
+          type: string
+          nullable: true
+          description: First name
+          example: "John"
+        lastName:
+          type: string
+          nullable: true
+          description: Last name
+          example: "Doe"
+        phone:
+          type: string
+          nullable: true
+          description: Phone number
+          example: "9876543210"
+        email:
+          type: string
+          nullable: true
+          description: Email address
+          example: "john@example.com"
+        username:
+          type: string
+          nullable: true
+          description: Username
+          example: "johndoe"
+        userType:
+          type: string
+          nullable: true
+          description: User type
+          example: "customer"
+        merchantId:
+          type: integer
+          nullable: true
+          description: Associated merchant ID
+          example: 1
+        merchantName:
+          type: string
+          nullable: true
+          description: Associated merchant name
+          example: "Yogesh Kitchen"
+        active:
+          type: boolean
+          nullable: true
+          description: Whether user is active
+          example: true
+        verified:
+          type: boolean
+          nullable: true
+          description: Whether user is verified
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Creation timestamp
+          example: "2024-01-15T10:30:00"
+        lastLogin:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last login timestamp
+          example: "2024-12-23T15:45:00"
+
+  securitySchemes:
+    bearerAuth:
+      $ref: './common/schemas.yaml#/components/securitySchemes/bearerAuth'

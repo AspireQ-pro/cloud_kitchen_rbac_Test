@@ -1,0 +1,660 @@
+openapi: 3.0.3
+info:
+  title: Authentication API
+  description: |
+    Authentication and registration endpoints for Cloud Kitchen RBAC Service.
+
+    **Authentication Types:**
+    - **Merchant/Admin Login**: merchantId = 0 or null
+    - **Customer Login**: merchantId > 0
+    - **OTP-based Login**: Phone number + OTP verification
+  version: 1.0.0
+
+tags:
+  - name: Authentication
+    description: User authentication and registration operations
+
+paths:
+  /api/v1/auth/signup:
+    post:
+      tags:
+        - Authentication
+      summary: Customer Registration
+      description: |
+        Register new customer. MerchantId must be > 0 to specify which merchant the customer belongs to.
+
+        **RBAC:** Public endpoint (no authentication required)
+      operationId: registerCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Customer registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "Registration successful"
+                  data:
+                    $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '404':
+          description: Merchant not found
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ConflictErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Merchant/Admin Login
+      description: |
+        Login for merchant and admin users (merchantId must be 0 or null).
+
+        **RBAC:** Public endpoint (no authentication required)
+
+        **Restrictions:**
+        - merchantId must be 0 or null
+        - Returns 403 if merchantId > 0
+      operationId: merchantAdminLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Login successful"
+                  data:
+                    $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Merchant login only (merchantId must be 0)
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
+
+  /api/v1/auth/customer/login:
+    post:
+      tags:
+        - Authentication
+      summary: Customer Login
+      description: |
+        Login for customers (merchantId must be > 0).
+
+        **RBAC:** Public endpoint (no authentication required)
+
+        **Restrictions:**
+        - merchantId must be > 0
+        - Returns 400 if merchantId <= 0
+      operationId: customerLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerAuthRequest'
+      responses:
+        '200':
+          description: Customer login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Customer login successful"
+                  data:
+                    $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid merchantId or credentials
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
+
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh Access Token
+      description: |
+        Refresh access token using refresh token.
+
+        **RBAC:** Public endpoint (requires valid refresh token)
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Token refresh successful"
+                  data:
+                    $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid refresh token format
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
+
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout
+      description: |
+        Logout user and revoke tokens.
+
+        **RBAC:** Requires authentication (any authenticated user)
+
+        **Security Validations:**
+        - Returns 401 if Authorization header is missing
+        - Returns 401 if token format is invalid
+        - Returns 400 if token contains SQL injection or XSS attempts
+      operationId: logout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Logout successful"
+        '400':
+          description: Bad request - Invalid token format
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+
+  /api/v1/auth/otp/request:
+    post:
+      tags:
+        - Authentication
+      summary: Request OTP
+      description: |
+        Send OTP to phone number.
+
+        **RBAC:** Public endpoint (no authentication required)
+
+        **MerchantId Rules:**
+        - merchantId = 0: General OTP (any user by phone)
+        - merchantId > 0: Specific merchant customer verification
+
+        **OTP Types:**
+        - login
+        - password_reset
+        - phone_verification
+        - account_verification
+      operationId: requestOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequest'
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "OTP sent successfully"
+        '400':
+          description: Invalid phone number or request
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+        '404':
+          description: Phone number not registered
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
+        '429':
+          description: Too many OTP requests
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/TooManyRequestsErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
+        '503':
+          description: SMS service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ServiceUnavailableErrorResponse'
+
+  /api/v1/auth/otp/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify OTP
+      description: |
+        Verify OTP and generate authentication token.
+
+        **RBAC:** Public endpoint (no authentication required)
+
+        **MerchantId Rules:**
+        - merchantId = 0: Phone-based verification (any user)
+        - merchantId > 0: Merchant-specific customer verification
+
+        **OTP Types:**
+        - login
+        - password_reset
+        - phone_verification
+        - account_verification
+      operationId: verifyOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpVerifyRequest'
+      responses:
+        '200':
+          description: OTP verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "OTP verified successfully"
+                  data:
+                    $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid OTP or request
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: OTP verification failed
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
+
+components:
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - phone
+        - password
+        - firstName
+        - lastName
+      properties:
+        merchantId:
+          type: integer
+          minimum: 0
+          description: |
+            Merchant ID
+            - null = super_admin
+            - 0 = merchant
+            - >0 = customer
+          example: 1
+        phone:
+          type: string
+          pattern: '^[6-9]\d{9}$'
+          description: 10-digit Indian mobile number
+          example: "9876543210"
+        password:
+          type: string
+          minLength: 8
+          description: Password (min 8 characters)
+          example: "SecurePass123!"
+        firstName:
+          type: string
+          description: First name
+          example: "John"
+        lastName:
+          type: string
+          description: Last name
+          example: "Doe"
+        address:
+          type: string
+          nullable: true
+          description: Address
+          example: "123 Main Street"
+
+    AuthRequest:
+      type: object
+      required:
+        - merchantId
+        - username
+        - password
+      properties:
+        merchantId:
+          type: integer
+          minimum: 0
+          description: |
+            Merchant ID
+            - 0 = merchant/admin login
+            - >0 = customer login
+          example: 0
+        username:
+          type: string
+          description: Username for merchant/admin or phone for customer
+          example: "yogesh_kitchen"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: Password (8-128 characters)
+          example: "SecurePass123!"
+
+    CustomerAuthRequest:
+      type: object
+      required:
+        - merchantId
+        - username
+        - password
+      properties:
+        merchantId:
+          type: integer
+          minimum: 1
+          description: Merchant ID (must be > 0 for customer login)
+          example: 1
+        username:
+          type: string
+          description: Phone number for customer login
+          example: "9876543210"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: Password (8-128 characters)
+          example: "SecurePass123!"
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          minLength: 100
+          description: Refresh token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    OtpRequest:
+      type: object
+      required:
+        - merchantId
+        - phone
+        - otpType
+      properties:
+        merchantId:
+          type: integer
+          minimum: 0
+          description: |
+            Merchant ID
+            - 0 = OTP by phone number (any user)
+            - >0 = Specific merchant customer
+          example: 0
+        phone:
+          type: string
+          pattern: '^[6-9]\d{9}$'
+          minLength: 10
+          maxLength: 13
+          description: 10-digit Indian mobile number
+          example: "9876543210"
+        otpType:
+          type: string
+          enum:
+            - login
+            - password_reset
+            - registration
+            - phone_verification
+            - account_verification
+          description: Type of OTP request
+          example: "password_reset"
+
+    OtpVerifyRequest:
+      type: object
+      required:
+        - merchantId
+        - phone
+        - otp
+      properties:
+        merchantId:
+          type: integer
+          minimum: 0
+          description: |
+            Merchant ID
+            - 0 = Phone-based verification (any user)
+            - >0 = Merchant-specific customer
+          example: 1
+        phone:
+          type: string
+          pattern: '^[6-9]\d{9}$'
+          minLength: 10
+          maxLength: 13
+          description: 10-digit Indian mobile number
+          example: "9075027004"
+        otp:
+          type: string
+          pattern: '^\d{4}$'
+          minLength: 4
+          maxLength: 4
+          description: 4-digit OTP code
+          example: "1234"
+        otpType:
+          type: string
+          enum:
+            - login
+            - password_reset
+            - phone_verification
+            - account_verification
+          default: "login"
+          description: Type of OTP verification
+          example: "login"
+
+    AuthResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - tokenType
+        - expiresIn
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refreshToken:
+          type: string
+          description: JWT refresh token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        tokenType:
+          type: string
+          description: Token type
+          example: "Bearer"
+          default: "Bearer"
+        expiresIn:
+          type: integer
+          description: Token expiration time in seconds
+          example: 3600
+        userId:
+          type: integer
+          nullable: true
+          description: User ID
+          example: 123
+        merchantId:
+          type: integer
+          nullable: true
+          description: Merchant ID
+          example: 1
+        customerId:
+          type: integer
+          nullable: true
+          description: Customer ID
+          example: 456
+        phone:
+          type: string
+          nullable: true
+          description: User phone number
+          example: "9876543210"
+        roles:
+          type: array
+          items:
+            type: string
+          description: User roles
+          example: ["ROLE_CUSTOMER"]
+
+  securitySchemes:
+    bearerAuth:
+      $ref: './common/schemas.yaml#/components/securitySchemes/bearerAuth'

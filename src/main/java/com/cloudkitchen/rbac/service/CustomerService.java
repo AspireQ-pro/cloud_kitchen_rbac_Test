@@ -3,6 +3,7 @@ package com.cloudkitchen.rbac.service;
 import java.util.List;
 
 import org.springframework.security.core.Authentication;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudkitchen.rbac.dto.common.PageRequest;
 import com.cloudkitchen.rbac.dto.common.PageResponse;
@@ -23,6 +24,7 @@ public interface CustomerService {
     
     // Update operations
     CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, Integer updatedBy);
+    CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, MultipartFile profileImage, Integer updatedBy);
     CustomerResponse updateCustomerProfile(Authentication authentication, CustomerUpdateRequest request);
     
     // Delete operations

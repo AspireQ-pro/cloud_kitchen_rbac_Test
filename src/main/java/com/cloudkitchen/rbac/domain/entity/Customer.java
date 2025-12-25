@@ -74,6 +74,9 @@ public class Customer {
     @Column(name = "favorite_food", length = 255)
     private String favoriteFood;
 
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
 
 
     // Getters and Setters
@@ -136,6 +139,9 @@ public class Customer {
 
     public String getFavoriteFood() { return favoriteFood; }
     public void setFavoriteFood(String favoriteFood) { this.favoriteFood = favoriteFood; }
+
+    public String getProfileImageUrl() { return profileImageUrl; }
+    public void setProfileImageUrl(String profileImageUrl) { this.profileImageUrl = profileImageUrl; }
 
 
 }

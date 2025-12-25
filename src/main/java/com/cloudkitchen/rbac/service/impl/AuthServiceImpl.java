@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.cloudkitchen.rbac.config.SecurityProperties;
 import com.cloudkitchen.rbac.constants.AppConstants;
 import com.cloudkitchen.rbac.domain.entity.Customer;
 import com.cloudkitchen.rbac.domain.entity.Merchant;
@@ -54,6 +55,7 @@ public class AuthServiceImpl implements AuthService {
     private static final String ROLE_MERCHANT = "merchant";
     private static final String ROLE_SUPER_ADMIN = "super_admin";
     private static final String OTP_TYPE_PASSWORD_RESET = "password_reset";
+    private static final String INVALID_OTP_ATTEMPT_LOG = "Invalid OTP attempt {} for phone: {}";
 
     private final UserRepository users;
     private final MerchantRepository merchants;
@@ -67,11 +69,13 @@ public class AuthServiceImpl implements AuthService {
     private final SmsService smsService;
     private final JwtTokenProvider jwt;
     private final ValidationService validationService;
+    private final SecurityProperties securityProperties;
 
     public AuthServiceImpl(UserRepository users, MerchantRepository merchants, RoleRepository roles,
             UserRoleRepository userRoles, CustomerRepository customers, PasswordEncoder encoder, OtpService otpService,
             OtpAuditService otpAuditService, SmsService smsService, JwtTokenProvider jwt,
-            OtpLogRepository otpLogRepository, ValidationService validationService) {
+            OtpLogRepository otpLogRepository, ValidationService validationService,
+            SecurityProperties securityProperties) {
         this.users = users;
         this.merchants = merchants;
         this.roles = roles;
@@ -84,6 +88,7 @@ public class AuthServiceImpl implements AuthService {
         this.jwt = jwt;
         this.otpLogRepository = otpLogRepository;
         this.validationService = validationService;
+        this.securityProperties = securityProperties;
     }
 
     private String maskPhone(String phone) {
@@ -336,16 +341,21 @@ public class AuthServiceImpl implements AuthService {
         return response;
     }
 
+    /**
+     * Determine the effective merchant ID based on the supplied merchantId and the user's associated merchant.
+     * @param user - The user whose associated merchant may be used as a fallback.
+     * @param merchantId - The requested merchant ID; 0 means use the user's merchant ID if present else 0, null means use the user's merchant ID if present else null.
+     * @return The resolved merchant ID: returns merchantId when non-null (0 handled as above), otherwise returns the user's merchant ID or the appropriate fallback (0 or null).
+     */
     private Integer determineActualMerchantId(User user, Integer merchantId) {
-        if (merchantId != null && Integer.valueOf(0).equals(merchantId)) {
-            return user.getMerchant() != null ? user.getMerchant().getMerchantId() : 0;
-        }
         if (merchantId != null) {
+            if (merchantId == 0) {
+                return user.getMerchant() != null ? user.getMerchant().getMerchantId() : 0;
+            }
             return merchantId;
         }
         return user.getMerchant() != null ? user.getMerchant().getMerchantId() : null;
     }
-
     private boolean isOtpValid(String inputOtp, String storedOtp) {
         if (inputOtp == null || storedOtp == null)
             return false;
@@ -353,8 +363,10 @@ public class AuthServiceImpl implements AuthService {
         // Constant-time comparison to prevent timing attacks
         try {
             // Normalize both OTPs to same format
-            String normalizedInput = String.format("%06d", Integer.parseInt(inputOtp));
-            String normalizedStored = String.format("%06d", Integer.parseInt(storedOtp));
+            int inputNum = Integer.parseInt(inputOtp);
+            int storedNum = Integer.parseInt(storedOtp);
+            String normalizedInput = String.format("%06d", inputNum);
+            String normalizedStored = String.format("%06d", storedNum);
 
             // Use constant-time comparison
             return java.security.MessageDigest.isEqual(
@@ -558,14 +570,30 @@ public class AuthServiceImpl implements AuthService {
                 log.debug("Generated OTP for phone: {}, expires at: {}", maskedPhone, expiresAt);
             }
 
-            user.setOtpCode(otpCode);
+            // SECURITY: Environment-aware OTP storage
+            // DEVELOPMENT MODE: Store plaintext OTP (for easier testing/debugging)
+            // PRODUCTION MODE: Should hash OTP before storage (future enhancement)
+            if (securityProperties.isHashOtp()) {
+                // TODO: Production mode - hash OTP before storage
+                // user.setOtpCode(encoder.encode(otpCode));
+                log.warn("OTP hashing is enabled but not yet implemented. Storing plaintext for now.");
+                user.setOtpCode(otpCode);
+            } else {
+                // Development mode - store plaintext
+                if (securityProperties.isDevelopmentMode()) {
+                    log.debug("DEVELOPMENT MODE: Storing OTP in plaintext for phone: {}", maskedPhone);
+                }
+                user.setOtpCode(otpCode);
+            }
+
             user.setOtpExpiresAt(expiresAt);
             user.setOtpAttempts(0);
             user.setOtpUsed(false);
             users.save(user);
 
             if (log.isDebugEnabled()) {
-                log.debug("OTP stored successfully for user: {}", user.getUserId());
+                log.debug("OTP stored successfully for user: {} (hashOtp={})",
+                    user.getUserId(), securityProperties.isHashOtp());
             }
 
             boolean smsSent = sendOtpByType(req.getPhone(), otpCode);
@@ -586,9 +614,6 @@ public class AuthServiceImpl implements AuthService {
         } catch (RuntimeException e) {
             log.warn("OTP request failed for otpType: {}", otpType);
             throw e;
-        } catch (Exception e) {
-            log.warn("OTP request processing failed for otpType: {}", otpType);
-            throw new ServiceUnavailableException("Failed to process OTP request");
         }
     }
 
@@ -666,15 +691,17 @@ public class AuthServiceImpl implements AuthService {
         try {
             validationService.validateMobileForOtp(req.getPhone());
         } catch (IllegalArgumentException e) {
-            log.warn("Mobile validation failed: {}", e.getMessage());
-            throw new ValidationException(e.getMessage());
+            String errorMsg = "Mobile validation failed for phone " + maskedPhone + ": " + e.getMessage();
+            log.warn(errorMsg);
+            throw new ValidationException(e.getMessage(), e);
         }
 
         try {
             validationService.validateOtp(req.getOtp());
         } catch (IllegalArgumentException e) {
-            log.warn("OTP format validation failed: {}", e.getMessage());
-            throw new ValidationException(e.getMessage());
+            String errorMsg = "OTP format validation failed for phone " + maskedPhone + ": " + e.getMessage();
+            log.warn(errorMsg);
+            throw new ValidationException(e.getMessage(), e);
         }
 
         // 2. CHECK IF MOBILE IS REGISTERED
@@ -716,7 +743,7 @@ public class AuthServiceImpl implements AuthService {
             user.setOtpAttempts(currentAttempts + 1);
             users.save(user);
             otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
-            log.warn("Invalid OTP attempt {} for phone: {}", currentAttempts + 1, maskedPhone);
+            log.warn(INVALID_OTP_ATTEMPT_LOG, currentAttempts + 1, maskedPhone);
             throw new InvalidOtpException("Invalid OTP");
         }
 
@@ -758,7 +785,7 @@ public class AuthServiceImpl implements AuthService {
                 user.setOtpAttempts(currentAttempts + 1);
                 users.save(user);
                 otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
-                log.warn("Invalid OTP attempt {} for phone: {}", currentAttempts + 1, maskedPhone);
+                log.warn(INVALID_OTP_ATTEMPT_LOG, currentAttempts + 1, maskedPhone);
                 return null;
             }
 
@@ -812,6 +839,99 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    @Override
+    @Transactional
+    public AuthResponse verifyOtpAndGenerateToken(OtpVerifyRequest req) {
+        String maskedPhone = maskPhone(req.getPhone());
+        log.info("OTP verification and token generation for phone: {}, otpType: {}", maskedPhone, req.getOtpType());
+
+        // 1. INPUT VALIDATION FIRST (before any business logic)
+        try {
+            validationService.validateMobileForOtp(req.getPhone());
+        } catch (IllegalArgumentException e) {
+            String errorMsg = "Mobile validation failed for phone " + maskedPhone + " during token generation: " + e.getMessage();
+            log.warn(errorMsg);
+            throw new ValidationException(e.getMessage(), e);
+        }
+
+        try {
+            validationService.validateOtp(req.getOtp());
+        } catch (IllegalArgumentException e) {
+            String errorMsg = "OTP format validation failed for phone " + maskedPhone + " during token generation: " + e.getMessage();
+            log.warn(errorMsg);
+            throw new ValidationException(e.getMessage(), e);
+        }
+
+        // 2. CHECK IF MOBILE IS REGISTERED
+        User user;
+        try {
+            user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
+        } catch (UserNotFoundException e) {
+            log.warn("Mobile number not registered: {}", maskedPhone);
+            throw new MobileNotRegisteredException("Mobile number not registered");
+        }
+
+        // 3. CHECK IF OTP REQUEST EXISTS
+        if (user.getOtpCode() == null) {
+            log.warn("No OTP request found for phone: {}", maskedPhone);
+            throw new OtpNotFoundException("OTP not requested");
+        }
+
+        // 4. CHECK IF OTP IS EXPIRED (before checking attempts or validity)
+        if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
+            log.warn("OTP expired for phone: {}", maskedPhone);
+            otpAuditService.updateOtpExpired(req.getPhone());
+            clearOtpData(user);
+            throw new OtpExpiredException("OTP expired");
+        }
+
+        // 5. CHECK ATTEMPT LIMIT
+        Integer otpAttempts = user.getOtpAttempts();
+        int currentAttempts = otpAttempts != null ? otpAttempts : 0;
+        if (currentAttempts >= AppConstants.OTP_MAX_ATTEMPTS) {
+            log.warn("OTP attempts exceeded for phone: {}", maskedPhone);
+            otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts);
+            clearOtpData(user);
+            throw new OtpAttemptsExceededException("OTP verification attempts exceeded");
+        }
+
+        // 6. VERIFY OTP
+        if (!isOtpValid(req.getOtp(), user.getOtpCode())) {
+            // Increment attempt counter
+            user.setOtpAttempts(currentAttempts + 1);
+            users.save(user);
+            otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
+            log.warn(INVALID_OTP_ATTEMPT_LOG, currentAttempts + 1, maskedPhone);
+            throw new InvalidOtpException("Invalid OTP");
+        }
+
+        // 7. SUCCESS - Log audit and generate tokens
+        Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
+        otpAuditService.logOtpVerified(req.getPhone(), merchantId);
+
+        // Mark OTP as used and clear
+        user.setOtpUsed(true);
+        users.save(user);
+        clearOtpData(user);
+
+        Integer customerId = getCustomerId(user, merchantId);
+
+        // Handle password reset
+        if (OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())) {
+            String randomPassword = generateRandomPassword();
+            user.setPasswordHash(encoder.encode(randomPassword));
+            users.save(user);
+            log.info("Password reset with random password for user: {}", maskedPhone);
+        }
+
+        log.info("OTP verified successfully for phone: {}", maskedPhone);
+        return buildTokens(user, req.getMerchantId(), customerId);
+    }
+
+/**
+     * Returns the total number of users.
+     * @return long - The count of user records.
+     */
     @Override
     public long getUserCount() {
         return users.count();

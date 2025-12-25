@@ -20,6 +20,11 @@ import com.cloudkitchen.rbac.util.ResponseBuilder;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -32,7 +37,28 @@ public class UserController {
     }
 
     @GetMapping
-    @Operation(summary = "Get All Users", description = "Get all users with pagination, filtering by role, and search - Super Admin only")
+    @Operation(
+        summary = "Get All Users",
+        description = "**QA Testing Guide:**\n\n" +
+                     "1. **Authentication:** Super Admin only\n" +
+                     "2. **Authorization Header:** Bearer {your_jwt_token}\n" +
+                     "3. **Query Parameters:** page, size, sortBy, sortDirection, role, search (all optional)\n\n" +
+                     "**Test Scenarios:**\n" +
+                     "- Default pagination (page=0, size=20)\n" +
+                     "- Custom pagination and sorting\n" +
+                     "- Filter by role (CUSTOMER, MERCHANT, ADMIN)\n" +
+                     "- Search by name or email\n" +
+                     "- Invalid page/size parameters (400)\n" +
+                     "- Non-super-admin access (403)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Users retrieved successfully",
+            content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"Users retrieved successfully. Page 1 of 10, Total: 200\",\"data\":{\"content\":[{\"userId\":1,\"name\":\"John Doe\",\"role\":\"CUSTOMER\"}],\"page\":0,\"size\":20}}"))),
+        @ApiResponse(responseCode = "400", description = "Invalid request parameters"),
+        @ApiResponse(responseCode = "403", description = "Forbidden - Super Admin access required")
+    })
+    @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<Map<String, Object>> getAllUsers(
             @RequestParam(defaultValue = "0") String page,
@@ -95,7 +121,27 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Get User by ID", description = "Get any user by ID - Super Admin only")
+    @Operation(
+        summary = "Get User by ID",
+        description = "**QA Testing Guide:**\n\n" +
+                     "1. **Authentication:** Super Admin only\n" +
+                     "2. **Authorization Header:** Bearer {your_jwt_token}\n" +
+                     "3. **Path Parameter:** Valid user ID (integer)\n\n" +
+                     "**Test Scenarios:**\n" +
+                     "- Valid user ID\n" +
+                     "- Invalid user ID (404)\n" +
+                     "- Non-integer user ID (400)\n" +
+                     "- Non-super-admin access (403)\n" +
+                     "- No authentication (401)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "User retrieved successfully",
+            content = @Content(mediaType = "application/json",
+                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"User retrieved successfully\",\"data\":{\"userId\":1,\"name\":\"John Doe\",\"email\":\"john@example.com\",\"role\":\"CUSTOMER\"}}"))),
+        @ApiResponse(responseCode = "403", description = "Forbidden - Super Admin access required"),
+        @ApiResponse(responseCode = "404", description = "User not found")
+    })
+    @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<Map<String, Object>> getUserById(@PathVariable Integer id) {
         UserResponse response = userService.getUserById(id);
