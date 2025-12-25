@@ -55,7 +55,8 @@ public class MerchantController {
                      "**Test Scenarios:**\n" +
                      "- Valid merchant creation with all fields\n" +
                      "- Missing required fields (400)\n" +
-                     "- Duplicate merchant name (409)\n" +
+                     "- Duplicate merchant email (409)\n" +
+                     "- Duplicate merchant phone (409)\n" +
                      "- Invalid email format (400)\n" +
                      "- Insufficient permissions (403)"
     )
@@ -69,9 +70,18 @@ public class MerchantController {
     })
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.create')")
     public ResponseEntity<Map<String, Object>> createMerchant(@Valid @RequestBody MerchantRequest request) {
-        MerchantResponse response = merchantService.createMerchant(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getMerchantId(), response));
+        try {
+            MerchantResponse response = merchantService.createMerchant(request);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getMerchantId(), response));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("already exists")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ResponseBuilder.error(409, e.getMessage()));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(400, "Failed to create merchant: " + e.getMessage()));
+        }
     }
 
     @PatchMapping("/{id}")

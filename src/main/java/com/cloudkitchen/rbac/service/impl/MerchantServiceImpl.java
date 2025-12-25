@@ -49,6 +49,12 @@ public class MerchantServiceImpl implements MerchantService {
 
     @Override
     public MerchantResponse createMerchant(MerchantRequest request) {
+        if (merchantRepository.existsByMerchantName(request.getMerchantName())) {
+            throw new MerchantAlreadyExistsException("A merchant with name '" + request.getMerchantName() + "' already exists. Please use a different merchant name.");
+        }
+        if (merchantRepository.existsByEmail(request.getEmail())) {
+            throw new MerchantAlreadyExistsException("A merchant with email " + request.getEmail() + " already exists. Please use a different email address.");
+        }
         if (merchantRepository.existsByPhone(request.getPhone())) {
             throw new MerchantAlreadyExistsException("A merchant with phone number " + maskPhone(request.getPhone()) + " already exists. Please use a different phone number.");
         }
