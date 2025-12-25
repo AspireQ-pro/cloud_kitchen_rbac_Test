@@ -26,12 +26,14 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Environment files
+# Environment files (keep .env secret, but allow .env.prod.example template)
 .env
 .env.local
-.env.production
+.env.prod.example
+.env.example
 application-local.properties
-application-dev.properties
+# .env.prod.example - NOT ignored (this is a template for others)
+# application-dev.properties and application-prod.properties - can be deleted now
 
 # Database files
 *.db
@@ -68,3 +70,4 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+nul

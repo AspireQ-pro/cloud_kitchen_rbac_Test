@@ -2,7 +2,9 @@ package com.cloudkitchen.rbac.service.impl;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
@@ -11,6 +13,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.cloudkitchen.rbac.config.S3Properties;
+import com.cloudkitchen.rbac.dto.merchant.FolderCreationStatus;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.ServiceUnavailableException;
 import com.cloudkitchen.rbac.service.CloudStorageService;
 import com.cloudkitchen.rbac.util.FilenameSanitizer;
@@ -28,15 +31,18 @@ import java.time.Duration;
 
 @Service
 public class S3CloudStorageServiceImpl implements CloudStorageService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(S3CloudStorageServiceImpl.class);
     private static final Pattern VALID_ID = Pattern.compile("^[a-zA-Z0-9_-]+$");
     private static final String FOLDER_PLACEHOLDER = "# folder placeholder";
     private static final byte[] PLACEHOLDER_BYTES = FOLDER_PLACEHOLDER.getBytes(StandardCharsets.UTF_8);
-    
+
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
     private final S3Properties properties;
+
+    // In-memory status tracker (consider using Redis for production)
+    private final ConcurrentHashMap<Integer, FolderCreationStatus> statusTracker = new ConcurrentHashMap<>();
     
     public S3CloudStorageServiceImpl(S3Client s3Client, S3Presigner s3Presigner, S3Properties properties) {
         this.s3Client = s3Client;
@@ -47,50 +53,68 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
     @Override
     public void createMerchantFolderStructure(String merchantId) {
         validateId(merchantId, "merchantId");
-        
+        Integer merchantIdInt = Integer.valueOf(merchantId);
+
+        // Initialize status
+        FolderCreationStatus status = new FolderCreationStatus(merchantIdInt, FolderCreationStatus.Status.IN_PROGRESS);
+        status.setStartedAt(LocalDateTime.now());
+        statusTracker.put(merchantIdInt, status);
+
         // Global folders (root level)
         String[] globalFolders = {"offers/", "ads/"};
-        
+
         // Merchant-specific folders
         String[] merchantFolders = {
             "banners/", "logos/", "profile_image/", "product_image/",
             "menu_card/", "offers/"
         };
-        
+
+        int totalFolders = globalFolders.length + merchantFolders.length;
+        status.setTotalFolders(totalFolders);
+
         long start = System.currentTimeMillis();
         int success = 0;
         int failed = 0;
-        
+
         // Create global folders (only once, idempotent)
         for (String folder : globalFolders) {
             try {
                 createFolder(folder);
                 success++;
+                status.setCreatedFolders(success);
             } catch (Exception e) {
                 failed++;
                 logger.error("Failed to create global folder {}: {}", folder, e.getMessage());
             }
         }
-        
+
         // Create merchant-specific folders
         for (String folder : merchantFolders) {
             try {
                 createFolder(merchantId + "/" + folder);
                 success++;
+                status.setCreatedFolders(success);
             } catch (Exception e) {
                 failed++;
                 logger.error("Failed to create folder {}/{}: {}", merchantId, folder, e.getMessage());
             }
         }
-        
+
+        long duration = System.currentTimeMillis() - start;
+        status.setDurationMs(duration);
+        status.setCompletedAt(LocalDateTime.now());
+
         if (failed > 0) {
+            status.setStatus(FolderCreationStatus.Status.FAILED);
+            status.setErrorMessage(String.format("Failed to create %d/%d folders", failed, totalFolders));
             throw new ServiceUnavailableException(
-                String.format("Failed to create %d/%d folders for merchant %s", failed, globalFolders.length + merchantFolders.length, merchantId)
+                String.format("Failed to create %d/%d folders for merchant %s", failed, totalFolders, merchantId)
             );
         }
-        
+
+        status.setStatus(FolderCreationStatus.Status.COMPLETED);
         logger.info("✅ Merchant folders created - merchantId: {}, folders: {}, duration: {}ms",
-            merchantId, success, System.currentTimeMillis() - start);
+            merchantId, success, duration);
     }
 
     @Async("s3Executor")
@@ -216,25 +240,36 @@ public class S3CloudStorageServiceImpl implements CloudStorageService {
     @Override
     public String generatePresignedUrl(String key) {
         validateKey(key);
-        
+
         try {
             GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                 .bucket(properties.getBucket())
                 .key(key)
                 .build();
-            
+
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
                 .signatureDuration(Duration.ofHours(24))
                 .getObjectRequest(getObjectRequest)
                 .build();
-            
+
             PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
             return presignedRequest.url().toString();
-            
+
         } catch (Exception e) {
             logger.error("Failed to generate presigned URL for key: {}", key, e);
             throw new ServiceUnavailableException("Failed to generate presigned URL: " + e.getMessage());
         }
     }
-    
+
+    @Override
+    public FolderCreationStatus getFolderCreationStatus(Integer merchantId) {
+        if (merchantId == null) {
+            throw new IllegalArgumentException("merchantId cannot be null");
+        }
+
+        // Return status if exists, otherwise return PENDING
+        return statusTracker.getOrDefault(merchantId,
+            new FolderCreationStatus(merchantId, FolderCreationStatus.Status.PENDING));
+    }
+
 }

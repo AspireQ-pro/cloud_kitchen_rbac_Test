@@ -6,12 +6,16 @@ import java.util.Properties;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SpringBootApplication(exclude = {
      org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration.class
  })
+@EnableJpaRepositories(basePackages = "com.cloudkitchen.rbac.repository")
+@EntityScan(basePackages = "com.cloudkitchen.rbac.domain.entity")
 public class RbacServiceApplication {
 
      private static final Logger logger = LoggerFactory.getLogger(RbacServiceApplication.class);
