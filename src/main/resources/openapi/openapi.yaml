@@ -78,14 +78,10 @@ info:
     url: https://cloudkitchen.com/license
 
 servers:
-  - url: http://localhost:8081
-    description: Local development server
-  - url: https://api-dev.cloudkitchen.com
-    description: Development server
-  - url: https://api-staging.cloudkitchen.com
-    description: Staging server
-  - url: https://api.cloudkitchen.com
-    description: Production server
+  - url: http://localhost:8080
+    description: Local Development Server
+  - url: http://65.0.92.207:8081
+    description: Production Server
 
 tags:
   - name: Authentication
