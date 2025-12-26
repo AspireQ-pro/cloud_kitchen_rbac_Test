@@ -23,11 +23,11 @@ import com.cloudkitchen.rbac.util.AccessControlUtil;
 import com.cloudkitchen.rbac.util.ResponseBuilder;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 @RestController
@@ -36,7 +36,7 @@ import jakarta.validation.Valid;
 public class MerchantController {
     private static final String NOT_FOUND = "not found";
     private static final String MERCHANT_NOT_FOUND_MSG = "Merchant not found with ID: ";
-    
+
     private final MerchantService merchantService;
     private final AccessControlUtil accessControl;
 
@@ -55,7 +55,8 @@ public class MerchantController {
                      "**Test Scenarios:**\n" +
                      "- Valid merchant creation with all fields\n" +
                      "- Missing required fields (400)\n" +
-                     "- Duplicate merchant name (409)\n" +
+                     "- Duplicate merchant email (409)\n" +
+                     "- Duplicate merchant phone (409)\n" +
                      "- Invalid email format (400)\n" +
                      "- Insufficient permissions (403)"
     )
@@ -69,9 +70,18 @@ public class MerchantController {
     })
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN') or hasAuthority('merchants.create')")
     public ResponseEntity<Map<String, Object>> createMerchant(@Valid @RequestBody MerchantRequest request) {
-        MerchantResponse response = merchantService.createMerchant(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getMerchantId(), response));
+        try {
+            MerchantResponse response = merchantService.createMerchant(request);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ResponseBuilder.success(201, "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getMerchantId(), response));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("already exists")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ResponseBuilder.error(409, e.getMessage()));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(400, "Failed to create merchant: " + e.getMessage()));
+        }
     }
 
     @PatchMapping("/{id}")
@@ -224,7 +234,7 @@ public class MerchantController {
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<Map<String, Object>> deleteMerchant(@PathVariable Integer id, Authentication authentication) {
         try {
-            
+
             merchantService.deleteMerchant(id);
             return ResponseEntity.status(HttpStatus.OK)
                     .body(ResponseBuilder.success(200, "Merchant ID " + id + " deleted successfully"));

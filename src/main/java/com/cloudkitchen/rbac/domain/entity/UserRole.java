@@ -5,7 +5,14 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "user_roles",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "role_id", "merchant_id"}))
+    indexes = {
+        @Index(name = "idx_user_roles_user_id", columnList = "user_id"),
+        @Index(name = "idx_user_roles_role_id", columnList = "role_id"),
+        @Index(name = "idx_user_roles_merchant_id", columnList = "merchant_id"),
+        @Index(name = "idx_user_roles_merchant_user", columnList = "merchant_id, user_id")
+    },
+    uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "role_id", "merchant_id"})
+)
 public class UserRole {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

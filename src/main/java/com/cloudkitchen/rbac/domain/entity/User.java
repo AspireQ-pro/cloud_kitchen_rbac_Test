@@ -24,7 +24,12 @@ import jakarta.persistence.UniqueConstraint;
         @Index(name = "idx_users_email", columnList = "email"),
         @Index(name = "idx_users_username", columnList = "username"),
         @Index(name = "idx_users_active", columnList = "is_active"),
-        @Index(name = "idx_users_user_type", columnList = "user_type")
+        @Index(name = "idx_users_user_type", columnList = "user_type"),
+        @Index(name = "idx_users_merchant_phone", columnList = "merchant_id, phone"),
+        @Index(name = "idx_users_merchant_email", columnList = "merchant_id, email"),
+        @Index(name = "idx_users_is_guest", columnList = "is_guest"),
+        @Index(name = "idx_users_otp_expires", columnList = "otp_expires_at"),
+        @Index(name = "idx_users_phone_verified", columnList = "phone_verified")
     },
     uniqueConstraints = {
         @UniqueConstraint(name = "uk_users_merchant_phone", columnNames = {"merchant_id", "phone"})

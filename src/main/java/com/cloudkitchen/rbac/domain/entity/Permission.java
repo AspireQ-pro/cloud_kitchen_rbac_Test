@@ -4,7 +4,11 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "permissions")
+@Table(name = "permissions",
+    indexes = {
+        @Index(name = "idx_permissions_resource_action", columnList = "resource, action")
+    }
+)
 public class Permission {
 
     @Id

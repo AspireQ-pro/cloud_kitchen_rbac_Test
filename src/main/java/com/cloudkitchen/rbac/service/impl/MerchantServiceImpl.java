@@ -49,6 +49,12 @@ public class MerchantServiceImpl implements MerchantService {
 
     @Override
     public MerchantResponse createMerchant(MerchantRequest request) {
+        if (merchantRepository.existsByMerchantName(request.getMerchantName())) {
+            throw new MerchantAlreadyExistsException("A merchant with name '" + request.getMerchantName() + "' already exists. Please use a different merchant name.");
+        }
+        if (merchantRepository.existsByEmail(request.getEmail())) {
+            throw new MerchantAlreadyExistsException("A merchant with email " + request.getEmail() + " already exists. Please use a different email address.");
+        }
         if (merchantRepository.existsByPhone(request.getPhone())) {
             throw new MerchantAlreadyExistsException("A merchant with phone number " + maskPhone(request.getPhone()) + " already exists. Please use a different phone number.");
         }
@@ -298,6 +304,15 @@ public class MerchantServiceImpl implements MerchantService {
                     });
         }
 
+        // Include folder creation status if S3 service is available
+        if (cloudStorageService != null) {
+            try {
+                response.setFolderCreationStatus(cloudStorageService.getFolderCreationStatus(merchant.getMerchantId()));
+            } catch (Exception e) {
+                log.warn("Error fetching folder creation status for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
+            }
+        }
+
         return response;
     }
 
@@ -364,7 +379,7 @@ public class MerchantServiceImpl implements MerchantService {
         response.setActive(merchant.getActive());
         response.setCreatedAt(merchant.getCreatedOn());
         response.setUpdatedAt(merchant.getUpdatedOn());
-        
+
         // Find the merchant admin user to get username and userId
         try {
             userRepository.findByMerchantAndUserType(merchant, "merchant")
@@ -375,7 +390,16 @@ public class MerchantServiceImpl implements MerchantService {
         } catch (Exception e) {
             log.warn("Error fetching merchant admin user for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
         }
-        
+
+        // Include folder creation status if S3 service is available
+        if (cloudStorageService != null) {
+            try {
+                response.setFolderCreationStatus(cloudStorageService.getFolderCreationStatus(merchant.getMerchantId()));
+            } catch (Exception e) {
+                log.warn("Error fetching folder creation status for merchant {}: {}", merchant.getMerchantId(), e.getMessage());
+            }
+        }
+
         return response;
     }
 }

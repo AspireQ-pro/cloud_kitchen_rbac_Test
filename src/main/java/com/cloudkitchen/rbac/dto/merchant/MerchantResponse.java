@@ -15,6 +15,7 @@ public class MerchantResponse {
     private LocalDateTime updatedAt;
     private String username;
     private Integer userId;
+    private FolderCreationStatus folderCreationStatus;
 
     public Integer getMerchantId() { return merchantId; }
     public void setMerchantId(Integer merchantId) { this.merchantId = merchantId; }
@@ -51,4 +52,7 @@ public class MerchantResponse {
 
     public String getFssaiLicense() { return fssaiLicense; }
     public void setFssaiLicense(String fssaiLicense) { this.fssaiLicense = fssaiLicense; }
+
+    public FolderCreationStatus getFolderCreationStatus() { return folderCreationStatus; }
+    public void setFolderCreationStatus(FolderCreationStatus folderCreationStatus) { this.folderCreationStatus = folderCreationStatus; }
 }

@@ -3,6 +3,8 @@ package com.cloudkitchen.rbac.service;
 import java.io.InputStream;
 import java.util.concurrent.CompletableFuture;
 
+import com.cloudkitchen.rbac.dto.merchant.FolderCreationStatus;
+
 /**
  * Cloud storage service abstraction for file and folder operations.
  * This interface provides a clean separation between business logic and storage implementation.
@@ -50,9 +52,17 @@ public interface CloudStorageService {
     
     /**
      * Generates a presigned URL for accessing a file.
-     * 
+     *
      * @param key the S3 object key (path)
      * @return the presigned URL string
      */
     String generatePresignedUrl(String key);
+
+    /**
+     * Gets the folder creation status for a merchant.
+     *
+     * @param merchantId the merchant identifier
+     * @return FolderCreationStatus containing the current status
+     */
+    FolderCreationStatus getFolderCreationStatus(Integer merchantId);
 }
