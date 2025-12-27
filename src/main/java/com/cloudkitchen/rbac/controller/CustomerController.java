@@ -5,11 +5,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
 import com.cloudkitchen.rbac.constants.ResponseMessages;
 import com.cloudkitchen.rbac.dto.common.PageRequest;
 import com.cloudkitchen.rbac.dto.common.PageResponse;
@@ -18,6 +20,7 @@ import com.cloudkitchen.rbac.dto.customer.CustomerUpdateRequest;
 import com.cloudkitchen.rbac.service.CustomerService;
 import com.cloudkitchen.rbac.util.HttpResponseUtil;
 import com.cloudkitchen.rbac.util.ResponseBuilder;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -174,14 +177,14 @@ public class CustomerController {
             @Parameter(description = "Customer ID to retrieve", example = "1", required = true)
             @PathVariable Integer id,
             Authentication authentication) {
-        if (!customerService.canAccessCustomer(authentication, id)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_VIEW));
-        }
         try {
-            CustomerResponse customer = customerService.getCustomerById(id);
+            CustomerResponse customer = customerService.getCustomerById(id, authentication);
             return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.RETRIEVED_SUCCESS, customer));
         } catch (RuntimeException e) {
+            if ("Access denied".equals(e.getMessage())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_VIEW));
+            }
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Customer.NOT_FOUND));
         }
@@ -270,6 +273,47 @@ public class CustomerController {
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, ResponseMessages.Customer.RETRIEVE_FAILED + ": " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(
+        summary = "Delete Customer",
+        description = """
+                **QA Testing Guide:**
+
+                1. **Authentication:** Login as admin/merchant to get JWT token
+                2. **Authorization Header:** Bearer {your_jwt_token}
+                3. **Path Parameter:** Customer ID to delete
+
+                **Test Scenarios:**
+                - Valid customer ID (soft delete)
+                - Invalid customer ID (404)
+                - Access other customer's data (403)
+                - Invalid token (401)
+                """
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Customer deleted successfully"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token"),
+        @ApiResponse(responseCode = "403", description = "Forbidden - Access denied"),
+        @ApiResponse(responseCode = "404", description = "Customer not found")
+    })
+    @SecurityRequirement(name = "bearerAuth")
+    public ResponseEntity<Object> deleteCustomer(
+            @Parameter(description = "Customer ID to delete", example = "1", required = true)
+            @PathVariable Integer id,
+            Authentication authentication) {
+        if (!customerService.canAccessCustomer(authentication, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_VIEW));
+        }
+        try {
+            customerService.deleteCustomer(id);
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.DELETED_SUCCESS, null));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Customer.NOT_FOUND));
         }
     }
 }

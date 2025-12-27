@@ -20,6 +20,7 @@ public interface CustomerService {
     List<CustomerResponse> getCustomersByMerchantId(Integer merchantId);
     PageResponse<CustomerResponse> getCustomersByMerchantId(Integer merchantId, PageRequest pageRequest);
     CustomerResponse getCustomerById(Integer id);
+    CustomerResponse getCustomerById(Integer id, Authentication authentication);
     CustomerResponse getCustomerProfile(Authentication authentication);
     
     // Update operations

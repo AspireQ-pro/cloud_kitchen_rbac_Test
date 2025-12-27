@@ -26,6 +26,8 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
     Page<Customer> findByMerchant_MerchantIdAndDeletedAtIsNull(Integer merchantId, Pageable pageable);
     
     Page<Customer> findByDeletedAtIsNull(Pageable pageable);
+
+    Page<Customer> findByIsActiveAndDeletedAtIsNull(Boolean isActive, Pageable pageable);
     
     @Query("SELECT c FROM Customer c WHERE c.deletedAt IS NULL AND " +
            "(LOWER(c.firstName) LIKE LOWER(:search) OR " +
@@ -42,8 +44,14 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
     Page<Customer> findByMerchantIdAndSearchAndDeletedAtIsNull(@Param("merchantId") Integer merchantId, 
                                                               @Param("search") String search, 
                                                               Pageable pageable);
-    
+
     // Additional methods for service implementation
     List<Customer> findAllByDeletedAtIsNull();
+    
+    boolean existsByCustomerIdAndUser_UserIdAndDeletedAtIsNull(Integer customerId, Integer userId);
+
+    Optional<Customer> findByCustomerIdAndUser_UserIdAndDeletedAtIsNull(Integer customerId, Integer userId);
+
+    Optional<Customer> findByCustomerIdAndMerchant_MerchantIdAndDeletedAtIsNull(Integer customerId, Integer merchantId);
 
 }
