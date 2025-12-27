@@ -24,10 +24,12 @@ import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.AccessDeniedException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.InvalidCredentialsException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.InvalidOtpException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.LoginMethodNotAllowedException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.MerchantNotFoundException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.MobileNotRegisteredException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpAttemptsExceededException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpExpiredException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpInvalidException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpNotFoundException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.ServiceUnavailableException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.UserAlreadyExistsException;
@@ -181,15 +183,25 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse login(AuthRequest req) {
         log.info("Login attempt for merchantId: {}", req.getMerchantId());
-        
+
         // 1. INPUT VALIDATION FIRST (before any business logic)
         validateLoginInputs(req);
-        
+
         // 2. BUSINESS VALIDATION
         User user = findUserForLogin(req);
+
+        // 3. CHECK PREFERRED LOGIN METHOD
+        checkPreferredLoginMethod(user, "password");
+
+        // 4. VERIFY PASSWORD
         verifyPassword(user, req.getPassword());
+
+        // 5. UPDATE LAST LOGIN TIMESTAMP
+        user.setLastLoginAt(LocalDateTime.now());
+        users.save(user);
+
         Integer customerId = getCustomerId(user, req.getMerchantId());
-        
+
         log.info("Login successful for user: {} (type: {})", user.getUserId(), user.getUserType());
         return buildTokens(user, req.getMerchantId(), customerId);
     }
@@ -242,6 +254,33 @@ public class AuthServiceImpl implements AuthService {
             throw new AccessDeniedException("Account is inactive. Please contact support.");
         }
         return user;
+    }
+
+    private void checkPreferredLoginMethod(User user, String requestedMethod) {
+        String preferredMethod = user.getPreferredLoginMethod();
+        if (preferredMethod == null) {
+            // No preference set, allow both methods
+            return;
+        }
+
+        // If "both" is preferred, allow any method
+        if ("both".equalsIgnoreCase(preferredMethod)) {
+            return;
+        }
+
+        // If requesting password login but only OTP is allowed
+        if ("password".equalsIgnoreCase(requestedMethod) && "otp".equalsIgnoreCase(preferredMethod)) {
+            throw new LoginMethodNotAllowedException(
+                "Password login is not enabled for this account. Please use OTP to login."
+            );
+        }
+
+        // If requesting OTP login but only password is allowed
+        if ("otp".equalsIgnoreCase(requestedMethod) && "password".equalsIgnoreCase(preferredMethod)) {
+            throw new LoginMethodNotAllowedException(
+                "OTP login is not enabled for this account. Please use password to login."
+            );
+        }
     }
 
     private void verifyPassword(User user, String password) {
@@ -560,6 +599,12 @@ public class AuthServiceImpl implements AuthService {
 
             User user = findUserForOtpRequest(req, otpType);
             validateUserRoleForOtpRequest(user, req.getMerchantId());
+
+            // Check preferred login method only for login OTPs
+            if ("login".equals(otpType)) {
+                checkPreferredLoginMethod(user, "otp");
+            }
+
             checkPhoneBlockStatus(req.getPhone(), req.getMerchantId(), maskedPhone);
             validateOtpRateLimitForRequest(req.getPhone(), otpType);
             invalidateExistingOtpSafely(user);
@@ -760,45 +805,56 @@ public class AuthServiceImpl implements AuthService {
         try {
             User user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
 
+            // CHECK 1: OTP exists
             if (user.getOtpCode() == null) {
                 log.warn("No active OTP found for phone: {}", maskedPhone);
-                return null;
+                throw new OtpNotFoundException("No OTP found. Please request a new OTP.");
             }
 
+            // CHECK 2: OTP not already used (Replay attack protection)
+            if (Boolean.TRUE.equals(user.getOtpUsed())) {
+                log.warn("OTP replay attack detected for phone: {}", maskedPhone);
+                throw new OtpInvalidException("This OTP has already been used. Please request a new OTP.");
+            }
+
+            // CHECK 3: OTP not expired
             if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
                 otpAuditService.updateOtpExpired(req.getPhone());
                 clearOtpData(user);
                 log.warn("Expired OTP verification attempt for phone: {}", maskedPhone);
-                return null;
+                throw new OtpExpiredException("OTP has expired. Please request a new OTP.");
             }
 
+            // CHECK 4: Max attempts not exceeded
             Integer otpAttempts = user.getOtpAttempts();
             int currentAttempts = otpAttempts != null ? otpAttempts : 0;
             if (currentAttempts >= AppConstants.OTP_MAX_ATTEMPTS) {
                 otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts);
                 clearOtpData(user);
                 log.warn("Max OTP attempts exceeded for phone: {}", maskedPhone);
-                return null;
+                throw new OtpAttemptsExceededException("Too many failed attempts. Please request a new OTP.");
             }
 
+            // CHECK 5: OTP matches
             if (!isOtpValid(req.getOtp(), user.getOtpCode())) {
                 user.setOtpAttempts(currentAttempts + 1);
                 users.save(user);
                 otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
                 log.warn(INVALID_OTP_ATTEMPT_LOG, currentAttempts + 1, maskedPhone);
-                return null;
+                throw new InvalidOtpException("Invalid OTP. Please try again.");
             }
 
             Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
             otpAuditService.logOtpVerified(req.getPhone(), merchantId);
 
-            // Mark OTP as used before clearing
+            // Mark OTP as used and update last login timestamp
             user.setOtpUsed(true);
+            user.setLastLoginAt(LocalDateTime.now());
             users.save(user);
             clearOtpData(user);
 
             Integer customerId = getCustomerId(user, merchantId);
-            
+
             if (OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())) {
                 String randomPassword = generateRandomPassword();
                 user.setPasswordHash(encoder.encode(randomPassword));
@@ -811,8 +867,8 @@ public class AuthServiceImpl implements AuthService {
             return buildTokens(user, req.getMerchantId(), customerId);
 
         } catch (RuntimeException e) {
-            log.warn("OTP verification failed");
-            return null;
+            log.warn("OTP verification failed: {}", e.getMessage());
+            throw e;
         }
     }
 
