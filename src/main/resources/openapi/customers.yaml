@@ -173,6 +173,70 @@ paths:
               schema:
                 $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
 
+    delete:
+      tags:
+        - Customer Management
+      summary: Delete Customer
+      description: |
+        Delete (soft delete) a customer by ID.
+
+        **RBAC Rules:**
+        - Authenticated user required
+        - Users can only delete customers within their merchant scope
+        - Customers can only delete their own profile
+
+        **HTTP Status Codes:**
+        - 200: Success
+        - 401: Not authenticated
+        - 403: Access denied
+        - 404: Customer not found
+      operationId: deleteCustomer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Customer ID
+          required: true
+          schema:
+            type: integer
+            example: 456
+      responses:
+        '200':
+          description: Customer deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Customer deleted successfully"
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
+              example:
+                status: 403
+                message: "Access denied: You can only delete your own profile"
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
+
   /api/customers:
     get:
       tags:

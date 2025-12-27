@@ -1,6 +1,7 @@
 package com.cloudkitchen.rbac.service.impl;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -8,10 +9,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
 
+import com.cloudkitchen.rbac.constants.ResponseMessages;
 import com.cloudkitchen.rbac.domain.entity.Merchant;
 import com.cloudkitchen.rbac.domain.entity.User;
 import com.cloudkitchen.rbac.dto.common.PageRequest;
@@ -23,10 +27,17 @@ import com.cloudkitchen.rbac.repository.UserRepository;
 import com.cloudkitchen.rbac.service.MerchantService;
 import com.cloudkitchen.rbac.service.CloudStorageService;
 import com.cloudkitchen.rbac.service.ValidationService;
+import com.cloudkitchen.rbac.util.AccessControlUtil;
+import com.cloudkitchen.rbac.util.HttpResponseUtil;
+import com.cloudkitchen.rbac.util.ResponseBuilder;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+/**
+ * Service implementation for merchant operations, including validation,
+ * access checks, and response assembly for controllers.
+ */
 @Service
 @Transactional
 public class MerchantServiceImpl implements MerchantService {
@@ -35,18 +46,27 @@ public class MerchantServiceImpl implements MerchantService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final ValidationService validationService;
+    private final AccessControlUtil accessControlUtil;
 
     @Autowired(required = false)
     private CloudStorageService cloudStorageService;
 
+    /**
+     * Construct the merchant service with required repositories and helpers.
+     */
     public MerchantServiceImpl(MerchantRepository merchantRepository, UserRepository userRepository,
-                              PasswordEncoder passwordEncoder, ValidationService validationService) {
+                              PasswordEncoder passwordEncoder, ValidationService validationService,
+                              AccessControlUtil accessControlUtil) {
         this.merchantRepository = merchantRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.validationService = validationService;
+        this.accessControlUtil = accessControlUtil;
     }
 
+    /**
+     * Create a merchant and its associated merchant user account.
+     */
     @Override
     public MerchantResponse createMerchant(MerchantRequest request) {
         if (merchantRepository.existsByMerchantName(request.getMerchantName())) {
@@ -108,6 +128,9 @@ public class MerchantServiceImpl implements MerchantService {
         return response;
     }
 
+    /**
+     * Update merchant fields after validating input and uniqueness rules.
+     */
     @Override
     public MerchantResponse updateMerchant(Integer id, MerchantRequest request) {
         // 1. VALIDATE REQUEST BODY - Check for empty request
@@ -206,6 +229,9 @@ public class MerchantServiceImpl implements MerchantService {
         return mapToResponse(merchant);
     }
 
+    /**
+     * Check whether the update request has any non-empty fields.
+     */
     private boolean isEmptyRequest(MerchantRequest request) {
         return (request.getMerchantName() == null || request.getMerchantName().trim().isEmpty()) &&
                (request.getEmail() == null || request.getEmail().trim().isEmpty()) &&
@@ -217,6 +243,9 @@ public class MerchantServiceImpl implements MerchantService {
                (request.getPassword() == null || request.getPassword().trim().isEmpty());
     }
 
+    /**
+     * Fetch a merchant by ID or throw if not found.
+     */
     @Override
     public MerchantResponse getMerchantById(Integer id) {
         Merchant merchant = merchantRepository.findById(id)
@@ -224,6 +253,9 @@ public class MerchantServiceImpl implements MerchantService {
         return mapToResponse(merchant);
     }
 
+    /**
+     * Return all merchants without pagination.
+     */
     @Override
     public List<MerchantResponse> getAllMerchants() {
         return merchantRepository.findAll().stream()
@@ -231,11 +263,17 @@ public class MerchantServiceImpl implements MerchantService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Return paginated merchants without filters.
+     */
     @Override
     public PageResponse<MerchantResponse> getAllMerchants(PageRequest pageRequest) {
         return getAllMerchants(pageRequest, null, null);
     }
 
+    /**
+     * Return paginated merchants with optional status/search filters.
+     */
     @Override
     public PageResponse<MerchantResponse> getAllMerchants(PageRequest pageRequest, String status, String search) {
         Pageable pageable = createPageable(pageRequest);
@@ -280,6 +318,134 @@ public class MerchantServiceImpl implements MerchantService {
         );
     }
 
+    /**
+     * Build the HTTP response for merchant creation with access checks.
+     */
+    @Override
+    public ResponseEntity<Map<String, Object>> createMerchantResponse(MerchantRequest request, Authentication authentication) {
+        if (!accessControlUtil.isSuperAdmin(authentication) &&
+                !accessControlUtil.hasPermission(authentication, "merchants.create")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Auth.ACCESS_DENIED));
+        }
+        try {
+            MerchantResponse response = createMerchant(request);
+            String message = "Merchant '" + request.getMerchantName() + "' created successfully with ID: " + response.getMerchantId();
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ResponseBuilder.success(HttpResponseUtil.CREATED, message, response));
+        } catch (RuntimeException e) {
+            String message = e.getMessage() == null ? "" : e.getMessage();
+            if (message.contains("already exists")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ResponseBuilder.error(HttpResponseUtil.CONFLICT, message));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, "Failed to create merchant: " + message));
+        }
+    }
+
+    /**
+     * Build the HTTP response for merchant update with access checks.
+     */
+    @Override
+    public ResponseEntity<Map<String, Object>> updateMerchantResponse(Integer id, MerchantRequest request, Authentication authentication) {
+        if (!accessControlUtil.isSuperAdmin(authentication) && !canAccessMerchant(authentication, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, "Access denied: You can only update your own merchant data"));
+        }
+
+        MerchantResponse response = updateMerchant(id, request);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(ResponseBuilder.success(HttpResponseUtil.OK, "Merchant ID " + id + " updated successfully", response));
+    }
+
+    /**
+     * Build the HTTP response for fetching a merchant by ID with access checks.
+     */
+    @Override
+    public ResponseEntity<Map<String, Object>> getMerchantResponse(Integer id, Authentication authentication) {
+        if (!accessControlUtil.isSuperAdmin(authentication) &&
+                !accessControlUtil.hasPermission(authentication, "merchants.read") &&
+                !canAccessMerchant(authentication, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, "Access denied: You can only view your own merchant data"));
+        }
+
+        try {
+            MerchantResponse response = getMerchantById(id);
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ResponseBuilder.success(HttpResponseUtil.OK, "Merchant profile retrieved successfully", response));
+        } catch (RuntimeException e) {
+            String message = e.getMessage() == null ? "" : e.getMessage();
+            if (message.contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, "Merchant not found with ID: " + id));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR, "Internal server error while retrieving merchant"));
+        }
+    }
+
+    /**
+     * Build the HTTP response for listing merchants with pagination and filters.
+     */
+    @Override
+    public ResponseEntity<Map<String, Object>> getAllMerchantsResponse(int page, int size, String sortBy, String sortDirection, String status, String search, Authentication authentication) {
+        if (!accessControlUtil.isSuperAdmin(authentication) &&
+                !accessControlUtil.hasPermission(authentication, "merchants.read")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Auth.ACCESS_DENIED));
+        }
+
+        try {
+            PageRequest pageRequest = new PageRequest(page, size, sortBy, sortDirection);
+            PageResponse<MerchantResponse> response = getAllMerchants(pageRequest, status, search);
+            String message = String.format(
+                    "Merchants retrieved successfully. Page %d of %d, Total: %d",
+                    response.getPage() + 1,
+                    response.getTotalPages(),
+                    response.getTotalElements()
+            );
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ResponseBuilder.success(HttpResponseUtil.OK, message, response));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR, "Internal server error while retrieving merchants"));
+        }
+    }
+
+    /**
+     * Build the HTTP response for merchant deletion.
+     */
+    @Override
+    public ResponseEntity<Map<String, Object>> deleteMerchantResponse(Integer id, Authentication authentication) {
+        if (!accessControlUtil.isSuperAdmin(authentication)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Auth.ACCESS_DENIED));
+        }
+
+        try {
+            deleteMerchant(id);
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(ResponseBuilder.success(HttpResponseUtil.OK, "Merchant ID " + id + " deleted successfully"));
+        } catch (RuntimeException e) {
+            String message = e.getMessage() == null ? "" : e.getMessage();
+            if (message.contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, "Merchant not found with ID: " + id));
+            }
+            if (message.contains("cannot be deleted")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ResponseBuilder.error(HttpResponseUtil.CONFLICT, "Merchant cannot be deleted: " + message));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR, "Internal server error while deleting merchant"));
+        }
+    }
+
+    /**
+     * Map a merchant to response using pre-fetched users to avoid N+1 lookups.
+     */
     private MerchantResponse mapToResponseOptimized(Merchant merchant) {
         MerchantResponse response = new MerchantResponse();
         response.setMerchantId(merchant.getMerchantId());
@@ -316,6 +482,9 @@ public class MerchantServiceImpl implements MerchantService {
         return response;
     }
 
+    /**
+     * Build a pageable instance with optional sorting.
+     */
     private Pageable createPageable(PageRequest pageRequest) {
         Sort sort = Sort.unsorted();
         if (pageRequest.getSortBy() != null && !pageRequest.getSortBy().trim().isEmpty()) {
@@ -327,6 +496,9 @@ public class MerchantServiceImpl implements MerchantService {
         return org.springframework.data.domain.PageRequest.of(pageRequest.getPage(), pageRequest.getSize(), sort);
     }
 
+    /**
+     * Delete a merchant and its associated users.
+     */
     @Override
     public void deleteMerchant(Integer id) {
         Merchant merchant = merchantRepository.findById(id)
@@ -339,6 +511,9 @@ public class MerchantServiceImpl implements MerchantService {
         merchantRepository.deleteById(id);
     }
 
+    /**
+     * Check if the authenticated merchant user can access the given merchant ID.
+     */
     @Override
     public boolean canAccessMerchant(Authentication authentication, Integer merchantId) {
         if (authentication == null || merchantId == null) {
@@ -361,12 +536,18 @@ public class MerchantServiceImpl implements MerchantService {
             return false;
         }
     }
-    
+
+    /**
+     * Mask a phone number for safe display in messages.
+     */
     private String maskPhone(String phone) {
         if (phone == null || phone.length() < 4) return "****";
         return "****" + phone.substring(phone.length() - 4);
     }
 
+    /**
+     * Map a merchant entity to its response DTO.
+     */
     private MerchantResponse mapToResponse(Merchant merchant) {
         MerchantResponse response = new MerchantResponse();
         response.setMerchantId(merchant.getMerchantId());

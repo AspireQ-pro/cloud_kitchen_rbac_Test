@@ -1,15 +1,31 @@
 package com.cloudkitchen.rbac.service;
 
-import com.cloudkitchen.rbac.dto.auth.*;
+import java.util.Map;
+
+import org.springframework.http.ResponseEntity;
+
+import com.cloudkitchen.rbac.dto.auth.AuthRequest;
+import com.cloudkitchen.rbac.dto.auth.AuthResponse;
+import com.cloudkitchen.rbac.dto.auth.OtpRequest;
+import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
+import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
+import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 
 public interface AuthService {
+    ResponseEntity<Map<String, Object>> registerCustomer(RegisterRequest req);
     AuthResponse registerUser(RegisterRequest req);
+    ResponseEntity<Map<String, Object>> customerLogin(AuthRequest req);
+    ResponseEntity<Map<String, Object>> merchantAdminLogin(AuthRequest req);
     AuthResponse login(AuthRequest req);
 
+    ResponseEntity<Map<String, Object>> refreshToken(RefreshTokenRequest req);
     AuthResponse refresh(RefreshTokenRequest req);
+    ResponseEntity<Map<String, Object>> logoutByAuthorizationHeader(String authHeader);
     void logout(Integer userId);
 
+    ResponseEntity<Map<String, Object>> requestOtpResponse(OtpRequest req);
     void requestOtp(OtpRequest req);
+    ResponseEntity<Map<String, Object>> verifyOtpResponse(OtpVerifyRequest req);
     AuthResponse verifyOtp(OtpVerifyRequest req);
     String verifyOtpWithStatus(OtpVerifyRequest req);
 
