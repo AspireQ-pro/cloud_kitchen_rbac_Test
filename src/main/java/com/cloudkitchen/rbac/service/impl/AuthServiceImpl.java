@@ -24,7 +24,6 @@ import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.AccessDeniedException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.InvalidCredentialsException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.InvalidOtpException;
-import com.cloudkitchen.rbac.exception.BusinessExceptions.LoginMethodNotAllowedException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.MerchantNotFoundException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.MobileNotRegisteredException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpAttemptsExceededException;
@@ -139,6 +138,8 @@ public class AuthServiceImpl implements AuthService {
         user.setUserType(userType);
         user.setPasswordHash(encoder.encode(req.getPassword()));
         user.setAddress(req.getAddress());
+        // preferred_login_method will use database default value ('otp')
+        // Can be changed per user via admin API if needed
 
         return user;
     }
@@ -190,14 +191,12 @@ public class AuthServiceImpl implements AuthService {
         // 2. BUSINESS VALIDATION
         User user = findUserForLogin(req);
 
-        // 3. CHECK PREFERRED LOGIN METHOD
-        checkPreferredLoginMethod(user, "password");
-
-        // 4. VERIFY PASSWORD
+        // 3. VERIFY PASSWORD
         verifyPassword(user, req.getPassword());
 
-        // 5. UPDATE LAST LOGIN TIMESTAMP
+        // 4. UPDATE LAST LOGIN TIMESTAMP AND TRACK LOGIN METHOD
         user.setLastLoginAt(LocalDateTime.now());
+        user.setPreferredLoginMethod("password"); // Track that password was used
         users.save(user);
 
         Integer customerId = getCustomerId(user, req.getMerchantId());
@@ -254,33 +253,6 @@ public class AuthServiceImpl implements AuthService {
             throw new AccessDeniedException("Account is inactive. Please contact support.");
         }
         return user;
-    }
-
-    private void checkPreferredLoginMethod(User user, String requestedMethod) {
-        String preferredMethod = user.getPreferredLoginMethod();
-        if (preferredMethod == null) {
-            // No preference set, allow both methods
-            return;
-        }
-
-        // If "both" is preferred, allow any method
-        if ("both".equalsIgnoreCase(preferredMethod)) {
-            return;
-        }
-
-        // If requesting password login but only OTP is allowed
-        if ("password".equalsIgnoreCase(requestedMethod) && "otp".equalsIgnoreCase(preferredMethod)) {
-            throw new LoginMethodNotAllowedException(
-                "Password login is not enabled for this account. Please use OTP to login."
-            );
-        }
-
-        // If requesting OTP login but only password is allowed
-        if ("otp".equalsIgnoreCase(requestedMethod) && "password".equalsIgnoreCase(preferredMethod)) {
-            throw new LoginMethodNotAllowedException(
-                "OTP login is not enabled for this account. Please use password to login."
-            );
-        }
     }
 
     private void verifyPassword(User user, String password) {
@@ -600,11 +572,6 @@ public class AuthServiceImpl implements AuthService {
             User user = findUserForOtpRequest(req, otpType);
             validateUserRoleForOtpRequest(user, req.getMerchantId());
 
-            // Check preferred login method only for login OTPs
-            if ("login".equals(otpType)) {
-                checkPreferredLoginMethod(user, "otp");
-            }
-
             checkPhoneBlockStatus(req.getPhone(), req.getMerchantId(), maskedPhone);
             validateOtpRateLimitForRequest(req.getPhone(), otpType);
             invalidateExistingOtpSafely(user);
@@ -847,9 +814,10 @@ public class AuthServiceImpl implements AuthService {
             Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
             otpAuditService.logOtpVerified(req.getPhone(), merchantId);
 
-            // Mark OTP as used and update last login timestamp
+            // Mark OTP as used, update last login timestamp, and track login method
             user.setOtpUsed(true);
             user.setLastLoginAt(LocalDateTime.now());
+            user.setPreferredLoginMethod("otp"); // Track that OTP was used
             users.save(user);
             clearOtpData(user);
 
