@@ -4,140 +4,374 @@ components:
       type: object
       required:
         - status
+        - code
         - message
+        - success
       properties:
         status:
           type: integer
           description: HTTP status code
+          example: 400
+        code:
+          type: integer
+          description: Application status code (mirrors HTTP status)
           example: 400
         message:
           type: string
           description: Error message
           example: "Validation failed"
+        success:
+          type: boolean
+          description: Indicates a failed response
+          example: false
+        details:
+          type: string
+          description: Optional error details
+          example: "Invalid credentials provided"
+        path:
+          type: string
+          description: Request path
+          example: "/api/v1/auth/login"
+        traceId:
+          type: string
+          description: Short trace identifier for troubleshooting
+          example: "a1b2c3d4"
         data:
           type: object
           nullable: true
           description: Additional error data
+        fieldErrors:
+          type: array
+          description: Field-level validation errors
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: Field name
+                example: "email"
+              message:
+                type: string
+                description: Validation error message
+                example: "Invalid email format"
+              rejectedValue:
+                nullable: true
+                description: Sanitized rejected value
+                example: "invalid-email"
 
     ValidationErrorResponse:
       type: object
       required:
         - status
+        - code
         - message
+        - success
       properties:
         status:
           type: integer
           description: HTTP status code
           example: 400
+        code:
+          type: integer
+          description: Application status code (mirrors HTTP status)
+          example: 400
         message:
           type: string
           description: Validation error message
           example: "Invalid input data"
+        success:
+          type: boolean
+          description: Indicates a failed response
+          example: false
+        details:
+          type: string
+          description: Optional error details
+          example: "Email is required"
+        path:
+          type: string
+          description: Request path
+          example: "/api/v1/merchants"
+        traceId:
+          type: string
+          description: Short trace identifier for troubleshooting
+          example: "e9f1c2d3"
         data:
           type: object
           nullable: true
+        fieldErrors:
+          type: array
+          description: Field-level validation errors
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: Field name
+                example: "phone"
+              message:
+                type: string
+                description: Validation error message
+                example: "Invalid mobile number"
+              rejectedValue:
+                nullable: true
+                description: Sanitized rejected value
+                example: "123"
 
     UnauthorizedErrorResponse:
       type: object
       required:
         - status
+        - code
         - message
+        - success
       properties:
         status:
           type: integer
           description: HTTP status code
           example: 401
+        code:
+          type: integer
+          description: Application status code (mirrors HTTP status)
+          example: 401
         message:
           type: string
           description: Unauthorized error message
           example: "Unauthorized - Authentication required"
+        success:
+          type: boolean
+          description: Indicates a failed response
+          example: false
+        details:
+          type: string
+          description: Optional error details
+          example: "Invalid credentials provided"
+        path:
+          type: string
+          description: Request path
+          example: "/api/v1/auth/login"
+        traceId:
+          type: string
+          description: Short trace identifier for troubleshooting
+          example: "9d8c7b6a"
 
     ForbiddenErrorResponse:
       type: object
       required:
         - status
+        - code
         - message
+        - success
       properties:
         status:
           type: integer
           description: HTTP status code
           example: 403
+        code:
+          type: integer
+          description: Application status code (mirrors HTTP status)
+          example: 403
         message:
           type: string
           description: Forbidden error message
           example: "Access denied"
+        success:
+          type: boolean
+          description: Indicates a failed response
+          example: false
+        details:
+          type: string
+          description: Optional error details
+          example: "You do not have permission to access this resource"
+        path:
+          type: string
+          description: Request path
+          example: "/api/v1/users"
+        traceId:
+          type: string
+          description: Short trace identifier for troubleshooting
+          example: "7f6e5d4c"
 
     NotFoundErrorResponse:
       type: object
       required:
         - status
+        - code
         - message
+        - success
       properties:
         status:
           type: integer
           description: HTTP status code
           example: 404
+        code:
+          type: integer
+          description: Application status code (mirrors HTTP status)
+          example: 404
         message:
           type: string
           description: Not found error message
           example: "Resource not found"
+        success:
+          type: boolean
+          description: Indicates a failed response
+          example: false
+        details:
+          type: string
+          description: Optional error details
+          example: "The requested resource does not exist"
+        path:
+          type: string
+          description: Request path
+          example: "/api/v1/merchants/1"
+        traceId:
+          type: string
+          description: Short trace identifier for troubleshooting
+          example: "c3d4e5f6"
 
     ConflictErrorResponse:
       type: object
       required:
         - status
+        - code
         - message
+        - success
       properties:
         status:
           type: integer
           description: HTTP status code
           example: 409
+        code:
+          type: integer
+          description: Application status code (mirrors HTTP status)
+          example: 409
         message:
           type: string
           description: Conflict error message
           example: "Resource already exists"
+        success:
+          type: boolean
+          description: Indicates a failed response
+          example: false
+        details:
+          type: string
+          description: Optional error details
+          example: "Username already exists"
+        path:
+          type: string
+          description: Request path
+          example: "/api/v1/users"
+        traceId:
+          type: string
+          description: Short trace identifier for troubleshooting
+          example: "b2c3d4e5"
 
     TooManyRequestsErrorResponse:
       type: object
       required:
         - status
+        - code
         - message
+        - success
       properties:
         status:
           type: integer
           description: HTTP status code
           example: 429
+        code:
+          type: integer
+          description: Application status code (mirrors HTTP status)
+          example: 429
         message:
           type: string
           description: Rate limit error message
           example: "Too many requests. Please try again later"
+        success:
+          type: boolean
+          description: Indicates a failed response
+          example: false
+        details:
+          type: string
+          description: Optional error details
+          example: "Too many requests. Please try again later."
+        path:
+          type: string
+          description: Request path
+          example: "/api/v1/auth/otp/verify"
+        traceId:
+          type: string
+          description: Short trace identifier for troubleshooting
+          example: "d4e5f6g7"
 
     InternalServerErrorResponse:
       type: object
       required:
         - status
+        - code
         - message
+        - success
       properties:
         status:
           type: integer
           description: HTTP status code
           example: 500
+        code:
+          type: integer
+          description: Application status code (mirrors HTTP status)
+          example: 500
         message:
           type: string
           description: Internal server error message
           example: "Internal server error"
+        success:
+          type: boolean
+          description: Indicates a failed response
+          example: false
+        details:
+          type: string
+          description: Optional error details
+          example: "An unexpected error occurred while processing your request"
+        path:
+          type: string
+          description: Request path
+          example: "/api/v1/merchants"
+        traceId:
+          type: string
+          description: Short trace identifier for troubleshooting
+          example: "f6g7h8i9"
 
     ServiceUnavailableErrorResponse:
       type: object
       required:
         - status
+        - code
         - message
+        - success
       properties:
         status:
           type: integer
           description: HTTP status code
           example: 503
+        code:
+          type: integer
+          description: Application status code (mirrors HTTP status)
+          example: 503
         message:
           type: string
           description: Service unavailable error message
           example: "Service temporarily unavailable"
+        success:
+          type: boolean
+          description: Indicates a failed response
+          example: false
+        details:
+          type: string
+          description: Optional error details
+          example: "The service is temporarily unavailable. Please try again later."
+        path:
+          type: string
+          description: Request path
+          example: "/api/v1/merchants"
+        traceId:
+          type: string
+          description: Short trace identifier for troubleshooting
+          example: "a7b8c9d0"

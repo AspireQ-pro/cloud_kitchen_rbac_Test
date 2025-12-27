@@ -4,16 +4,26 @@ components:
       type: object
       required:
         - status
+        - code
         - message
+        - success
       properties:
         status:
           type: integer
           description: HTTP status code
           example: 200
+        code:
+          type: integer
+          description: Application status code (mirrors HTTP status)
+          example: 200
         message:
           type: string
           description: Success message
           example: "Operation successful"
+        success:
+          type: boolean
+          description: Indicates a successful response
+          example: true
         data:
           type: object
           nullable: true

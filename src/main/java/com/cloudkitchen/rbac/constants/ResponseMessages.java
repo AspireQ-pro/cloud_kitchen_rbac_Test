@@ -15,7 +15,11 @@ public final class ResponseMessages {
         public static final String CUSTOMER_LOGIN_SUCCESS = "Customer login successful";
         public static final String LOGOUT_SUCCESS = "Logged out successfully";
         public static final String REGISTRATION_SUCCESS = "Customer registration successful";
+        public static final String REGISTRATION_FAILED_PREFIX = "Registration failed: ";
+        public static final String REGISTRATION_FAILED_UNEXPECTED = "Registration failed due to unexpected error";
         public static final String TOKEN_REFRESH_SUCCESS = "Token refreshed successfully";
+        public static final String TOKEN_REFRESH_FAILED = "Token refresh failed";
+        public static final String INVALID_OR_EXPIRED_REFRESH_TOKEN = "Invalid or expired refresh token";
         public static final String INVALID_CREDENTIALS = "Invalid username or password";
         public static final String ACCOUNT_INACTIVE = "Account is inactive";
         public static final String TOKEN_EXPIRED = "Your session has expired. Please login again.";
@@ -35,6 +39,7 @@ public final class ResponseMessages {
         public static final String OTP_VERIFIED = "Verification successful";
         public static final String OTP_PASSWORD_RESET_SUCCESS = "OTP verified. Default password has been set. Please change it in your profile.";
         public static final String OTP_TYPE_PASSWORD_RESET = "password_reset";
+        public static final String RATE_LIMIT_EXCEEDED_PREFIX = "Rate limit exceeded: ";
         public static final String OTP_EXPIRED = "OTP expired";
         public static final String OTP_INVALID = "Invalid OTP";
         public static final String OTP_ALREADY_USED = "OTP already used";
@@ -125,6 +130,7 @@ public final class ResponseMessages {
         public static final String USERNAME_WHITESPACE = "Username cannot be empty or contain only whitespace";
         public static final String EMAIL_WHITESPACE = "Email cannot be empty or contain only whitespace";
         public static final String OTP_MUST_BE_NUMERIC = "OTP must be numeric";
+        public static final String BAD_REQUEST = "Bad Request";
     }
     
     // System Messages
