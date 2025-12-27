@@ -313,6 +313,26 @@ public class GlobalExceptionHandler {
         logger.warn("OTP attempts exceeded for request");
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
     }
+
+    @ExceptionHandler(LoginMethodNotAllowedException.class)
+    public ResponseEntity<Map<String, Object>> handleLoginMethodNotAllowedException(LoginMethodNotAllowedException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(403, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("Login method not allowed: {}", sanitizeLogMessage(ex.getMessage()));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @ExceptionHandler(OtpInvalidException.class)
+    public ResponseEntity<Map<String, Object>> handleOtpInvalidException(OtpInvalidException ex, WebRequest request) {
+        Map<String, Object> response = ResponseBuilder.error(400, sanitizeErrorMessage(ex.getMessage()));
+        response.put("path", request.getDescription(false).replace("uri=", ""));
+        response.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+
+        logger.warn("OTP invalid: {}", sanitizeLogMessage(ex.getMessage()));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
     
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex, WebRequest request) {
@@ -345,7 +365,9 @@ public class GlobalExceptionHandler {
             ex instanceof BusinessExceptions.TokenExpiredException ||
             ex instanceof BusinessExceptions.ServiceUnavailableException ||
             ex instanceof BusinessExceptions.FileUploadException ||
-            ex instanceof BusinessExceptions.ValidationException) {
+            ex instanceof BusinessExceptions.ValidationException ||
+            ex instanceof BusinessExceptions.LoginMethodNotAllowedException ||
+            ex instanceof BusinessExceptions.OtpInvalidException) {
             // Re-throw to be handled by specific handlers
             throw ex;
         }

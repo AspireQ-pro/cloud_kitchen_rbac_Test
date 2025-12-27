@@ -47,30 +47,6 @@ paths:
                     example: "Registration successful"
                   data:
                     $ref: '#/components/schemas/AuthResponse'
-        '400':
-          description: Invalid input data
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
-        '404':
-          description: Merchant not found
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
-        '409':
-          description: User already exists
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ConflictErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
 
   /api/v1/auth/login:
     post:
@@ -108,30 +84,6 @@ paths:
                     example: "Login successful"
                   data:
                     $ref: '#/components/schemas/AuthResponse'
-        '400':
-          description: Invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
-        '401':
-          description: Authentication failed
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
-        '403':
-          description: Merchant login only (merchantId must be 0)
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
 
   /api/v1/auth/customer/login:
     post:
@@ -169,24 +121,6 @@ paths:
                     example: "Customer login successful"
                   data:
                     $ref: '#/components/schemas/AuthResponse'
-        '400':
-          description: Invalid merchantId or credentials
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
-        '401':
-          description: Authentication failed
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
 
   /api/v1/auth/refresh:
     post:
@@ -220,24 +154,6 @@ paths:
                     example: "Token refresh successful"
                   data:
                     $ref: '#/components/schemas/AuthResponse'
-        '400':
-          description: Invalid refresh token format
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
-        '401':
-          description: Invalid or expired refresh token
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
 
   /api/v1/auth/logout:
     post:
@@ -276,18 +192,6 @@ paths:
                   message:
                     type: string
                     example: "Logout successful"
-        '400':
-          description: Bad request - Invalid token format
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
-        '401':
-          description: Unauthorized - Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
 
   /api/v1/auth/otp/request:
     post:
@@ -329,42 +233,6 @@ paths:
                   message:
                     type: string
                     example: "OTP sent successfully"
-        '400':
-          description: Invalid phone number or request
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
-        '403':
-          description: Access denied
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ForbiddenErrorResponse'
-        '404':
-          description: Phone number not registered
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/NotFoundErrorResponse'
-        '429':
-          description: Too many OTP requests
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/TooManyRequestsErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
-        '503':
-          description: SMS service unavailable
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ServiceUnavailableErrorResponse'
 
   /api/v1/auth/otp/verify:
     post:
@@ -408,24 +276,6 @@ paths:
                     example: "OTP verified successfully"
                   data:
                     $ref: '#/components/schemas/AuthResponse'
-        '400':
-          description: Invalid OTP or request
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/ValidationErrorResponse'
-        '401':
-          description: OTP verification failed
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/UnauthorizedErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: './common/errors.yaml#/components/schemas/InternalServerErrorResponse'
 
 components:
   schemas:

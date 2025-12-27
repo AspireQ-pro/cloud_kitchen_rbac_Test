@@ -135,10 +135,10 @@ public class User {
     @Column(name = "guest_converted_at")
     private LocalDateTime guestConvertedAt;
 
-    // Login preference
+    // Track last login method used (not a preference/restriction)
     @Column(name = "preferred_login_method", length = 20)
     @Check(constraints = "preferred_login_method IN ('password', 'otp', 'both')")
-    private String preferredLoginMethod = "otp";
+    private String preferredLoginMethod;
 
     @Column(name = "created_by")
     private Integer createdBy;
