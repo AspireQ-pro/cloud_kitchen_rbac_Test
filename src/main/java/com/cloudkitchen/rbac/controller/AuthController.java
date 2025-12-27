@@ -26,12 +26,8 @@ import com.cloudkitchen.rbac.util.HttpResponseUtil;
 import com.cloudkitchen.rbac.util.ResponseBuilder;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 @RestController
@@ -49,6 +45,16 @@ public class AuthController {
         this.validationService = validationService;
     }
 
+    /**
+     * Handle customer registration: validate input, register a user for the specified merchant,
+     * and return authentication tokens on success.
+     *
+     * @param req registration request body containing name, email, phone, password, and merchantId;
+     *            all fields required and merchantId must be > 0
+     * @return HTTP response with success payload (201) including access/refresh tokens and user info,
+     *         or error payloads with status codes 400 (invalid/missing data), 404 (merchant not found),
+     *         409 (conflict/user exists), or 500 (server error)
+     */
     @PostMapping("/signup")
     @Operation(
         summary = "Customer Registration",
@@ -63,14 +69,6 @@ public class AuthController {
                      "- Invalid email format (400)\n" +
                      "- Missing required fields (400)"
     )
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "Registration successful",
-            content = @Content(mediaType = "application/json",
-                examples = @ExampleObject(value = "{\"status\":201,\"message\":\"Registration successful\",\"data\":{\"accessToken\":\"jwt_token\",\"refreshToken\":\"refresh_token\",\"user\":{\"userId\":1,\"name\":\"John Doe\"}}}"))),
-        @ApiResponse(responseCode = "400", description = "Invalid request data"),
-        @ApiResponse(responseCode = "404", description = "Merchant not found"),
-        @ApiResponse(responseCode = "409", description = "User already exists")
-    })
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest req) {
         try {
             log.info("Registration request received for merchantId: {}", req.getMerchantId());
@@ -121,6 +119,14 @@ public class AuthController {
         }
     }
 
+    /**
+     * Authenticate a customer for a given merchant and return authentication tokens and user info.
+     *
+     * @param req request body containing email, password, and merchantId
+     *            (merchantId must be > 0 for customer login)
+     * @return HTTP response: 200 with auth data (accessToken, refreshToken, user) on success;
+     *         400 for missing/invalid merchantId; 401 for invalid credentials
+     */
     @PostMapping("/customer/login")
     @Operation(
         summary = "Customer Login",
@@ -135,13 +141,6 @@ public class AuthController {
                      "- MerchantId = 0 or null (400)\n" +
                      "- Non-existent customer (401)"
     )
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Customer login successful",
-            content = @Content(mediaType = "application/json",
-                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"Customer login successful\",\"data\":{\"accessToken\":\"jwt_token\",\"refreshToken\":\"refresh_token\",\"user\":{\"userId\":1,\"role\":\"CUSTOMER\"}}}"))),
-        @ApiResponse(responseCode = "400", description = "Invalid request - merchantId required"),
-        @ApiResponse(responseCode = "401", description = "Invalid credentials")
-    })
     public ResponseEntity<Map<String, Object>> customerLogin(@RequestBody AuthRequest req) {
         log.info("Customer login request for merchantId: {}", req.getMerchantId());
         
@@ -155,6 +154,14 @@ public class AuthController {
         return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Auth.CUSTOMER_LOGIN_SUCCESS, authResponse));
     }
 
+    /**
+     * Authenticate merchant or admin users; enforce merchantId = null or 0 for merchant login and
+     * return authentication result.
+     *
+     * @param req login request containing email, password, and optional merchantId
+     * @return 403 FORBIDDEN if merchantId is non-null and non-zero; 401 for invalid credentials;
+     *         200 OK with auth payload (accessToken, refreshToken, user) on success
+     */
     @PostMapping(value = "/login", consumes = "application/json")
     @Operation(
         summary = "Merchant/Admin Login",
@@ -169,20 +176,7 @@ public class AuthController {
                      "- MerchantId > 0 (403)\n" +
                      "- Missing credentials (400)"
     )
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Login successful",
-            content = @Content(mediaType = "application/json",
-                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"Login successful\",\"data\":{\"accessToken\":\"jwt_token\",\"refreshToken\":\"refresh_token\",\"user\":{\"userId\":1,\"role\":\"MERCHANT\"}}}"))),
-        @ApiResponse(responseCode = "401", description = "Invalid credentials"),
-        @ApiResponse(responseCode = "403", description = "Forbidden - Invalid merchantId for merchant login")
-    })
     public ResponseEntity<Map<String, Object>> merchantAdminLogin(@RequestBody AuthRequest req) {
-/**
-         * Handle login requests: enforce that only merchantId 0 (or null) is allowed, authenticate, and return the result.
-         * @param {LoginRequest} req - Login request containing credentials and an optional merchantId.
-         * @return {ResponseEntity<?>} - 403 FORBIDDEN if merchantId is non-null and non-zero; otherwise 200 OK with AuthResponse payload.
-         */
-
         log.info("Login request received for merchantId: {}", req.getMerchantId());
         
         // Validate merchantId restriction for merchant login
@@ -190,7 +184,6 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Auth.MERCHANT_LOGIN_ONLY));
         }
-        
         AuthResponse authResponse = auth.login(req);
         return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Auth.LOGIN_SUCCESS, authResponse));
     }
@@ -209,13 +202,6 @@ public class AuthController {
                      "- Revoked refresh token (401)\n" +
                      "- Missing refresh token (400)"
     )
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Token refresh successful",
-            content = @Content(mediaType = "application/json",
-                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"Token refresh successful\",\"data\":{\"accessToken\":\"new_jwt_token\",\"refreshToken\":\"new_refresh_token\"}}"))),
-        @ApiResponse(responseCode = "400", description = "Invalid request"),
-        @ApiResponse(responseCode = "401", description = "Invalid or expired refresh token")
-    })
     public ResponseEntity<Map<String, Object>> refresh(@Valid @RequestBody RefreshTokenRequest req) {
         try {
             AuthResponse authResponse = auth.refresh(req);
@@ -244,24 +230,17 @@ public class AuthController {
                      "- Missing Authorization header (401)\n" +
                      "- Malformed token (401)"
     )
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Logout successful",
-            content = @Content(mediaType = "application/json",
-                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"Logout successful\"}"))),
-        @ApiResponse(responseCode = "400", description = "Bad request - Invalid token format"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token")
-    })
     @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<Map<String, Object>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         // D001: Return 401 when Authorization header is missing
         if (authHeader == null || authHeader.trim().isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
         }
         
         if (!authHeader.startsWith("Bearer ")) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
         }
         
         try {
@@ -273,7 +252,7 @@ public class AuthController {
             // D002: Validate token properly - this will throw exception for invalid/tampered tokens
             if (!jwt.validateAccessToken(token)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
+                        .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
             }
             
             Integer userId = jwt.getUserIdFromToken(token);
@@ -285,17 +264,25 @@ public class AuthController {
                     .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, "Bad Request"));
         } catch (io.jsonwebtoken.ExpiredJwtException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
         } catch (io.jsonwebtoken.MalformedJwtException | io.jsonwebtoken.security.SignatureException | 
                  io.jsonwebtoken.UnsupportedJwtException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, "Unauthorized - Authentication required."));
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
         }
     }
 
+    /**
+     * Handle OTP request for a phone number and merchant, performing validation, rate-limiting,
+     * and SMS service handling.
+     *
+     * @param req request body containing phone, merchantId, and optional otpType (defaults to "login")
+     * @return HTTP response containing status and message; 200 on success,
+     *         400/404/403/429/503/500 on errors
+     */
     @PostMapping("/otp/request")
     @Operation(
         summary = "Request OTP",
@@ -310,15 +297,6 @@ public class AuthController {
                      "- Too many requests (429)\n" +
                      "- Missing merchantId (400)"
     )
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "OTP sent successfully",
-            content = @Content(mediaType = "application/json",
-                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"OTP sent successfully\"}"))),
-        @ApiResponse(responseCode = "400", description = "Invalid request data"),
-        @ApiResponse(responseCode = "404", description = "Phone number not registered"),
-        @ApiResponse(responseCode = "429", description = "Too many requests - Rate limit exceeded"),
-        @ApiResponse(responseCode = "503", description = "SMS service unavailable")
-    })
     public ResponseEntity<Map<String, Object>> requestOtp(@Valid @RequestBody OtpRequest req) {
         try {
             // Validate phone number first
@@ -383,6 +361,12 @@ public class AuthController {
         }
     }
     
+    /**
+     * Verify provided OTP, generate authentication tokens on success, and return an appropriate HTTP response.
+     *
+     * @param req request containing phone, otp, merchantId, and otpType used for verification and token generation
+     * @return HTTP response with success message and auth tokens (200) or an error status (400/401/404) on failure
+     */
     @PostMapping("/otp/verify")
     @Operation(
         summary = "Verify OTP",
@@ -397,31 +381,23 @@ public class AuthController {
                      "- Wrong phone number (404)\n" +
                      "- Missing required fields (400)"
     )
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "OTP verified successfully",
-            content = @Content(mediaType = "application/json",
-                examples = @ExampleObject(value = "{\"status\":200,\"message\":\"OTP verified successfully\",\"data\":{\"accessToken\":\"jwt_token\",\"refreshToken\":\"refresh_token\"}}"))),
-        @ApiResponse(responseCode = "400", description = "Invalid request data"),
-        @ApiResponse(responseCode = "401", description = "Invalid or expired OTP"),
-        @ApiResponse(responseCode = "404", description = "Phone number not found")
-    })
     public ResponseEntity<Map<String, Object>> verifyOtp(@Valid @RequestBody OtpVerifyRequest req) {
         log.info("OTP verification request received for merchantId: {}", req.getMerchantId());
 
         // Optimized: Single call that validates and generates token
         AuthResponse authResponse = auth.verifyOtpAndGenerateToken(req);
 
-        String message = "password_reset".equals(req.getOtpType()) ?
-            ResponseMessages.Otp.OTP_PASSWORD_RESET_SUCCESS :
-            ResponseMessages.Otp.OTP_VERIFIED;
+        String message = ResponseMessages.Otp.OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())
+                ? ResponseMessages.Otp.OTP_PASSWORD_RESET_SUCCESS
+                : ResponseMessages.Otp.OTP_VERIFIED;
 
-        log.info("OTP verification successful for request");
+        log.info("OTP verified for phone={}, merchantId={}, otpType={}", req.getPhone(), req.getMerchantId(), req.getOtpType());
         return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, message, authResponse));
     }
     
     private String getSuccessMessageByType(String otpType) {
         return switch (otpType) {
-            case "password_reset" -> ResponseMessages.Otp.PASSWORD_RESET_OTP;
+            case ResponseMessages.Otp.OTP_TYPE_PASSWORD_RESET -> ResponseMessages.Otp.PASSWORD_RESET_OTP;
             case "phone_verification" -> ResponseMessages.Otp.PHONE_VERIFICATION_OTP;
             case "account_verification" -> ResponseMessages.Otp.ACCOUNT_VERIFICATION_OTP;
             default -> ResponseMessages.Otp.OTP_SENT;
