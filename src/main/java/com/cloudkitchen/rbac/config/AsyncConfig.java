@@ -18,41 +18,21 @@ public class AsyncConfig {
     @Bean(name = "smsExecutor")
     public Executor smsExecutor() {
         log.info("Initializing SMS async executor");
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(15);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("sms-async-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(60);
-        executor.initialize();
-        return executor;
+        return buildExecutor("sms-async-", 5, 15, 100);
     }
 
     @Bean(name = "s3Executor")
     public Executor s3Executor() {
         log.info("Initializing S3 async executor");
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(3);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(50);
-        executor.setThreadNamePrefix("s3-async-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(60);
-        executor.initialize();
-        return executor;
+        return buildExecutor("s3-async-", 3, 10, 50);
     }
 
-    @Bean(name = "generalExecutor")
-    public Executor generalExecutor() {
-        log.info("Initializing general async executor");
+    private ThreadPoolTaskExecutor buildExecutor(String prefix, int corePoolSize, int maxPoolSize, int queueCapacity) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(20);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("async-");
+        executor.setCorePoolSize(corePoolSize);
+        executor.setMaxPoolSize(maxPoolSize);
+        executor.setQueueCapacity(queueCapacity);
+        executor.setThreadNamePrefix(prefix);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);

@@ -1,0 +1,43 @@
+<!-- Add these plugins to your pom.xml <plugins> section -->
+
+<!-- SpotBugs Plugin -->
+<plugin>
+    <groupId>com.github.spotbugs</groupId>
+    <artifactId>spotbugs-maven-plugin</artifactId>
+    <version>4.7.3.6</version>
+    <configuration>
+        <effort>Max</effort>
+        <threshold>Low</threshold>
+        <xmlOutput>true</xmlOutput>
+        <spotbugsXmlOutputDirectory>${project.build.directory}</spotbugsXmlOutputDirectory>
+    </configuration>
+</plugin>
+
+<!-- PMD Plugin -->
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-pmd-plugin</artifactId>
+    <version>3.21.0</version>
+    <configuration>
+        <rulesets>
+            <ruleset>/category/java/bestpractices.xml</ruleset>
+            <ruleset>/category/java/codestyle.xml</ruleset>
+            <ruleset>/category/java/design.xml</ruleset>
+            <ruleset>/category/java/errorprone.xml</ruleset>
+            <ruleset>/category/java/performance.xml</ruleset>
+            <ruleset>/category/java/security.xml</ruleset>
+        </rulesets>
+        <targetJdk>17</targetJdk>
+    </configuration>
+</plugin>
+
+<!-- OWASP Dependency Check -->
+<plugin>
+    <groupId>org.owasp</groupId>
+    <artifactId>dependency-check-maven</artifactId>
+    <version>8.4.0</version>
+    <configuration>
+        <format>XML</format>
+        <outputDirectory>${project.build.directory}</outputDirectory>
+    </configuration>
+</plugin>

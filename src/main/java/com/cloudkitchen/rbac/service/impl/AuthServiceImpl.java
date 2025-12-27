@@ -3,13 +3,18 @@ package com.cloudkitchen.rbac.service.impl;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.cloudkitchen.rbac.config.SecurityProperties;
 import com.cloudkitchen.rbac.constants.AppConstants;
+import com.cloudkitchen.rbac.constants.ResponseMessages;
 import com.cloudkitchen.rbac.domain.entity.Customer;
 import com.cloudkitchen.rbac.domain.entity.Merchant;
 import com.cloudkitchen.rbac.domain.entity.Role;
@@ -28,6 +33,7 @@ import com.cloudkitchen.rbac.exception.BusinessExceptions.MerchantNotFoundExcept
 import com.cloudkitchen.rbac.exception.BusinessExceptions.MobileNotRegisteredException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpAttemptsExceededException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpExpiredException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpInvalidException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.OtpNotFoundException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.ServiceUnavailableException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.UserAlreadyExistsException;
@@ -45,6 +51,8 @@ import com.cloudkitchen.rbac.service.OtpAuditService;
 import com.cloudkitchen.rbac.service.OtpService;
 import com.cloudkitchen.rbac.service.SmsService;
 import com.cloudkitchen.rbac.service.ValidationService;
+import com.cloudkitchen.rbac.util.HttpResponseUtil;
+import com.cloudkitchen.rbac.util.ResponseBuilder;
 
 import io.jsonwebtoken.Claims;
 
@@ -70,12 +78,13 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwt;
     private final ValidationService validationService;
     private final SecurityProperties securityProperties;
+    private final AuthService authServiceProxy;
 
     public AuthServiceImpl(UserRepository users, MerchantRepository merchants, RoleRepository roles,
             UserRoleRepository userRoles, CustomerRepository customers, PasswordEncoder encoder, OtpService otpService,
             OtpAuditService otpAuditService, SmsService smsService, JwtTokenProvider jwt,
             OtpLogRepository otpLogRepository, ValidationService validationService,
-            SecurityProperties securityProperties) {
+            SecurityProperties securityProperties, @Lazy AuthService authServiceProxy) {
         this.users = users;
         this.merchants = merchants;
         this.roles = roles;
@@ -89,6 +98,238 @@ public class AuthServiceImpl implements AuthService {
         this.otpLogRepository = otpLogRepository;
         this.validationService = validationService;
         this.securityProperties = securityProperties;
+        this.authServiceProxy = authServiceProxy;
+    }
+
+    @Override
+    public ResponseEntity<Map<String, Object>> registerCustomer(RegisterRequest req) {
+        try {
+            log.info("Registration request received for merchantId: {}", req.getMerchantId());
+
+            // Additional security validation
+            validationService.validateRegistration(req);
+
+            AuthResponse authResponse = authServiceProxy.registerUser(req);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ResponseBuilder.success(HttpResponseUtil.CREATED, ResponseMessages.Auth.REGISTRATION_SUCCESS, authResponse));
+        } catch (IllegalArgumentException e) {
+            log.warn("Registration validation failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, e.getMessage()));
+        } catch (RuntimeException e) {
+            log.error("Registration failed: {}", e.getMessage());
+
+            // Handle specific merchant not found error
+            if (e.getMessage().contains("Merchant with ID") && e.getMessage().contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, e.getMessage()));
+            }
+
+            // Handle user already exists error
+            if (e.getMessage().contains("already registered")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ResponseBuilder.error(HttpResponseUtil.CONFLICT, e.getMessage()));
+            }
+
+            // Handle phone already exists error
+            if (e.getMessage().contains("already exists")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ResponseBuilder.error(HttpResponseUtil.CONFLICT, e.getMessage()));
+            }
+
+            // Handle validation errors
+            if (e.getMessage().contains("Invalid") || e.getMessage().contains("required")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, e.getMessage()));
+            }
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR,
+                            ResponseMessages.Auth.REGISTRATION_FAILED_PREFIX + e.getMessage()));
+        } catch (Exception e) {
+            log.error("Unexpected registration error occurred: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR,
+                            ResponseMessages.Auth.REGISTRATION_FAILED_UNEXPECTED));
+        }
+    }
+
+    @Override
+    public ResponseEntity<Map<String, Object>> customerLogin(AuthRequest req) {
+        log.info("Customer login request for merchantId: {}", req.getMerchantId());
+
+        // Validate merchantId for customer login
+        if (req.getMerchantId() == null || req.getMerchantId() <= 0) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, ResponseMessages.Auth.CUSTOMER_MERCHANT_ID_REQUIRED));
+        }
+
+        AuthResponse authResponse = login(req);
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Auth.CUSTOMER_LOGIN_SUCCESS, authResponse));
+    }
+
+    @Override
+    public ResponseEntity<Map<String, Object>> merchantAdminLogin(AuthRequest req) {
+        log.info("Login request received for merchantId: {}", req.getMerchantId());
+
+        // Validate merchantId restriction for merchant login
+        if (req.getMerchantId() != null && req.getMerchantId() != 0) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Auth.MERCHANT_LOGIN_ONLY));
+        }
+        AuthResponse authResponse = login(req);
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Auth.LOGIN_SUCCESS, authResponse));
+    }
+
+    @Override
+    public ResponseEntity<Map<String, Object>> refreshToken(RefreshTokenRequest req) {
+        try {
+            AuthResponse authResponse = refresh(req);
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Auth.TOKEN_REFRESH_SUCCESS, authResponse));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Invalid refresh token") || e.getMessage().contains("revoked")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED,
+                                ResponseMessages.Auth.INVALID_OR_EXPIRED_REFRESH_TOKEN));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR, ResponseMessages.Auth.TOKEN_REFRESH_FAILED));
+        }
+    }
+
+    @Override
+    public ResponseEntity<Map<String, Object>> logoutByAuthorizationHeader(String authHeader) {
+        // D001: Return 401 when Authorization header is missing
+        if (authHeader == null || authHeader.trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
+        }
+
+        if (!authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
+        }
+
+        try {
+            String token = authHeader.substring(7).trim();
+
+            // D003 & D004: Validate token format to prevent SQL injection and XSS
+            validationService.validateTokenFormat(token);
+
+            // D002: Validate token properly - this will throw exception for invalid/tampered tokens
+            if (!jwt.validateAccessToken(token)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
+            }
+
+            Integer userId = jwt.getUserIdFromToken(token);
+            authServiceProxy.logout(userId);
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Auth.LOGOUT_SUCCESS));
+        } catch (IllegalArgumentException e) {
+            // Token format validation failed (D003, D004)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, ResponseMessages.Validation.BAD_REQUEST));
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
+        } catch (io.jsonwebtoken.MalformedJwtException | io.jsonwebtoken.security.SignatureException |
+                 io.jsonwebtoken.UnsupportedJwtException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Auth.AUTHENTICATION_REQUIRED));
+        }
+    }
+
+    @Override
+    public ResponseEntity<Map<String, Object>> requestOtpResponse(OtpRequest req) {
+        try {
+            // Validate phone number first
+            if (req.getPhone() == null || req.getPhone().trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, ResponseMessages.Otp.PHONE_REQUIRED));
+            }
+
+            // Validate phone format
+            validationService.validatePhone(req.getPhone());
+
+            // Validate merchantId is provided
+            if (req.getMerchantId() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, ResponseMessages.Otp.MERCHANT_ID_REQUIRED_OTP));
+            }
+
+            // Check if phone number exists in database
+            if (!isPhoneNumberExists(req.getPhone(), req.getMerchantId())) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Otp.PHONE_NOT_REGISTERED));
+            }
+
+            // Set default otpType if not provided
+            if (req.getOtpType() == null || req.getOtpType().trim().isEmpty()) {
+                req.setOtpType("login");
+            }
+
+            authServiceProxy.requestOtp(req);
+            String message = getSuccessMessageByType(req.getOtpType());
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, message));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, e.getMessage()));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Access denied")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, e.getMessage()));
+            }
+            if (e.getMessage().contains("Phone is blocked")) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ResponseBuilder.error(HttpResponseUtil.TOO_MANY_REQUESTS, e.getMessage()));
+            }
+            if (e.getMessage().contains("Too many OTP requests")) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ResponseBuilder.error(HttpResponseUtil.TOO_MANY_REQUESTS,
+                                ResponseMessages.Otp.RATE_LIMIT_EXCEEDED_PREFIX + e.getMessage()));
+            }
+            if (e.getMessage().contains("Too many")) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(ResponseBuilder.error(HttpResponseUtil.TOO_MANY_REQUESTS, e.getMessage()));
+            }
+            if (e.getMessage().contains("User not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Otp.PHONE_NOT_REGISTERED));
+            }
+            if (e.getMessage().contains("SMS service")) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(ResponseBuilder.error(HttpResponseUtil.SERVICE_UNAVAILABLE, ResponseMessages.Otp.SMS_SERVICE_UNAVAILABLE));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR, ResponseMessages.Otp.OTP_REQUEST_FAILED));
+        }
+    }
+
+    @Override
+    public ResponseEntity<Map<String, Object>> verifyOtpResponse(OtpVerifyRequest req) {
+        log.info("OTP verification request received for merchantId: {}", req.getMerchantId());
+
+        // Optimized: Single call that validates and generates token
+        AuthResponse authResponse = authServiceProxy.verifyOtpAndGenerateToken(req);
+
+        String message = ResponseMessages.Otp.OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())
+                ? ResponseMessages.Otp.OTP_PASSWORD_RESET_SUCCESS
+                : ResponseMessages.Otp.OTP_VERIFIED;
+
+        log.info("OTP verified for phone={}, merchantId={}, otpType={}", req.getPhone(), req.getMerchantId(), req.getOtpType());
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, message, authResponse));
+    }
+
+    private String getSuccessMessageByType(String otpType) {
+        return switch (otpType) {
+            case ResponseMessages.Otp.OTP_TYPE_PASSWORD_RESET -> ResponseMessages.Otp.PASSWORD_RESET_OTP;
+            case "phone_verification" -> ResponseMessages.Otp.PHONE_VERIFICATION_OTP;
+            case "account_verification" -> ResponseMessages.Otp.ACCOUNT_VERIFICATION_OTP;
+            default -> ResponseMessages.Otp.OTP_SENT;
+        };
     }
 
     private String maskPhone(String phone) {
@@ -137,6 +378,8 @@ public class AuthServiceImpl implements AuthService {
         user.setUserType(userType);
         user.setPasswordHash(encoder.encode(req.getPassword()));
         user.setAddress(req.getAddress());
+        // preferred_login_method will use database default value ('otp')
+        // Can be changed per user via admin API if needed
 
         return user;
     }
@@ -181,15 +424,23 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse login(AuthRequest req) {
         log.info("Login attempt for merchantId: {}", req.getMerchantId());
-        
+
         // 1. INPUT VALIDATION FIRST (before any business logic)
         validateLoginInputs(req);
-        
+
         // 2. BUSINESS VALIDATION
         User user = findUserForLogin(req);
+
+        // 3. VERIFY PASSWORD
         verifyPassword(user, req.getPassword());
+
+        // 4. UPDATE LAST LOGIN TIMESTAMP AND TRACK LOGIN METHOD
+        user.setLastLoginAt(LocalDateTime.now());
+        user.setPreferredLoginMethod("password"); // Track that password was used
+        users.save(user);
+
         Integer customerId = getCustomerId(user, req.getMerchantId());
-        
+
         log.info("Login successful for user: {} (type: {})", user.getUserId(), user.getUserType());
         return buildTokens(user, req.getMerchantId(), customerId);
     }
@@ -560,6 +811,7 @@ public class AuthServiceImpl implements AuthService {
 
             User user = findUserForOtpRequest(req, otpType);
             validateUserRoleForOtpRequest(user, req.getMerchantId());
+
             checkPhoneBlockStatus(req.getPhone(), req.getMerchantId(), maskedPhone);
             validateOtpRateLimitForRequest(req.getPhone(), otpType);
             invalidateExistingOtpSafely(user);
@@ -760,45 +1012,57 @@ public class AuthServiceImpl implements AuthService {
         try {
             User user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
 
+            // CHECK 1: OTP exists
             if (user.getOtpCode() == null) {
                 log.warn("No active OTP found for phone: {}", maskedPhone);
-                return null;
+                throw new OtpNotFoundException("No OTP found. Please request a new OTP.");
             }
 
+            // CHECK 2: OTP not already used (Replay attack protection)
+            if (Boolean.TRUE.equals(user.getOtpUsed())) {
+                log.warn("OTP replay attack detected for phone: {}", maskedPhone);
+                throw new OtpInvalidException("This OTP has already been used. Please request a new OTP.");
+            }
+
+            // CHECK 3: OTP not expired
             if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
                 otpAuditService.updateOtpExpired(req.getPhone());
                 clearOtpData(user);
                 log.warn("Expired OTP verification attempt for phone: {}", maskedPhone);
-                return null;
+                throw new OtpExpiredException("OTP has expired. Please request a new OTP.");
             }
 
+            // CHECK 4: Max attempts not exceeded
             Integer otpAttempts = user.getOtpAttempts();
             int currentAttempts = otpAttempts != null ? otpAttempts : 0;
             if (currentAttempts >= AppConstants.OTP_MAX_ATTEMPTS) {
                 otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts);
                 clearOtpData(user);
                 log.warn("Max OTP attempts exceeded for phone: {}", maskedPhone);
-                return null;
+                throw new OtpAttemptsExceededException("Too many failed attempts. Please request a new OTP.");
             }
 
+            // CHECK 5: OTP matches
             if (!isOtpValid(req.getOtp(), user.getOtpCode())) {
                 user.setOtpAttempts(currentAttempts + 1);
                 users.save(user);
                 otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
                 log.warn(INVALID_OTP_ATTEMPT_LOG, currentAttempts + 1, maskedPhone);
-                return null;
+                throw new InvalidOtpException("Invalid OTP. Please try again.");
             }
 
             Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
             otpAuditService.logOtpVerified(req.getPhone(), merchantId);
 
-            // Mark OTP as used before clearing
+            // Mark OTP as used, update last login timestamp, and track login method
             user.setOtpUsed(true);
+            user.setLastLoginAt(LocalDateTime.now());
+            user.setPreferredLoginMethod("otp"); // Track that OTP was used
             users.save(user);
             clearOtpData(user);
 
             Integer customerId = getCustomerId(user, merchantId);
-            
+
             if (OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())) {
                 String randomPassword = generateRandomPassword();
                 user.setPasswordHash(encoder.encode(randomPassword));
@@ -811,8 +1075,8 @@ public class AuthServiceImpl implements AuthService {
             return buildTokens(user, req.getMerchantId(), customerId);
 
         } catch (RuntimeException e) {
-            log.warn("OTP verification failed");
-            return null;
+            log.warn("OTP verification failed: {}", e.getMessage());
+            throw e;
         }
     }
 

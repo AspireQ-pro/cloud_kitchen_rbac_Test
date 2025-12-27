@@ -78,7 +78,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     
     @Modifying
     @Transactional
-    @Query("UPDATE User u SET u.otpCode = :otpCode, u.otpExpiresAt = :expiresAt, u.otpAttempts = 0 WHERE u.phone = :phone AND (u.merchant.merchantId = :merchantId OR (:merchantId IS NULL AND u.merchant IS NULL))")
+    @Query("UPDATE User u SET u.otpCode = :otpCode, u.otpExpiresAt = :expiresAt, u.otpAttempts = 0, u.otpUsed = false WHERE u.phone = :phone AND (u.merchant.merchantId = :merchantId OR (:merchantId IS NULL AND u.merchant IS NULL))")
     int updateOtpByPhone(@Param("phone") String phone, @Param("otpCode") String otpCode, @Param("expiresAt") LocalDateTime expiresAt, @Param("merchantId") Integer merchantId);
     
     @Modifying

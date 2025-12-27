@@ -14,7 +14,6 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -29,24 +28,6 @@ public class S3Config {
 
     public S3Config(S3Properties properties) {
         this.properties = properties;
-    }
-    
-    @Bean
-    public S3AsyncClient s3AsyncClient() {
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(
-            properties.getAccessKey(),
-            properties.getSecretKey()
-        );
-        
-        software.amazon.awssdk.services.s3.S3AsyncClientBuilder builder = software.amazon.awssdk.services.s3.S3AsyncClient.builder()
-            .region(Region.of(properties.getRegion()))
-            .credentialsProvider(StaticCredentialsProvider.create(credentials));
-        
-        if (properties.getEndpoint() != null && !properties.getEndpoint().isBlank()) {
-            builder.endpointOverride(URI.create(properties.getEndpoint()));
-        }
-        
-        return builder.build();
     }
     
     @Bean

@@ -6,11 +6,14 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.cloudkitchen.rbac.constants.ResponseMessages;
 import com.cloudkitchen.rbac.domain.entity.Customer;
 import com.cloudkitchen.rbac.dto.common.PageRequest;
 import com.cloudkitchen.rbac.dto.common.PageResponse;
@@ -18,12 +21,19 @@ import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerUpdateRequest;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.AccessDeniedException;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.CustomerNotFoundException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.FileUploadException;
 import com.cloudkitchen.rbac.repository.CustomerRepository;
 import com.cloudkitchen.rbac.security.JwtAuthenticationDetails;
 import com.cloudkitchen.rbac.service.CloudStorageService;
 import com.cloudkitchen.rbac.service.CustomerService;
 import com.cloudkitchen.rbac.util.AccessControlUtil;
+import com.cloudkitchen.rbac.util.HttpResponseUtil;
+import com.cloudkitchen.rbac.util.ResponseBuilder;
 
+/**
+ * Service implementation for customer operations, including access checks,
+ * pagination, and response assembly for controllers.
+ */
 @Service
 public class CustomerServiceImpl implements CustomerService {
 
@@ -31,12 +41,18 @@ public class CustomerServiceImpl implements CustomerService {
     private final AccessControlUtil accessControlUtil;
     private final CloudStorageService cloudStorageService;
     
+    /**
+     * Construct the customer service with required repositories and helpers.
+     */
     public CustomerServiceImpl(CustomerRepository customerRepository, AccessControlUtil accessControlUtil, CloudStorageService cloudStorageService) {
         this.customerRepository = customerRepository;
         this.accessControlUtil = accessControlUtil;
         this.cloudStorageService = cloudStorageService;
     }
 
+    /**
+     * Return all active customers without access filtering.
+     */
     @Override
     public List<CustomerResponse> getAllCustomers() {
         return customerRepository.findAllByDeletedAtIsNull().stream()
@@ -44,6 +60,9 @@ public class CustomerServiceImpl implements CustomerService {
                 .toList();
     }
 
+    /**
+     * Return customers visible to the authenticated user.
+     */
     @Override
     public List<CustomerResponse> getAllCustomers(Authentication authentication) {
         if (accessControlUtil.isSuperAdmin(authentication)) {
@@ -52,14 +71,20 @@ public class CustomerServiceImpl implements CustomerService {
             Integer merchantId = getMerchantIdFromAuth(authentication);
             return getCustomersByMerchantId(merchantId);
         }
-        throw new RuntimeException("Access denied");
+        throw new AccessDeniedException("Access denied");
     }
 
+    /**
+     * Return paginated customers without filters.
+     */
     @Override
     public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest) {
         return getAllCustomers(pageRequest, null, null);
     }
 
+    /**
+     * Return paginated customers with optional status/search filters.
+     */
     @Override
     public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest, String status, String search) {
         Pageable pageable = createPageable(pageRequest);
@@ -87,6 +112,9 @@ public class CustomerServiceImpl implements CustomerService {
         );
     }
 
+    /**
+     * Return paginated customers visible to the authenticated user.
+     */
     @Override
     public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest, String status, String search, Authentication authentication) {
         if (accessControlUtil.isSuperAdmin(authentication)) {
@@ -95,11 +123,14 @@ public class CustomerServiceImpl implements CustomerService {
             Integer merchantId = getMerchantIdFromAuth(authentication);
             return getCustomersByMerchantIdWithFilters(merchantId, pageRequest);
         } else if (accessControlUtil.isCustomer(authentication)) {
-            throw new RuntimeException("Customers cannot access customer lists");
+            throw new AccessDeniedException("Customers cannot access customer lists");
         }
-        throw new RuntimeException("Access denied");
+        throw new AccessDeniedException("Access denied");
     }
 
+    /**
+     * Return active customers for a specific merchant.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<CustomerResponse> getCustomersByMerchantId(Integer merchantId) {
@@ -108,12 +139,18 @@ public class CustomerServiceImpl implements CustomerService {
                 .toList();
     }
 
+    /**
+     * Return paginated customers for a specific merchant.
+     */
     @Override
     @Transactional(readOnly = true)
     public PageResponse<CustomerResponse> getCustomersByMerchantId(Integer merchantId, PageRequest pageRequest) {
         return getCustomersByMerchantIdWithFilters(merchantId, pageRequest);
     }
 
+    /**
+     * Fetch a customer by ID or throw if not found.
+     */
     @Override
     @Transactional(readOnly = true)
     public CustomerResponse getCustomerById(Integer id) {
@@ -122,6 +159,9 @@ public class CustomerServiceImpl implements CustomerService {
         return convertToResponse(customer);
     }
 
+    /**
+     * Fetch a customer by ID with access control checks.
+     */
     @Override
     @Transactional(readOnly = true)
     public CustomerResponse getCustomerById(Integer id, Authentication authentication) {
@@ -151,26 +191,35 @@ public class CustomerServiceImpl implements CustomerService {
         throw new AccessDeniedException("Access denied");
     }
 
+    /**
+     * Fetch the profile for the authenticated customer.
+     */
     @Override
     @Transactional(readOnly = true)
     public CustomerResponse getCustomerProfile(Authentication authentication) {
         Integer userId = getCustomerIdFromAuth(authentication);
         Integer merchantId = getMerchantIdFromAuth(authentication);
         Customer customer = customerRepository.findByUser_UserIdAndMerchant_MerchantId(userId, merchantId)
-                .orElseThrow(() -> new RuntimeException("Customer profile not found"));
+                .orElseThrow(() -> new CustomerNotFoundException("Customer profile not found"));
         return convertToResponse(customer);
     }
 
+    /**
+     * Update customer fields without a profile image.
+     */
     @Override
     public CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, Integer updatedBy) {
         return updateCustomer(id, request, null, updatedBy);
     }
 
+    /**
+     * Update customer fields and optionally update the profile image.
+     */
     @Override
     @Transactional
     public CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, MultipartFile profileImage, Integer updatedBy) {
         Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
+                .orElseThrow(() -> new CustomerNotFoundException("Customer not found with id: " + id));
         
         // Update customer fields if request is provided
         if (request != null) {
@@ -198,6 +247,9 @@ public class CustomerServiceImpl implements CustomerService {
         return convertToResponse(updatedCustomer);
     }
 
+    /**
+     * Update the authenticated customer's own profile.
+     */
     @Override
     public CustomerResponse updateCustomerProfile(Authentication authentication, CustomerUpdateRequest request) {
         Integer userId = getCustomerIdFromAuth(authentication);
@@ -207,6 +259,9 @@ public class CustomerServiceImpl implements CustomerService {
         return updateCustomer(customer.getCustomerId(), request, userId);
     }
 
+    /**
+     * Soft-delete a customer by ID.
+     */
     @Override
     public void deleteCustomer(Integer id) {
         Customer customer = customerRepository.findById(id)
@@ -215,11 +270,17 @@ public class CustomerServiceImpl implements CustomerService {
         customerRepository.save(customer);
     }
 
+    /**
+     * Check if the authenticated user can list customers.
+     */
     @Override
     public boolean canAccessCustomers(Authentication authentication) {
         return accessControlUtil.isSuperAdmin(authentication) || accessControlUtil.isMerchant(authentication);
     }
 
+    /**
+     * Check if the authenticated user can access a specific customer.
+     */
     @Override
     public boolean canAccessCustomer(Authentication authentication, Integer customerId) {
         if (accessControlUtil.isSuperAdmin(authentication)) {
@@ -240,6 +301,9 @@ public class CustomerServiceImpl implements CustomerService {
         return false;
     }
 
+    /**
+     * Check if the authenticated user can access customers for a merchant.
+     */
     @Override
     public boolean canAccessMerchantCustomers(Authentication authentication, Integer merchantId) {
         if (accessControlUtil.isSuperAdmin(authentication)) {
@@ -253,6 +317,9 @@ public class CustomerServiceImpl implements CustomerService {
         return false;
     }
 
+    /**
+     * Extract merchant ID from authentication details.
+     */
     @Override
     public Integer getMerchantIdFromAuth(Authentication authentication) {
         if (authentication == null) {
@@ -268,11 +335,17 @@ public class CustomerServiceImpl implements CustomerService {
         return null;
     }
 
+    /**
+     * Extract customer user ID from authentication.
+     */
     @Override
     public Integer getCustomerIdFromAuth(Authentication authentication) {
         return accessControlUtil.getUserId(authentication);
     }
 
+    /**
+     * Update a customer using authentication to populate updatedBy.
+     */
     @Override
     @Transactional
     public CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, MultipartFile profileImage, Authentication authentication) {
@@ -280,18 +353,129 @@ public class CustomerServiceImpl implements CustomerService {
         return updateCustomer(id, request, profileImage, updatedBy);
     }
 
+    /**
+     * Return paginated customers using primitive pagination parameters.
+     */
     @Override
     public PageResponse<CustomerResponse> getAllCustomers(int page, int size, String status, String search, Authentication authentication) {
         PageRequest pageRequest = new PageRequest(page, size);
         return getAllCustomers(pageRequest, status, search, authentication);
     }
 
+    /**
+     * Return paginated customers for a merchant using primitive pagination parameters.
+     */
     @Override
     public PageResponse<CustomerResponse> getCustomersByMerchantId(Integer merchantId, int page, int size, Authentication authentication) {
         PageRequest pageRequest = new PageRequest(page, size);
         return getCustomersByMerchantId(merchantId, pageRequest);
     }
 
+    /**
+     * Build the HTTP response for customer update with access checks.
+     */
+    @Override
+    @Transactional
+    public ResponseEntity<Object> updateCustomerResponse(Integer id, CustomerUpdateRequest request, MultipartFile profileImage, Authentication authentication) {
+        if (!canAccessCustomer(authentication, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_PROFILE));
+        }
+        try {
+            CustomerResponse response = updateCustomer(id, request, profileImage, authentication);
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.UPDATED_SUCCESS, response));
+        } catch (CustomerNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Customer.NOT_FOUND));
+        } catch (IllegalArgumentException | FileUploadException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, ResponseMessages.Customer.UPDATE_FAILED + ": " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Build the HTTP response for listing customers with access checks.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<Object> getAllCustomersResponse(int page, int size, String status, String search, Authentication authentication) {
+        if (!canAccessCustomers(authentication)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_LIST));
+        }
+        PageResponse<CustomerResponse> customers = getAllCustomers(page, size, status, search, authentication);
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.LIST_SUCCESS, customers));
+    }
+
+    /**
+     * Build the HTTP response for fetching a customer by ID.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<Object> getCustomerByIdResponse(Integer id, Authentication authentication) {
+        try {
+            CustomerResponse customer = getCustomerById(id, authentication);
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.RETRIEVED_SUCCESS, customer));
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_VIEW));
+        } catch (CustomerNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Customer.NOT_FOUND));
+        }
+    }
+
+    /**
+     * Build the HTTP response for fetching the authenticated customer's profile.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<Object> getCustomerProfileResponse(Authentication authentication) {
+        try {
+            CustomerResponse customer = getCustomerProfile(authentication);
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.PROFILE_RETRIEVED_SUCCESS, customer));
+        } catch (CustomerNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Customer.PROFILE_NOT_FOUND));
+        }
+    }
+
+    /**
+     * Build the HTTP response for listing customers for a merchant.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<Object> getCustomersByMerchantIdResponse(Integer merchantId, int page, int size, Authentication authentication) {
+        if (!canAccessMerchantCustomers(authentication, merchantId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_MERCHANT_CUSTOMERS));
+        }
+        PageResponse<CustomerResponse> customers = getCustomersByMerchantId(merchantId, page, size, authentication);
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.MERCHANT_CUSTOMERS_SUCCESS, customers));
+    }
+
+    /**
+     * Build the HTTP response for customer deletion.
+     */
+    @Override
+    @Transactional
+    public ResponseEntity<Object> deleteCustomerResponse(Integer id, Authentication authentication) {
+        if (!canAccessCustomer(authentication, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_VIEW));
+        }
+        try {
+            deleteCustomer(id);
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.DELETED_SUCCESS, null));
+        } catch (CustomerNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Customer.NOT_FOUND));
+        }
+    }
+
+    /**
+     * Apply pagination to all customers without status/search filtering.
+     */
     @Transactional(readOnly = true)
     private PageResponse<CustomerResponse> getAllCustomersWithFilters(PageRequest pageRequest) {
         Pageable pageable = createPageable(pageRequest);
@@ -309,6 +493,9 @@ public class CustomerServiceImpl implements CustomerService {
         );
     }
 
+    /**
+     * Apply pagination to customers for a merchant.
+     */
     @Transactional(readOnly = true)
     private PageResponse<CustomerResponse> getCustomersByMerchantIdWithFilters(Integer merchantId, PageRequest pageRequest) {
         Pageable pageable = createPageable(pageRequest);
@@ -326,6 +513,9 @@ public class CustomerServiceImpl implements CustomerService {
         );
     }
 
+    /**
+     * Build a pageable instance with optional sorting.
+     */
     private Pageable createPageable(PageRequest pageRequest) {
         String sortBy = pageRequest.getSortBy();
         if (sortBy != null && !sortBy.trim().isEmpty()) {
@@ -337,6 +527,9 @@ public class CustomerServiceImpl implements CustomerService {
         return org.springframework.data.domain.PageRequest.of(pageRequest.getPage(), pageRequest.getSize());
     }
 
+    /**
+     * Map a customer entity to its response DTO.
+     */
     private CustomerResponse convertToResponse(Customer customer) {
         CustomerResponse response = new CustomerResponse();
         response.setId(customer.getCustomerId());
@@ -370,6 +563,9 @@ public class CustomerServiceImpl implements CustomerService {
         return response;
     }
     
+    /**
+     * Validate and upload a profile image, returning the storage key.
+     */
     private String uploadProfileImage(Customer customer, MultipartFile profileImage) {
         // Validate image
         validateProfileImage(profileImage);
@@ -396,10 +592,13 @@ public class CustomerServiceImpl implements CustomerService {
             
             return s3Key;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to upload profile image: " + e.getMessage(), e);
+            throw new FileUploadException("Failed to upload profile image: " + e.getMessage());
         }
     }
     
+    /**
+     * Validate image size, type, and extension for profile uploads.
+     */
     private void validateProfileImage(MultipartFile profileImage) {
         if (profileImage == null || profileImage.isEmpty()) {
             throw new IllegalArgumentException("Profile image cannot be empty");
