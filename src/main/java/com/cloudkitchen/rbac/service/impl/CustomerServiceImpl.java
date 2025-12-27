@@ -16,6 +16,8 @@ import com.cloudkitchen.rbac.dto.common.PageRequest;
 import com.cloudkitchen.rbac.dto.common.PageResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerUpdateRequest;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.AccessDeniedException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.CustomerNotFoundException;
 import com.cloudkitchen.rbac.repository.CustomerRepository;
 import com.cloudkitchen.rbac.security.JwtAuthenticationDetails;
 import com.cloudkitchen.rbac.service.CloudStorageService;
@@ -99,6 +101,7 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<CustomerResponse> getCustomersByMerchantId(Integer merchantId) {
         return customerRepository.findByMerchant_MerchantIdAndDeletedAtIsNull(merchantId).stream()
                 .map(this::convertToResponse)
@@ -115,7 +118,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Transactional(readOnly = true)
     public CustomerResponse getCustomerById(Integer id) {
         Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
+                .orElseThrow(() -> new CustomerNotFoundException("Customer not found with id: " + id));
         return convertToResponse(customer);
     }
 
@@ -128,24 +131,24 @@ public class CustomerServiceImpl implements CustomerService {
         if (accessControlUtil.isCustomer(authentication)) {
             Integer userId = getCustomerIdFromAuth(authentication);
             if (userId == null) {
-                throw new RuntimeException("Access denied");
+                throw new AccessDeniedException("Access denied");
             }
             Customer customer = customerRepository
                     .findByCustomerIdAndUser_UserIdAndDeletedAtIsNull(id, userId)
-                    .orElseThrow(() -> new RuntimeException("Access denied"));
+                    .orElseThrow(() -> new AccessDeniedException("Access denied"));
             return convertToResponse(customer);
         }
         if (accessControlUtil.isMerchant(authentication)) {
             Integer merchantId = getMerchantIdFromAuth(authentication);
             if (merchantId == null) {
-                throw new RuntimeException("Access denied");
+                throw new AccessDeniedException("Access denied");
             }
             Customer customer = customerRepository
                     .findByCustomerIdAndMerchant_MerchantIdAndDeletedAtIsNull(id, merchantId)
-                    .orElseThrow(() -> new RuntimeException("Access denied"));
+                    .orElseThrow(() -> new AccessDeniedException("Access denied"));
             return convertToResponse(customer);
         }
-        throw new RuntimeException("Access denied");
+        throw new AccessDeniedException("Access denied");
     }
 
     @Override
@@ -200,14 +203,14 @@ public class CustomerServiceImpl implements CustomerService {
         Integer userId = getCustomerIdFromAuth(authentication);
         Integer merchantId = getMerchantIdFromAuth(authentication);
         Customer customer = customerRepository.findByUser_UserIdAndMerchant_MerchantId(userId, merchantId)
-                .orElseThrow(() -> new RuntimeException("Customer profile not found"));
+                .orElseThrow(() -> new CustomerNotFoundException("Customer profile not found"));
         return updateCustomer(customer.getCustomerId(), request, userId);
     }
 
     @Override
     public void deleteCustomer(Integer id) {
         Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
+                .orElseThrow(() -> new CustomerNotFoundException("Customer not found with id: " + id));
         customer.setDeletedAt(LocalDateTime.now());
         customerRepository.save(customer);
     }
@@ -270,14 +273,40 @@ public class CustomerServiceImpl implements CustomerService {
         return accessControlUtil.getUserId(authentication);
     }
 
+    @Override
+    @Transactional
+    public CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, MultipartFile profileImage, Authentication authentication) {
+        Integer updatedBy = authentication != null ? Integer.valueOf(authentication.getName()) : null;
+        return updateCustomer(id, request, profileImage, updatedBy);
+    }
+
+    @Override
+    public PageResponse<CustomerResponse> getAllCustomers(int page, int size, String status, String search, Authentication authentication) {
+        PageRequest pageRequest = new PageRequest(page, size);
+        return getAllCustomers(pageRequest, status, search, authentication);
+    }
+
+    @Override
+    public PageResponse<CustomerResponse> getCustomersByMerchantId(Integer merchantId, int page, int size, Authentication authentication) {
+        PageRequest pageRequest = new PageRequest(page, size);
+        return getCustomersByMerchantId(merchantId, pageRequest);
+    }
+
     @Transactional(readOnly = true)
     private PageResponse<CustomerResponse> getAllCustomersWithFilters(PageRequest pageRequest) {
-        List<Customer> customers = customerRepository.findAllByDeletedAtIsNull();
-        List<CustomerResponse> responses = customers.stream()
+        Pageable pageable = createPageable(pageRequest);
+        Page<Customer> customerPage = customerRepository.findByDeletedAtIsNull(pageable);
+
+        List<CustomerResponse> responses = customerPage.getContent().stream()
                 .map(this::convertToResponse)
                 .toList();
 
-        return new PageResponse<>(responses, pageRequest.getPage(), pageRequest.getSize(), responses.size());
+        return new PageResponse<>(
+                responses,
+                customerPage.getNumber(),
+                customerPage.getSize(),
+                customerPage.getTotalElements()
+        );
     }
 
     @Transactional(readOnly = true)

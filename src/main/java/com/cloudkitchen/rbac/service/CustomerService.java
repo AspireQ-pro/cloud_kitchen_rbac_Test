@@ -26,7 +26,12 @@ public interface CustomerService {
     // Update operations
     CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, Integer updatedBy);
     CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, MultipartFile profileImage, Integer updatedBy);
+    CustomerResponse updateCustomer(Integer id, CustomerUpdateRequest request, MultipartFile profileImage, Authentication authentication);
     CustomerResponse updateCustomerProfile(Authentication authentication, CustomerUpdateRequest request);
+
+    // List operations with pagination
+    PageResponse<CustomerResponse> getAllCustomers(int page, int size, String status, String search, Authentication authentication);
+    PageResponse<CustomerResponse> getCustomersByMerchantId(Integer merchantId, int page, int size, Authentication authentication);
     
     // Delete operations
     void deleteCustomer(Integer id);

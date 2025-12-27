@@ -13,10 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudkitchen.rbac.constants.ResponseMessages;
-import com.cloudkitchen.rbac.dto.common.PageRequest;
 import com.cloudkitchen.rbac.dto.common.PageResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerResponse;
 import com.cloudkitchen.rbac.dto.customer.CustomerUpdateRequest;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.AccessDeniedException;
+import com.cloudkitchen.rbac.exception.BusinessExceptions.CustomerNotFoundException;
 import com.cloudkitchen.rbac.service.CustomerService;
 import com.cloudkitchen.rbac.util.HttpResponseUtil;
 import com.cloudkitchen.rbac.util.ResponseBuilder;
@@ -86,8 +87,7 @@ public class CustomerController {
                     .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_PROFILE));
         }
         try {
-            Integer updatedBy = authentication != null ? Integer.valueOf(authentication.getName()) : null;
-            CustomerResponse response = customerService.updateCustomer(id, request, profileImage, updatedBy);
+            CustomerResponse response = customerService.updateCustomer(id, request, profileImage, authentication);
             return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.UPDATED_SUCCESS, response));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -138,8 +138,7 @@ public class CustomerController {
                     .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_LIST));
         }
         try {
-            PageRequest pageRequest = new PageRequest(page, size);
-            PageResponse<CustomerResponse> customers = customerService.getAllCustomers(pageRequest, status, search, authentication);
+            PageResponse<CustomerResponse> customers = customerService.getAllCustomers(page, size, status, search, authentication);
             return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.LIST_SUCCESS, customers));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -180,11 +179,10 @@ public class CustomerController {
         try {
             CustomerResponse customer = customerService.getCustomerById(id, authentication);
             return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.RETRIEVED_SUCCESS, customer));
-        } catch (RuntimeException e) {
-            if ("Access denied".equals(e.getMessage())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_VIEW));
-            }
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_VIEW));
+        } catch (CustomerNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Customer.NOT_FOUND));
         }
@@ -267,8 +265,7 @@ public class CustomerController {
                     .body(ResponseBuilder.error(HttpResponseUtil.FORBIDDEN, ResponseMessages.Customer.ACCESS_DENIED_MERCHANT_CUSTOMERS));
         }
         try {
-            PageRequest pageRequest = new PageRequest(page, size);
-            PageResponse<CustomerResponse> customers = customerService.getCustomersByMerchantId(merchantId, pageRequest);
+            PageResponse<CustomerResponse> customers = customerService.getCustomersByMerchantId(merchantId, page, size, authentication);
             return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.MERCHANT_CUSTOMERS_SUCCESS, customers));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -311,7 +308,7 @@ public class CustomerController {
         try {
             customerService.deleteCustomer(id);
             return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Customer.DELETED_SUCCESS, null));
-        } catch (RuntimeException e) {
+        } catch (CustomerNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Customer.NOT_FOUND));
         }

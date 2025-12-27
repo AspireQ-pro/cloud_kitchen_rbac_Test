@@ -21,31 +21,36 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
     
     boolean existsByPhoneAndMerchant_MerchantId(String phone, Integer merchantId);
     
-    List<Customer> findByMerchant_MerchantIdAndDeletedAtIsNull(Integer merchantId);
-    
-    Page<Customer> findByMerchant_MerchantIdAndDeletedAtIsNull(Integer merchantId, Pageable pageable);
-    
+    @Query("SELECT c FROM Customer c LEFT JOIN FETCH c.merchant WHERE c.merchant.merchantId = :merchantId AND c.deletedAt IS NULL")
+    List<Customer> findByMerchant_MerchantIdAndDeletedAtIsNull(@Param("merchantId") Integer merchantId);
+
+    @Query("SELECT c FROM Customer c LEFT JOIN FETCH c.merchant WHERE c.merchant.merchantId = :merchantId AND c.deletedAt IS NULL")
+    Page<Customer> findByMerchant_MerchantIdAndDeletedAtIsNull(@Param("merchantId") Integer merchantId, Pageable pageable);
+
+    @Query("SELECT c FROM Customer c LEFT JOIN FETCH c.merchant WHERE c.deletedAt IS NULL")
     Page<Customer> findByDeletedAtIsNull(Pageable pageable);
 
-    Page<Customer> findByIsActiveAndDeletedAtIsNull(Boolean isActive, Pageable pageable);
+    @Query("SELECT c FROM Customer c LEFT JOIN FETCH c.merchant WHERE c.isActive = :isActive AND c.deletedAt IS NULL")
+    Page<Customer> findByIsActiveAndDeletedAtIsNull(@Param("isActive") Boolean isActive, Pageable pageable);
     
-    @Query("SELECT c FROM Customer c WHERE c.deletedAt IS NULL AND " +
+    @Query("SELECT c FROM Customer c LEFT JOIN FETCH c.merchant WHERE c.deletedAt IS NULL AND " +
            "(LOWER(c.firstName) LIKE LOWER(:search) OR " +
            "LOWER(c.lastName) LIKE LOWER(:search) OR " +
            "c.phone LIKE :search OR " +
            "LOWER(c.email) LIKE LOWER(:search))")
     Page<Customer> findBySearchAndDeletedAtIsNull(@Param("search") String search, Pageable pageable);
-    
-    @Query("SELECT c FROM Customer c WHERE c.merchant.merchantId = :merchantId AND c.deletedAt IS NULL AND " +
+
+    @Query("SELECT c FROM Customer c LEFT JOIN FETCH c.merchant WHERE c.merchant.merchantId = :merchantId AND c.deletedAt IS NULL AND " +
            "(LOWER(c.firstName) LIKE LOWER(:search) OR " +
            "LOWER(c.lastName) LIKE LOWER(:search) OR " +
            "c.phone LIKE :search OR " +
            "LOWER(c.email) LIKE LOWER(:search))")
-    Page<Customer> findByMerchantIdAndSearchAndDeletedAtIsNull(@Param("merchantId") Integer merchantId, 
-                                                              @Param("search") String search, 
+    Page<Customer> findByMerchantIdAndSearchAndDeletedAtIsNull(@Param("merchantId") Integer merchantId,
+                                                              @Param("search") String search,
                                                               Pageable pageable);
 
     // Additional methods for service implementation
+    @Query("SELECT c FROM Customer c LEFT JOIN FETCH c.merchant WHERE c.deletedAt IS NULL")
     List<Customer> findAllByDeletedAtIsNull();
     
     boolean existsByCustomerIdAndUser_UserIdAndDeletedAtIsNull(Integer customerId, Integer userId);
