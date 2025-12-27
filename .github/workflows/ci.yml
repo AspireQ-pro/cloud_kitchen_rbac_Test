@@ -27,3 +27,12 @@ jobs:
 
       - name: Build and run tests
         run: mvn -B -ntp clean verify
+
+      - name: Static analysis (SpotBugs, PMD)
+        run: mvn -B -ntp spotbugs:spotbugs spotbugs:check pmd:pmd pmd:check
+
+      - name: Dependency vulnerability check (OWASP)
+        run: mvn -B -ntp org.owasp:dependency-check-maven:check
+
+      - name: Coverage report (JaCoCo)
+        run: mvn -B -ntp jacoco:report
