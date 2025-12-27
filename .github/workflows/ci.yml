@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SPRING_PROFILES_ACTIVE: ci
+      DATABASE_URL: 'jdbc:h2:mem:rbac_ci;DB_CLOSE_DELAY=-1;MODE=PostgreSQL'
+      DB_USERNAME: sa
+      DB_PASSWORD: ci
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.H2Dialect
+      JPA_DDL_AUTO: create-drop
+      FLYWAY_ENABLED: 'false'
+      JWT_SECRET: '0123456789abcdef0123456789abcdef'
+      AWS_ACCESS_KEY: ci-access-key
+      AWS_SECRET_KEY: ci-secret-key
+      AWS_S3_BUCKET: ci-bucket
+      AWS_REGION: us-east-1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Build and run tests
+        run: mvn -B -ntp clean verify
+
+      - name: Start Spring context (CI profile)
+        run: |
+          java -jar target/*.jar --spring.profiles.active=ci --server.port=8081 &
+          APP_PID=$!
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8081/actuator/health > /dev/null; then
+              STARTED=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "${STARTED:-}" != "1" ]; then
+            echo "Application failed to start with the CI profile."
+            kill $APP_PID || true
+            wait $APP_PID || true
+            exit 1
+          fi
+          kill $APP_PID || true
+          wait $APP_PID || true
