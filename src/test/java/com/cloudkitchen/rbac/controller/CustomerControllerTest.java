@@ -263,8 +263,7 @@ class CustomerControllerTest {
         response.setActive(true);
         response.setCreatedAt(LocalDateTime.now());
 
-        when(customerService.canAccessCustomer(any(), eq(1))).thenReturn(true);
-        when(customerService.getCustomerById(1)).thenReturn(response);
+        when(customerService.getCustomerById(eq(1), any())).thenReturn(response);
 
         // When & Then
         mockMvc.perform(get("/api/customers/1")

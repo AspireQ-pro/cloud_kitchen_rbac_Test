@@ -2,6 +2,8 @@ package com.cloudkitchen.rbac.dto.auth;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 public class AuthResponse {
     private String accessToken;
     private String refreshToken;
@@ -9,7 +11,10 @@ public class AuthResponse {
     private int expiresIn;
     private Integer userId;
     private Integer merchantId;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private Integer customerId;
+
     private String phone;
     private List<String> roles;
 

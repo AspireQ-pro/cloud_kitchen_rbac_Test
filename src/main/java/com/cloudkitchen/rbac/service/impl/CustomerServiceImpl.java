@@ -3,6 +3,9 @@ package com.cloudkitchen.rbac.service.impl;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,12 +55,34 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest) {
-        return null;
+        return getAllCustomers(pageRequest, null, null);
     }
 
     @Override
     public PageResponse<CustomerResponse> getAllCustomers(PageRequest pageRequest, String status, String search) {
-        return null;
+        Pageable pageable = createPageable(pageRequest);
+        Page<Customer> customerPage;
+
+        if (search != null && !search.trim().isEmpty()) {
+            String searchTerm = "%" + search.trim().toLowerCase() + "%";
+            customerPage = customerRepository.findBySearchAndDeletedAtIsNull(searchTerm, pageable);
+        } else if (status != null && !status.trim().isEmpty()) {
+            boolean active = "active".equalsIgnoreCase(status.trim());
+            customerPage = customerRepository.findByIsActiveAndDeletedAtIsNull(active, pageable);
+        } else {
+            customerPage = customerRepository.findByDeletedAtIsNull(pageable);
+        }
+
+        List<CustomerResponse> content = customerPage.getContent().stream()
+                .map(this::convertToResponse)
+                .toList();
+
+        return new PageResponse<>(
+                content,
+                customerPage.getNumber(),
+                customerPage.getSize(),
+                customerPage.getTotalElements()
+        );
     }
 
     @Override
@@ -81,11 +106,13 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PageResponse<CustomerResponse> getCustomersByMerchantId(Integer merchantId, PageRequest pageRequest) {
         return getCustomersByMerchantIdWithFilters(merchantId, pageRequest);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public CustomerResponse getCustomerById(Integer id) {
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
@@ -93,6 +120,36 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public CustomerResponse getCustomerById(Integer id, Authentication authentication) {
+        if (accessControlUtil.isSuperAdmin(authentication)) {
+            return getCustomerById(id);
+        }
+        if (accessControlUtil.isCustomer(authentication)) {
+            Integer userId = getCustomerIdFromAuth(authentication);
+            if (userId == null) {
+                throw new RuntimeException("Access denied");
+            }
+            Customer customer = customerRepository
+                    .findByCustomerIdAndUser_UserIdAndDeletedAtIsNull(id, userId)
+                    .orElseThrow(() -> new RuntimeException("Access denied"));
+            return convertToResponse(customer);
+        }
+        if (accessControlUtil.isMerchant(authentication)) {
+            Integer merchantId = getMerchantIdFromAuth(authentication);
+            if (merchantId == null) {
+                throw new RuntimeException("Access denied");
+            }
+            Customer customer = customerRepository
+                    .findByCustomerIdAndMerchant_MerchantIdAndDeletedAtIsNull(id, merchantId)
+                    .orElseThrow(() -> new RuntimeException("Access denied"));
+            return convertToResponse(customer);
+        }
+        throw new RuntimeException("Access denied");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public CustomerResponse getCustomerProfile(Authentication authentication) {
         Integer userId = getCustomerIdFromAuth(authentication);
         Integer merchantId = getMerchantIdFromAuth(authentication);
@@ -168,8 +225,10 @@ public class CustomerServiceImpl implements CustomerService {
         if (accessControlUtil.isCustomer(authentication)) {
             // For customers, check if the customerId belongs to their userId
             Integer userId = getCustomerIdFromAuth(authentication);
-            Customer customer = customerRepository.findById(customerId).orElse(null);
-            return customer != null && customer.getUser() != null && userId.equals(customer.getUser().getUserId());
+            if (userId == null) {
+                return false;
+            }
+            return customerRepository.existsByCustomerIdAndUser_UserIdAndDeletedAtIsNull(customerId, userId);
         }
         if (accessControlUtil.isMerchant(authentication)) {
             Customer customer = customerRepository.findById(customerId).orElse(null);
@@ -197,12 +256,7 @@ public class CustomerServiceImpl implements CustomerService {
             return null;
         }
 
-        // For merchant role, userId is the merchantId
-        if (accessControlUtil.isMerchant(authentication)) {
-            return accessControlUtil.getUserId(authentication);
-        }
-
-        // For customer role, extract merchantId from authentication details
+        // Extract merchantId from JWT authentication details
         if (authentication.getDetails() instanceof JwtAuthenticationDetails) {
             JwtAuthenticationDetails details = (JwtAuthenticationDetails) authentication.getDetails();
             return details.getMerchantId();
@@ -216,22 +270,42 @@ public class CustomerServiceImpl implements CustomerService {
         return accessControlUtil.getUserId(authentication);
     }
 
+    @Transactional(readOnly = true)
     private PageResponse<CustomerResponse> getAllCustomersWithFilters(PageRequest pageRequest) {
         List<Customer> customers = customerRepository.findAllByDeletedAtIsNull();
         List<CustomerResponse> responses = customers.stream()
                 .map(this::convertToResponse)
                 .toList();
-        
+
         return new PageResponse<>(responses, pageRequest.getPage(), pageRequest.getSize(), responses.size());
     }
 
+    @Transactional(readOnly = true)
     private PageResponse<CustomerResponse> getCustomersByMerchantIdWithFilters(Integer merchantId, PageRequest pageRequest) {
-        List<Customer> customers = customerRepository.findByMerchant_MerchantIdAndDeletedAtIsNull(merchantId);
-        List<CustomerResponse> responses = customers.stream()
+        Pageable pageable = createPageable(pageRequest);
+        Page<Customer> customerPage = customerRepository.findByMerchant_MerchantIdAndDeletedAtIsNull(merchantId, pageable);
+
+        List<CustomerResponse> responses = customerPage.getContent().stream()
                 .map(this::convertToResponse)
                 .toList();
-        
-        return new PageResponse<>(responses, pageRequest.getPage(), pageRequest.getSize(), responses.size());
+
+        return new PageResponse<>(
+                responses,
+                customerPage.getNumber(),
+                customerPage.getSize(),
+                customerPage.getTotalElements()
+        );
+    }
+
+    private Pageable createPageable(PageRequest pageRequest) {
+        String sortBy = pageRequest.getSortBy();
+        if (sortBy != null && !sortBy.trim().isEmpty()) {
+            Sort sort = "desc".equalsIgnoreCase(pageRequest.getSortDirection())
+                    ? Sort.by(sortBy).descending()
+                    : Sort.by(sortBy).ascending();
+            return org.springframework.data.domain.PageRequest.of(pageRequest.getPage(), pageRequest.getSize(), sort);
+        }
+        return org.springframework.data.domain.PageRequest.of(pageRequest.getPage(), pageRequest.getSize());
     }
 
     private CustomerResponse convertToResponse(Customer customer) {
