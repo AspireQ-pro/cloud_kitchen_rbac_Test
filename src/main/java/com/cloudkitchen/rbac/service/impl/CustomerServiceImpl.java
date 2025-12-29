@@ -532,7 +532,7 @@ public class CustomerServiceImpl implements CustomerService {
      */
     private CustomerResponse convertToResponse(Customer customer) {
         CustomerResponse response = new CustomerResponse();
-        response.setId(customer.getCustomerId());
+        response.setCustomerId(customer.getCustomerId());
         response.setFirstName(customer.getFirstName());
         response.setLastName(customer.getLastName());
         response.setPhone(customer.getPhone());

@@ -4,7 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public class CustomerResponse {
-    private Integer id;
+    private Integer customerId;
     private String firstName;
     private String lastName;
     private String phone;
@@ -25,8 +25,8 @@ public class CustomerResponse {
     private LocalDateTime updatedAt;
 
     // Getters and Setters
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
+    public Integer getCustomerId() { return customerId; }
+    public void setCustomerId(Integer customerId) { this.customerId = customerId; }
 
     public String getFirstName() { return firstName; }
     public void setFirstName(String firstName) { this.firstName = firstName; }
