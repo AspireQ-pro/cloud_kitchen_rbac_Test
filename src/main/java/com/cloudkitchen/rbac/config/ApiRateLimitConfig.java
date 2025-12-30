@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Configuration
 public class ApiRateLimitConfig implements WebMvcConfigurer {
     
+    @NonNull
     private final RateLimitInterceptor rateLimitInterceptor = new RateLimitInterceptor();
 
     @Override
