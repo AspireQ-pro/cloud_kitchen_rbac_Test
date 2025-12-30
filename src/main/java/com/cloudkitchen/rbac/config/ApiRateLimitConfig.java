@@ -21,6 +21,7 @@ public class ApiRateLimitConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/auth/**");
     }
 
+    @NonNull
     public static class RateLimitInterceptor implements HandlerInterceptor {
         private final ConcurrentHashMap<String, RequestWindow> requestWindows = new ConcurrentHashMap<>();
         private final int maxRequests = 10;
