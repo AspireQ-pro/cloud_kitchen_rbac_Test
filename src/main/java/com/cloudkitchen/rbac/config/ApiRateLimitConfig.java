@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Configuration
 public class ApiRateLimitConfig implements WebMvcConfigurer {
     
+    @NonNull
     private final RateLimitInterceptor rateLimitInterceptor = new RateLimitInterceptor();
 
     @Override
@@ -21,7 +22,6 @@ public class ApiRateLimitConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/auth/**");
     }
 
-    @NonNull
     public static class RateLimitInterceptor implements HandlerInterceptor {
         private final ConcurrentHashMap<String, RequestWindow> requestWindows = new ConcurrentHashMap<>();
         private final int maxRequests = 10;
