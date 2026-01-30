@@ -4,6 +4,8 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -32,6 +34,7 @@ import com.cloudkitchen.rbac.util.ResponseBuilder;
  * Exception handler for business rule and domain errors.
  */
 @RestControllerAdvice
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class BusinessExceptionHandler extends ExceptionHandlerSupport {
 
     private static final Logger logger = LoggerFactory.getLogger(BusinessExceptionHandler.class);
