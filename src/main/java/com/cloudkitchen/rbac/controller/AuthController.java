@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cloudkitchen.rbac.dto.auth.AuthRequest;
 import com.cloudkitchen.rbac.dto.auth.OtpRequest;
 import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
+import com.cloudkitchen.rbac.dto.auth.PasswordResetRequest;
 import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.service.AuthService;
@@ -101,5 +102,16 @@ public class AuthController {
     @PostMapping("/otp/verify")
     public ResponseEntity<Map<String, Object>> verifyOtp(@Valid @RequestBody OtpVerifyRequest req) {
         return auth.verifyOtpResponse(req);
+    }
+
+    /**
+     * Reset password using a reset token issued after OTP verification.
+     *
+     * @param req reset token and new password
+     * @return HTTP response with success message (200) or an error status (400/401) on failure
+     */
+    @PostMapping("/password/reset")
+    public ResponseEntity<Map<String, Object>> resetPassword(@Valid @RequestBody PasswordResetRequest req) {
+        return auth.resetPassword(req);
     }
 }
