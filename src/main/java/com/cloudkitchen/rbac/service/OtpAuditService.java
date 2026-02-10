@@ -60,31 +60,40 @@ public class OtpAuditService {
     
     public void logOtpVerified(String phone, Integer merchantId) {
         try {
-            OtpLog otpLog = new OtpLog();
-            
-            if (merchantId != null) {
-                Merchant merchant = new Merchant();
-                merchant.setMerchantId(merchantId);
-                otpLog.setMerchant(merchant);
-            }
-            
-            otpLog.setPhone(phone);
-            otpLog.setOtpCode("VERIFIED"); // Mark as verified
-            otpLog.setOtpType("login"); // Use valid otpType
-            otpLog.setStatus("verified");
-            otpLog.setVerifiedAt(LocalDateTime.now());
-            
-            String ipAddress = getClientIpAddress();
-            String userAgent = getUserAgent();
-            
-            otpLog.setIpAddress(ipAddress);
-            otpLog.setUserAgent(userAgent);
-            otpLog.setAttemptsCount(0);
-            otpLog.setExpiresAt(LocalDateTime.now().plusMinutes(1)); // Short expiry for verification log
-            
-            otpLogRepository.save(otpLog);
-            String maskedPhone = maskPhoneNumber(phone);
-            logger.info("OTP verification logged for phone: {}", maskedPhone);
+            otpLogRepository.findTopByPhoneAndStatusOrderByCreatedOnDesc(phone, "sent")
+                .ifPresentOrElse(otpLog -> {
+                    otpLog.setStatus("verified");
+                    otpLog.setVerifiedAt(LocalDateTime.now());
+                    otpLogRepository.save(otpLog);
+                    String maskedPhone = maskPhoneNumber(phone);
+                    logger.info("OTP verification logged for phone: {}", maskedPhone);
+                }, () -> {
+                    OtpLog otpLog = new OtpLog();
+                    
+                    if (merchantId != null) {
+                        Merchant merchant = new Merchant();
+                        merchant.setMerchantId(merchantId);
+                        otpLog.setMerchant(merchant);
+                    }
+                    
+                    otpLog.setPhone(phone);
+                    otpLog.setOtpCode("0000"); // 4 chars to satisfy column constraint
+                    otpLog.setOtpType("login"); // Fallback type for verification log
+                    otpLog.setStatus("verified");
+                    otpLog.setVerifiedAt(LocalDateTime.now());
+                    
+                    String ipAddress = getClientIpAddress();
+                    String userAgent = getUserAgent();
+                    
+                    otpLog.setIpAddress(ipAddress);
+                    otpLog.setUserAgent(userAgent);
+                    otpLog.setAttemptsCount(0);
+                    otpLog.setExpiresAt(LocalDateTime.now().plusMinutes(1)); // Short expiry for verification log
+                    
+                    otpLogRepository.save(otpLog);
+                    String maskedPhone = maskPhoneNumber(phone);
+                    logger.info("OTP verification logged for phone (no prior sent log): {}", maskedPhone);
+                });
         } catch (Exception e) {
             logger.warn("Failed to log OTP verification: {}", e.getMessage(), e);
         }
