@@ -8,6 +8,8 @@ import com.cloudkitchen.rbac.dto.auth.AuthRequest;
 import com.cloudkitchen.rbac.dto.auth.AuthResponse;
 import com.cloudkitchen.rbac.dto.auth.OtpRequest;
 import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
+import com.cloudkitchen.rbac.dto.auth.PasswordResetRequest;
+import com.cloudkitchen.rbac.dto.auth.PasswordResetTokenResponse;
 import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 
@@ -28,6 +30,8 @@ public interface AuthService {
     ResponseEntity<Map<String, Object>> verifyOtpResponse(OtpVerifyRequest req);
     AuthResponse verifyOtp(OtpVerifyRequest req);
     String verifyOtpWithStatus(OtpVerifyRequest req);
+    PasswordResetTokenResponse verifyOtpForPasswordReset(OtpVerifyRequest req);
+    ResponseEntity<Map<String, Object>> resetPassword(PasswordResetRequest req);
 
     /**
      * Optimized method that combines OTP verification and token generation in a single operation.

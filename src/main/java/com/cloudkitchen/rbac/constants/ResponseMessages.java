@@ -24,6 +24,7 @@ public final class ResponseMessages {
         public static final String ACCOUNT_INACTIVE = "Account is inactive";
         public static final String TOKEN_EXPIRED = "Your session has expired. Please login again.";
         public static final String INVALID_TOKEN = "Invalid token";
+        public static final String INVALID_OR_EXPIRED_RESET_TOKEN = "Invalid or expired reset token";
         public static final String ACCESS_DENIED = "Access denied";
         public static final String AUTHENTICATION_REQUIRED = "Unauthorized - Authentication required.";
         public static final String MERCHANT_LOGIN_ONLY = "Only merchant (0) login allowed";
@@ -37,7 +38,7 @@ public final class ResponseMessages {
         public static final String PHONE_VERIFICATION_OTP = "Phone verification OTP sent. Valid for 10 minutes.";
         public static final String ACCOUNT_VERIFICATION_OTP = "Account verification OTP sent. Valid for 15 minutes.";
         public static final String OTP_VERIFIED = "Verification successful";
-        public static final String OTP_PASSWORD_RESET_SUCCESS = "OTP verified. Default password has been set. Please change it in your profile.";
+        public static final String OTP_PASSWORD_RESET_SUCCESS = "OTP verified. Use the reset token to set a new password.";
         public static final String OTP_TYPE_PASSWORD_RESET = "password_reset";
         public static final String RATE_LIMIT_EXCEEDED_PREFIX = "Rate limit exceeded: ";
         public static final String OTP_EXPIRED = "OTP expired";

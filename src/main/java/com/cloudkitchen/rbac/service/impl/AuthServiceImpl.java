@@ -1,6 +1,7 @@
 package com.cloudkitchen.rbac.service.impl;
 
 import java.security.SecureRandom;
+import java.util.Base64;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,8 @@ import com.cloudkitchen.rbac.dto.auth.AuthRequest;
 import com.cloudkitchen.rbac.dto.auth.AuthResponse;
 import com.cloudkitchen.rbac.dto.auth.OtpRequest;
 import com.cloudkitchen.rbac.dto.auth.OtpVerifyRequest;
+import com.cloudkitchen.rbac.dto.auth.PasswordResetRequest;
+import com.cloudkitchen.rbac.dto.auth.PasswordResetTokenResponse;
 import com.cloudkitchen.rbac.dto.auth.RefreshTokenRequest;
 import com.cloudkitchen.rbac.dto.auth.RegisterRequest;
 import com.cloudkitchen.rbac.exception.BusinessExceptions.AccessDeniedException;
@@ -64,6 +67,8 @@ public class AuthServiceImpl implements AuthService {
     private static final String ROLE_SUPER_ADMIN = "super_admin";
     private static final String OTP_TYPE_PASSWORD_RESET = "password_reset";
     private static final String INVALID_OTP_ATTEMPT_LOG = "Invalid OTP attempt {} for phone: {}";
+    private static final int PASSWORD_RESET_TOKEN_BYTES = 32;
+    private static final int PASSWORD_RESET_TOKEN_MINUTES = 10;
 
     private final UserRepository users;
     private final MerchantRepository merchants;
@@ -313,15 +318,17 @@ public class AuthServiceImpl implements AuthService {
         log.info("OTP verification request received for merchantId: {}", req.getMerchantId());
 
         try {
+            if (ResponseMessages.Otp.OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())) {
+                PasswordResetTokenResponse tokenResponse = authServiceProxy.verifyOtpForPasswordReset(req);
+                log.info("OTP verified for password reset phone={}, merchantId={}", req.getPhone(), req.getMerchantId());
+                return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK,
+                        ResponseMessages.Otp.OTP_PASSWORD_RESET_SUCCESS, tokenResponse));
+            }
+
             // Optimized: Single call that validates and generates token
             AuthResponse authResponse = authServiceProxy.verifyOtpAndGenerateToken(req);
-
-            String message = ResponseMessages.Otp.OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())
-                    ? ResponseMessages.Otp.OTP_PASSWORD_RESET_SUCCESS
-                    : ResponseMessages.Otp.OTP_VERIFIED;
-
             log.info("OTP verified for phone={}, merchantId={}, otpType={}", req.getPhone(), req.getMerchantId(), req.getOtpType());
-            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, message, authResponse));
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, ResponseMessages.Otp.OTP_VERIFIED, authResponse));
         } catch (ValidationException | IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, e.getMessage()));
@@ -1036,6 +1043,10 @@ public class AuthServiceImpl implements AuthService {
         String maskedPhone = maskPhone(req.getPhone());
         log.info("OTP verification attempt for phone: {}, otpType: {}", maskedPhone, req.getOtpType());
 
+        if (OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())) {
+            throw new ValidationException("Password reset OTP must be completed via the password reset endpoint.");
+        }
+
         try {
             User user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
 
@@ -1090,14 +1101,6 @@ public class AuthServiceImpl implements AuthService {
 
             Integer customerId = getCustomerId(user, merchantId);
 
-            if (OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())) {
-                String randomPassword = generateRandomPassword();
-                user.setPasswordHash(encoder.encode(randomPassword));
-                users.save(user);
-                log.info("Password reset with random password for user: {}", maskedPhone);
-                return buildTokens(user, req.getMerchantId(), customerId);
-            }
-
             log.info("OTP verified successfully for phone: {}", maskedPhone);
             return buildTokens(user, req.getMerchantId(), customerId);
 
@@ -1135,6 +1138,10 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse verifyOtpAndGenerateToken(OtpVerifyRequest req) {
         String maskedPhone = maskPhone(req.getPhone());
         log.info("OTP verification and token generation for phone: {}, otpType: {}", maskedPhone, req.getOtpType());
+
+        if (OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())) {
+            throw new ValidationException("Password reset OTP must be completed via the password reset endpoint.");
+        }
 
         // 1. INPUT VALIDATION FIRST (before any business logic)
         try {
@@ -1207,16 +1214,136 @@ public class AuthServiceImpl implements AuthService {
 
         Integer customerId = getCustomerId(user, merchantId);
 
-        // Handle password reset
-        if (OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())) {
-            String randomPassword = generateRandomPassword();
-            user.setPasswordHash(encoder.encode(randomPassword));
-            users.save(user);
-            log.info("Password reset with random password for user: {}", maskedPhone);
-        }
-
         log.info("OTP verified successfully for phone: {}", maskedPhone);
         return buildTokens(user, req.getMerchantId(), customerId);
+    }
+
+    @Override
+    @Transactional
+    public PasswordResetTokenResponse verifyOtpForPasswordReset(OtpVerifyRequest req) {
+        String maskedPhone = maskPhone(req.getPhone());
+        log.info("Password reset OTP verification for phone: {}", maskedPhone);
+
+        // 1. INPUT VALIDATION FIRST (before any business logic)
+        try {
+            validationService.validateMobileForOtp(req.getPhone());
+        } catch (IllegalArgumentException e) {
+            String errorMsg = "Mobile validation failed for phone " + maskedPhone + " during password reset: " + e.getMessage();
+            log.warn(errorMsg);
+            throw new ValidationException(e.getMessage(), e);
+        }
+
+        try {
+            validationService.validateOtp(req.getOtp());
+        } catch (IllegalArgumentException e) {
+            String errorMsg = "OTP format validation failed for phone " + maskedPhone + " during password reset: " + e.getMessage();
+            log.warn(errorMsg);
+            throw new ValidationException(e.getMessage(), e);
+        }
+
+        // 2. CHECK IF MOBILE IS REGISTERED
+        User user;
+        try {
+            user = findUserByPhoneAndMerchantId(req.getPhone(), req.getMerchantId());
+        } catch (UserNotFoundException e) {
+            log.warn("Mobile number not registered for password reset: {}", maskedPhone);
+            throw new MobileNotRegisteredException("Mobile number not registered");
+        }
+
+        // 3. CHECK IF OTP REQUEST EXISTS
+        if (user.getOtpCode() == null) {
+            log.warn("No OTP request found for password reset phone: {}", maskedPhone);
+            throw new OtpNotFoundException("OTP not requested");
+        }
+
+        // 4. CHECK IF OTP IS EXPIRED (before checking attempts or validity)
+        if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
+            log.warn("OTP expired for phone: {}", maskedPhone);
+            otpAuditService.updateOtpExpired(req.getPhone());
+            clearOtpData(user);
+            throw new OtpExpiredException("OTP expired");
+        }
+
+        // 5. CHECK ATTEMPT LIMIT
+        Integer otpAttempts = user.getOtpAttempts();
+        int currentAttempts = otpAttempts != null ? otpAttempts : 0;
+        if (currentAttempts >= AppConstants.OTP_MAX_ATTEMPTS) {
+            log.warn("OTP attempts exceeded for phone: {}", maskedPhone);
+            otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts);
+            clearOtpData(user);
+            throw new OtpAttemptsExceededException("OTP verification attempts exceeded");
+        }
+
+        // 6. VERIFY OTP
+        if (!isOtpValid(req.getOtp(), user.getOtpCode())) {
+            user.setOtpAttempts(currentAttempts + 1);
+            users.save(user);
+            otpAuditService.updateOtpFailed(req.getPhone(), currentAttempts + 1);
+            log.warn(INVALID_OTP_ATTEMPT_LOG, currentAttempts + 1, maskedPhone);
+            throw new InvalidOtpException("Invalid OTP");
+        }
+
+        Integer merchantId = user.getMerchant() != null ? user.getMerchant().getMerchantId() : req.getMerchantId();
+        otpAuditService.logOtpVerified(req.getPhone(), merchantId);
+
+        user.setOtpUsed(true);
+        issuePasswordResetToken(user);
+        users.save(user);
+        clearOtpData(user);
+
+        log.info("Password reset token issued for phone: {}", maskedPhone);
+        return new PasswordResetTokenResponse(user.getPasswordResetToken(), user.getPasswordResetExpiresAt());
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<Map<String, Object>> resetPassword(PasswordResetRequest req) {
+        if (req.getResetToken() == null || req.getResetToken().trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, "Reset token is required"));
+        }
+        if (req.getNewPassword() == null || req.getNewPassword().trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, "New password is required"));
+        }
+
+        try {
+            validationService.validatePassword(req.getNewPassword());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, e.getMessage()));
+        }
+
+        User user = users.findByPasswordResetToken(req.getResetToken().trim())
+                .orElse(null);
+        if (user == null || user.getPasswordResetExpiresAt() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED,
+                            ResponseMessages.Auth.INVALID_OR_EXPIRED_RESET_TOKEN));
+        }
+
+        if (user.getPasswordResetExpiresAt().isBefore(LocalDateTime.now())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED,
+                            ResponseMessages.Auth.INVALID_OR_EXPIRED_RESET_TOKEN));
+        }
+
+        user.setPasswordHash(encoder.encode(req.getNewPassword()));
+        user.setPasswordResetToken(null);
+        user.setPasswordResetExpiresAt(null);
+        users.save(user);
+
+        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK,
+                ResponseMessages.User.PASSWORD_CHANGED));
+    }
+
+    private void issuePasswordResetToken(User user) {
+        byte[] bytes = new byte[PASSWORD_RESET_TOKEN_BYTES];
+        SecureRandom random = new SecureRandom();
+        random.nextBytes(bytes);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        user.setPasswordResetToken(token);
+        user.setPasswordResetExpiresAt(LocalDateTime.now().plusMinutes(PASSWORD_RESET_TOKEN_MINUTES));
     }
 
 /**
