@@ -312,15 +312,42 @@ public class AuthServiceImpl implements AuthService {
     public ResponseEntity<Map<String, Object>> verifyOtpResponse(OtpVerifyRequest req) {
         log.info("OTP verification request received for merchantId: {}", req.getMerchantId());
 
-        // Optimized: Single call that validates and generates token
-        AuthResponse authResponse = authServiceProxy.verifyOtpAndGenerateToken(req);
+        try {
+            // Optimized: Single call that validates and generates token
+            AuthResponse authResponse = authServiceProxy.verifyOtpAndGenerateToken(req);
 
-        String message = ResponseMessages.Otp.OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())
-                ? ResponseMessages.Otp.OTP_PASSWORD_RESET_SUCCESS
-                : ResponseMessages.Otp.OTP_VERIFIED;
+            String message = ResponseMessages.Otp.OTP_TYPE_PASSWORD_RESET.equals(req.getOtpType())
+                    ? ResponseMessages.Otp.OTP_PASSWORD_RESET_SUCCESS
+                    : ResponseMessages.Otp.OTP_VERIFIED;
 
-        log.info("OTP verified for phone={}, merchantId={}, otpType={}", req.getPhone(), req.getMerchantId(), req.getOtpType());
-        return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, message, authResponse));
+            log.info("OTP verified for phone={}, merchantId={}, otpType={}", req.getPhone(), req.getMerchantId(), req.getOtpType());
+            return ResponseEntity.ok(ResponseBuilder.success(HttpResponseUtil.OK, message, authResponse));
+        } catch (ValidationException | IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, e.getMessage()));
+        } catch (MobileNotRegisteredException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Otp.PHONE_NOT_REGISTERED));
+        } catch (OtpNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ResponseBuilder.error(HttpResponseUtil.NOT_FOUND, ResponseMessages.Otp.NO_OTP_REQUEST));
+        } catch (OtpExpiredException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseBuilder.error(HttpResponseUtil.BAD_REQUEST, ResponseMessages.Otp.OTP_EXPIRED));
+        } catch (OtpAttemptsExceededException e) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(ResponseBuilder.error(HttpResponseUtil.TOO_MANY_REQUESTS, ResponseMessages.Otp.OTP_ATTEMPTS_EXCEEDED));
+        } catch (InvalidOtpException | OtpInvalidException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ResponseBuilder.error(HttpResponseUtil.UNAUTHORIZED, ResponseMessages.Otp.OTP_INVALID));
+        } catch (ServiceUnavailableException e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ResponseBuilder.error(HttpResponseUtil.SERVICE_UNAVAILABLE, ResponseMessages.Otp.SMS_SERVICE_UNAVAILABLE));
+        } catch (RuntimeException e) {
+            log.warn("OTP verification failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error(HttpResponseUtil.INTERNAL_SERVER_ERROR, ResponseMessages.Otp.OTP_VERIFICATION_FAILED));
+        }
     }
 
     private String getSuccessMessageByType(String otpType) {
