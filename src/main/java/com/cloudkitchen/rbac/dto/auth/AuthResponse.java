@@ -15,6 +15,7 @@ public class AuthResponse {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Integer customerId;
 
+    private String firstName;
     private String phone;
     private List<String> roles;
 
@@ -42,6 +43,9 @@ public class AuthResponse {
 
     public Integer getCustomerId() { return customerId; }
     public void setCustomerId(Integer customerId) { this.customerId = customerId; }
+
+    public String getFirstName() { return firstName; }
+    public void setFirstName(String firstName) { this.firstName = firstName; }
 
     public List<String> getRoles() { return roles; }
     public void setRoles(List<String> roles) { this.roles = roles; }

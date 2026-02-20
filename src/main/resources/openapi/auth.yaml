@@ -493,6 +493,11 @@ components:
           nullable: true
           description: Customer ID
           example: 456
+        firstName:
+          type: string
+          nullable: true
+          description: User first name
+          example: "John"
         phone:
           type: string
           nullable: true
