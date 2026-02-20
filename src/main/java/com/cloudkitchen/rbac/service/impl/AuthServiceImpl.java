@@ -399,7 +399,7 @@ public class AuthServiceImpl implements AuthService {
         
         Customer customer = createCustomer(req, merchant, user);
 
-        return buildTokens(user, merchant.getMerchantId(), customer.getCustomerId());
+        return buildTokens(user, merchant.getMerchantId(), customer.getCustomerId(), false);
     }
 
     private User createUser(RegisterRequest req, Merchant merchant, String userType) {
@@ -476,7 +476,7 @@ public class AuthServiceImpl implements AuthService {
         Integer customerId = getCustomerId(user, req.getMerchantId());
 
         log.info("Login successful for user: {} (type: {})", user.getUserId(), user.getUserType());
-        return buildTokens(user, req.getMerchantId(), customerId);
+        return buildTokens(user, req.getMerchantId(), customerId, true);
     }
     
     private void validateLoginInputs(AuthRequest req) {
@@ -565,7 +565,7 @@ public class AuthServiceImpl implements AuthService {
             jwt.blacklistToken(req.getRefreshToken());
             
             Integer customerId = getCustomerId(user, merchantId);
-            return buildTokens(user, merchantId, customerId);
+            return buildTokens(user, merchantId, customerId, false);
         } catch (io.jsonwebtoken.JwtException e) {
             log.warn("JWT exception during token refresh: {}", e.getMessage());
             throw new InvalidCredentialsException("Invalid refresh token. Please login again.");
@@ -584,10 +584,11 @@ public class AuthServiceImpl implements AuthService {
         return null;
     }
 
-    private AuthResponse buildTokens(User user, Integer merchantId, Integer customerId) {
+    private AuthResponse buildTokens(User user, Integer merchantId, Integer customerId, boolean includeFirstName) {
         Integer actualMerchantId = determineActualMerchantId(user, merchantId);
         Integer queryMerchantId = (actualMerchantId != null && Integer.valueOf(0).equals(actualMerchantId)) ? null
                 : actualMerchantId;
+        String firstName = includeFirstName ? resolveFirstName(user, customerId, actualMerchantId) : null;
 
         List<String> roleNames;
         List<String> permissionNames;
@@ -621,9 +622,32 @@ public class AuthServiceImpl implements AuthService {
         response.setUserId(user.getUserId());
         response.setMerchantId(actualMerchantId);
         response.setCustomerId(customerId);
+        response.setFirstName(firstName);
         response.setPhone(user.getPhone());
         response.setRoles(roleNames);
         return response;
+    }
+
+    private String resolveFirstName(User user, Integer customerId, Integer merchantId) {
+        String firstName = user.getFirstName();
+
+        if (!isBlank(firstName)) {
+            return firstName;
+        }
+
+        if (customerId != null && merchantId != null && merchantId > 0) {
+            Customer customer = customers.findByCustomerIdAndMerchant_MerchantIdAndDeletedAtIsNull(customerId, merchantId)
+                    .orElse(null);
+            if (customer != null) {
+                firstName = customer.getFirstName();
+            }
+        }
+
+        return firstName;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     /**
@@ -1102,7 +1126,7 @@ public class AuthServiceImpl implements AuthService {
             Integer customerId = getCustomerId(user, merchantId);
 
             log.info("OTP verified successfully for phone: {}", maskedPhone);
-            return buildTokens(user, req.getMerchantId(), customerId);
+            return buildTokens(user, req.getMerchantId(), customerId, false);
 
         } catch (RuntimeException e) {
             log.warn("OTP verification failed: {}", e.getMessage());
@@ -1215,7 +1239,7 @@ public class AuthServiceImpl implements AuthService {
         Integer customerId = getCustomerId(user, merchantId);
 
         log.info("OTP verified successfully for phone: {}", maskedPhone);
-        return buildTokens(user, req.getMerchantId(), customerId);
+        return buildTokens(user, req.getMerchantId(), customerId, false);
     }
 
     @Override
