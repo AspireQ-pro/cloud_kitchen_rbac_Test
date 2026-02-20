@@ -118,6 +118,9 @@ paths:
   /api/v1/auth/otp/verify:
     $ref: './auth.yaml#/paths/~1api~1v1~1auth~1otp~1verify'
 
+  /api/v1/auth/password/reset:
+    $ref: './auth.yaml#/paths/~1api~1v1~1auth~1password~1reset'
+
   # User Management endpoints
   /api/v1/users:
     $ref: './users.yaml#/paths/~1api~1v1~1users'
@@ -227,6 +230,9 @@ components:
 
     OtpVerifyRequest:
       $ref: './auth.yaml#/components/schemas/OtpVerifyRequest'
+
+    PasswordResetRequest:
+      $ref: './auth.yaml#/components/schemas/PasswordResetRequest'
 
     AuthResponse:
       $ref: './auth.yaml#/components/schemas/AuthResponse'
